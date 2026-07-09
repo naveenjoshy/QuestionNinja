@@ -36,7 +36,8 @@ const DEFAULT_METADATA = {
   subject: 'Computer Science & Programming',
   classDiv: 'Class X - Division A & B',
   maxMarks: 50,
-  duration: '120 Minutes'
+  duration: '120 Minutes',
+  separateAnswerSheet: false
 };
 
 const DEFAULT_SECTIONS = [
@@ -381,7 +382,8 @@ export default function App() {
         subject: '',
         classDiv: '',
         maxMarks: 100,
-        duration: ''
+        duration: '',
+        separateAnswerSheet: false
       });
       setSections([]);
     }
@@ -684,20 +686,22 @@ export default function App() {
         } 
         
         else if (q.type === 'essay') {
-          // Renders specified blank lines
-          const linesCount = q.blankLines || 5;
-          for (let i = 0; i < linesCount; i++) {
-            headerChildren.push(
-              new docx.Paragraph({
-                spacing: { after: 120 },
-                children: [
-                  new docx.TextRun({
-                    text: '____________________________________________________________________________',
-                    color: 'E0E0E0'
-                  })
-                ]
-              })
-            );
+          if (!metadata.separateAnswerSheet) {
+            // Renders specified blank lines
+            const linesCount = q.blankLines || 5;
+            for (let i = 0; i < linesCount; i++) {
+              headerChildren.push(
+                new docx.Paragraph({
+                  spacing: { after: 120 },
+                  children: [
+                    new docx.TextRun({
+                      text: '____________________________________________________________________________',
+                      color: 'E0E0E0'
+                    })
+                  ]
+                })
+              );
+            }
           }
         } 
         
@@ -708,14 +712,14 @@ export default function App() {
               spacing: { after: 60 },
               children: [
                 new docx.TextRun({
-                  text: '[    ] True        [    ] False',
+                  text: metadata.separateAnswerSheet ? '(True / False)' : '[    ] True        [    ] False',
                   bold: true,
                   size: 20
                 })
               ]
             })
           );
-        } 
+        }  
         
         else if (q.type === 'match_following' && q.matchPairs) {
           // Build match list
@@ -953,6 +957,19 @@ export default function App() {
                     placeholder="e.g. 2 Hours"
                   />
                 </div>
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                <input 
+                  type="checkbox" 
+                  id="separateAnswerSheet"
+                  checked={metadata.separateAnswerSheet || false}
+                  onChange={(e) => setMetadata({ ...metadata, separateAnswerSheet: e.target.checked })}
+                  style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
+                />
+                <label htmlFor="separateAnswerSheet" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500' }}>
+                  Separate Answer Sheet (remove write spaces & answer slots)
+                </label>
               </div>
 
               {/* Validation Badges */}
@@ -1386,7 +1403,7 @@ export default function App() {
                                   )}
 
                                   {/* Essay spaces */}
-                                  {q.type === 'essay' && (
+                                  {q.type === 'essay' && !metadata.separateAnswerSheet && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
                                       {Array.from({ length: q.blankLines || 5 }).map((_, lineIdx) => (
                                         <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
@@ -1397,8 +1414,14 @@ export default function App() {
                                   {/* True/False selection */}
                                   {q.type === 'true_false' && (
                                     <div className="paper-tf-options">
-                                      <span>[   ] True</span>
-                                      <span>[   ] False</span>
+                                      {metadata.separateAnswerSheet ? (
+                                        <span>(True / False)</span>
+                                      ) : (
+                                        <>
+                                          <span>[   ] True</span>
+                                          <span>[   ] False</span>
+                                        </>
+                                      )}
                                     </div>
                                   )}
 
