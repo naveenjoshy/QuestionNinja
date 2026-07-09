@@ -175,7 +175,7 @@ input[type="number"],
 select,
 textarea {
   background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: 1.5px solid rgba(99, 102, 241, 0.4);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   padding: 10px 14px;

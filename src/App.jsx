@@ -18,7 +18,9 @@ import {
   ChevronDown,
   ChevronUp,
   Sun,
-  Moon
+  Moon,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import * as docx from 'docx';
 
@@ -899,6 +901,12 @@ export default function App() {
                 <Move size={16} />
                 <span>Tip: You can click & drag the school logo directly on the A4 page preview to position it, or drag the bottom-right handle to scale it!</span>
               </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button className="btn btn-primary" onClick={() => setActiveTab('metadata')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Next <ArrowRight size={14} />
+                </button>
+              </div>
             </div>
           )}
 
@@ -985,6 +993,15 @@ export default function App() {
                     <span>Perfect: Sum of all questions matches targets!</span>
                   </div>
                 )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                <button className="btn btn-secondary" onClick={() => setActiveTab('branding')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ArrowLeft size={14} /> Back
+                </button>
+                <button className="btn btn-primary" onClick={() => setActiveTab('sections')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Next <ArrowRight size={14} />
+                </button>
               </div>
             </div>
           )}
@@ -1267,6 +1284,12 @@ export default function App() {
               <button className="btn btn-secondary" onClick={addSection}>
                 <Plus size={16} /> Add New Section
               </button>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '10px' }}>
+                <button className="btn btn-secondary" onClick={() => setActiveTab('metadata')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ArrowLeft size={14} /> Back
+                </button>
+              </div>
             </div>
           )}
         </div>
