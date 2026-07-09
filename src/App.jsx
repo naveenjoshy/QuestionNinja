@@ -28,9 +28,10 @@ const DEFAULT_BRANDING = {
   logo: '',
   logoSize: 100,
   logoPos: { x: 0, y: 0 },
-  schoolName: 'St. Andrew\'s International School',
-  schoolAddress: 'Sector 4, Green Valley District, New Delhi - 110001\nPhone: +91 11 2345 6789 | Email: contact@standrews.edu.in',
-  fontFamily: 'Cinzel'
+  schoolName: 'Girijyothi CMI Public School',
+  schoolAddress: 'Vazhathope, Idukki',
+  fontFamily: 'Cinzel',
+  headerLogoOnly: false
 };
 
 const DEFAULT_METADATA = {
@@ -377,7 +378,8 @@ export default function App() {
         logoPos: { x: 0, y: 0 },
         schoolName: '',
         schoolAddress: '',
-        fontFamily: 'Inter'
+        fontFamily: 'Inter',
+        headerLogoOnly: false
       });
       setMetadata({
         title: '',
@@ -389,6 +391,210 @@ export default function App() {
       });
       setSections([]);
     }
+  };
+
+  // CSV Export & Import Features
+  const exportToCSV = () => {
+    const headers = [
+      'Section Title',
+      'Section Marks',
+      'Section Instructions',
+      'Question Type',
+      'Question Text',
+      'Question Marks',
+      'Options',
+      'Blank Lines',
+      'Match Pairs'
+    ];
+
+    const rows = [];
+    sections.forEach((sec) => {
+      if (sec.questions.length === 0) {
+        rows.push([
+          sec.title,
+          sec.marks,
+          sec.instructions,
+          '',
+          '',
+          '',
+          '',
+          '',
+          ''
+        ]);
+      } else {
+        sec.questions.forEach((q) => {
+          let optionsStr = '';
+          if (q.type === 'mcq' && q.options) {
+            optionsStr = q.options.join(';');
+          }
+          
+          let matchPairsStr = '';
+          if (q.type === 'match_following' && q.matchPairs) {
+            matchPairsStr = q.matchPairs.map(p => `${p.premise}=${p.response}`).join(';');
+          }
+
+          rows.push([
+            sec.title,
+            sec.marks,
+            sec.instructions,
+            q.type,
+            q.text,
+            q.marks,
+            optionsStr,
+            q.blankLines || '',
+            matchPairsStr
+          ]);
+        });
+      }
+    });
+
+    const csvContent = [
+      headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
+      ...rows.map(row => row.map(val => {
+        const valStr = val === undefined || val === null ? '' : String(val);
+        return `"${valStr.replace(/"/g, '""')}"`;
+      }).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${metadata.title || 'question_paper'}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const parseCSV = (text) => {
+    const lines = [];
+    let row = [""];
+    let insideQuote = false;
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+      
+      if (char === '"') {
+        if (insideQuote && nextChar === '"') {
+          row[row.length - 1] += '"';
+          i++;
+        } else {
+          insideQuote = !insideQuote;
+        }
+      } else if (char === ',' && !insideQuote) {
+        row.push("");
+      } else if ((char === '\r' || char === '\n') && !insideQuote) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        lines.push(row);
+        row = [""];
+      } else {
+        row[row.length - 1] += char;
+      }
+    }
+    if (row.length > 1 || row[0] !== "") {
+      lines.push(row);
+    }
+    return lines;
+  };
+
+  const importFromCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target.result;
+        const parsedRows = parseCSV(text);
+        if (parsedRows.length < 2) {
+          alert('Invalid CSV file.');
+          return;
+        }
+
+        const importedSections = [];
+        let currentSection = null;
+
+        for (let i = 1; i < parsedRows.length; i++) {
+          const row = parsedRows[i];
+          if (row.length < 3) continue;
+
+          const secTitle = row[0];
+          const secMarks = Number(row[1]) || 0;
+          const secInstructions = row[2];
+          const qType = row[3];
+          const qText = row[4];
+          const qMarks = Number(row[5]) || 0;
+          const optionsStr = row[6];
+          const blankLinesVal = row[7];
+          const matchPairsStr = row[8];
+
+          if (!secTitle && !qText) continue;
+
+          if (secTitle && (!currentSection || currentSection.title !== secTitle)) {
+            currentSection = {
+              id: `sec-${Date.now()}-${i}`,
+              title: secTitle,
+              marks: secMarks,
+              instructions: secInstructions,
+              questions: []
+            };
+            importedSections.push(currentSection);
+          }
+
+          if (!currentSection) {
+            currentSection = {
+              id: `sec-${Date.now()}-${i}`,
+              title: 'Imported Section',
+              marks: 0,
+              instructions: '',
+              questions: []
+            };
+            importedSections.push(currentSection);
+          }
+
+          if (qType && qText) {
+            const q = {
+              id: `q-${Date.now()}-${i}`,
+              type: qType,
+              text: qText,
+              marks: qMarks
+            };
+
+            if (qType === 'mcq') {
+              q.options = optionsStr ? optionsStr.split(';') : ['', '', '', ''];
+            } else if (qType === 'essay') {
+              q.blankLines = Number(blankLinesVal) || 5;
+            } else if (qType === 'match_following') {
+              q.matchPairs = matchPairsStr 
+                ? matchPairsStr.split(';').map(pair => {
+                    const parts = pair.split('=');
+                    return { premise: parts[0] || '', response: parts[1] || '' };
+                  })
+                : [];
+            }
+
+            currentSection.questions.push(q);
+          }
+        }
+
+        if (importedSections.length > 0) {
+          if (window.confirm(`Successfully parsed ${importedSections.length} sections. Import and replace current layout?`)) {
+            setSections(importedSections);
+          }
+        } else {
+          alert('No valid sections or questions found in the CSV.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error parsing CSV file. Please make sure the format is correct.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Print PDF Trigger
@@ -403,7 +609,7 @@ export default function App() {
     // Create the School branding header
     const headerChildren = [];
     
-    if (branding.schoolName) {
+    if (!branding.headerLogoOnly && branding.schoolName) {
       headerChildren.push(
         new docx.Paragraph({
           alignment: docx.AlignmentType.CENTER,
@@ -420,7 +626,7 @@ export default function App() {
       );
     }
 
-    if (branding.schoolAddress) {
+    if (!branding.headerLogoOnly && branding.schoolAddress) {
       const addressLines = branding.schoolAddress.split('\n');
       addressLines.forEach(line => {
         headerChildren.push(
@@ -801,7 +1007,7 @@ export default function App() {
               <BookOpen size={24} className="text-accent" />
               <span>QuestionNinja</span>
             </h1>
-            <p>Local Question Paper Designer</p>
+            <p>Question Paper Designer for Schools</p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-secondary btn-sm" onClick={toggleTheme} title="Toggle Light/Dark Theme">
@@ -834,7 +1040,7 @@ export default function App() {
             style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'sections' ? '2px solid var(--accent)' : 'none' }}
             onClick={() => setActiveTab('sections')}
           >
-            <Layers size={14} /> Exam Layout
+            <Layers size={14} /> Questions
           </button>
         </div>
 
@@ -895,17 +1101,24 @@ export default function App() {
                     <option value="Cinzel">Cinzel (Regal / Classical)</option>
                   </select>
                 </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                  <input 
+                    type="checkbox" 
+                    id="headerLogoOnly"
+                    checked={branding.headerLogoOnly || false}
+                    onChange={(e) => setBranding({ ...branding, headerLogoOnly: e.target.checked })}
+                    style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
+                  />
+                  <label htmlFor="headerLogoOnly" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500' }}>
+                    Header Logo Only (no school name and address on printed paper)
+                  </label>
+                </div>
               </div>
 
               <div className="warning-badge" style={{ padding: '12px' }}>
                 <Move size={16} />
                 <span>Tip: You can click & drag the school logo directly on the A4 page preview to position it, or drag the bottom-right handle to scale it!</span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button className="btn btn-primary" onClick={() => setActiveTab('metadata')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  Next <ArrowRight size={14} />
-                </button>
               </div>
             </div>
           )}
@@ -993,15 +1206,6 @@ export default function App() {
                     <span>Perfect: Sum of all questions matches targets!</span>
                   </div>
                 )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                <button className="btn btn-secondary" onClick={() => setActiveTab('branding')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ArrowLeft size={14} /> Back
-                </button>
-                <button className="btn btn-primary" onClick={() => setActiveTab('sections')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  Next <ArrowRight size={14} />
-                </button>
               </div>
             </div>
           )}
@@ -1284,24 +1488,49 @@ export default function App() {
               <button className="btn btn-secondary" onClick={addSection}>
                 <Plus size={16} /> Add New Section
               </button>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '10px' }}>
-                <button className="btn btn-secondary" onClick={() => setActiveTab('metadata')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ArrowLeft size={14} /> Back
-                </button>
-              </div>
             </div>
           )}
         </div>
 
         {/* Global Action Bar */}
-        <div className="action-bar">
-          <button className="btn btn-secondary btn-sm" onClick={loadDemo} style={{ flex: 1 }}>
-            Demo Data
-          </button>
-          <button className="btn btn-danger btn-sm" onClick={resetAll} style={{ flex: 1 }}>
-            Clear Draft
-          </button>
+        <div className="action-bar" style={{ flexDirection: 'column', gap: '8px' }}>
+          {/* Wizard Navigation */}
+          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+            {activeTab !== 'branding' && (
+              <button className="btn btn-secondary" onClick={() => {
+                if (activeTab === 'metadata') setActiveTab('branding');
+                else if (activeTab === 'sections') setActiveTab('metadata');
+              }} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <ArrowLeft size={14} /> Back
+              </button>
+            )}
+            {activeTab !== 'sections' && (
+              <button className="btn btn-primary" onClick={() => {
+                if (activeTab === 'branding') setActiveTab('metadata');
+                else if (activeTab === 'metadata') setActiveTab('sections');
+              }} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                Next <ArrowRight size={14} />
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+            <button className="btn btn-secondary btn-sm" onClick={loadDemo} style={{ flex: 1 }}>
+              Demo Data
+            </button>
+            <button className="btn btn-danger btn-sm" onClick={resetAll} style={{ flex: 1 }}>
+              Clear Draft
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+            <button className="btn btn-primary btn-sm" onClick={exportToCSV} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <Download size={12} /> Export CSV
+            </button>
+            <label className="btn btn-secondary btn-sm" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}>
+              <Plus size={12} /> Import CSV
+              <input type="file" accept=".csv" onChange={importFromCSV} style={{ display: 'none' }} />
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1347,8 +1576,8 @@ export default function App() {
                   )}
 
                   <div className="school-details">
-                    {branding.schoolName && <h1 className="school-name-render">{branding.schoolName}</h1>}
-                    {branding.schoolAddress && <p className="school-address-render">{branding.schoolAddress}</p>}
+                    {!branding.headerLogoOnly && branding.schoolName && <h1 className="school-name-render">{branding.schoolName}</h1>}
+                    {!branding.headerLogoOnly && branding.schoolAddress && <p className="school-address-render">{branding.schoolAddress}</p>}
                   </div>
                 </div>
 
@@ -1384,7 +1613,7 @@ export default function App() {
                 <div className="paper-sections-container">
                   {sections.length === 0 ? (
                     <div style={{ textAlign: 'center', color: '#999', padding: '40px 0', fontSize: '14px', fontStyle: 'italic' }}>
-                      No sections added yet. Use the "Exam Layout" tab in the editor to create sections and populate questions.
+                      No sections added yet. Use the "Questions" tab in the editor to create sections and populate questions.
                     </div>
                   ) : (
                     sections.map((sec, sIdx) => (
