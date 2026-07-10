@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Plus, 
-  Trash2, 
-  ArrowUp, 
-  ArrowDown, 
-  Download, 
-  FileText, 
-  Settings, 
-  BookOpen, 
-  Layers, 
-  HelpCircle, 
+import {
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Download,
+  FileText,
+  Settings,
+  BookOpen,
+  Layers,
+  HelpCircle,
   Image as ImageIcon,
-  CheckCircle, 
+  CheckCircle,
   AlertTriangle,
   Move,
   Maximize2,
@@ -42,7 +42,7 @@ const DEFAULT_METADATA = {
   subject: 'Computer Science & Programming',
   classDiv: 'Class X - Division A & B',
   maxMarks: 50,
-  duration: '120 Minutes',
+  duration: '90 Minutes',
   separateAnswerSheet: false
 };
 
@@ -398,7 +398,7 @@ export default function App() {
   const moveSection = (index, direction) => {
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === sections.length - 1) return;
-    
+
     const nextIndex = direction === 'up' ? index - 1 : index + 1;
     const newSections = [...sections];
     const temp = newSections[index];
@@ -496,7 +496,7 @@ export default function App() {
           if (sec.type === 'mcq' && q.options) {
             optionsStr = q.options.join(';');
           }
-          
+
           let matchPairsStr = '';
           if (sec.type === 'match_following' && q.matchPairs) {
             matchPairsStr = q.matchPairs.map(p => `${p.premise}=${p.response}`).join(';');
@@ -540,11 +540,11 @@ export default function App() {
     const lines = [];
     let row = [""];
     let insideQuote = false;
-    
+
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const nextChar = text[i + 1];
-      
+
       if (char === '"') {
         if (insideQuote && nextChar === '"') {
           row[row.length - 1] += '"';
@@ -640,11 +640,11 @@ export default function App() {
             } else if (qType === 'essay') {
               q.blankLines = Number(blankLinesVal) || 5;
             } else if (qType === 'match_following') {
-              q.matchPairs = matchPairsStr 
+              q.matchPairs = matchPairsStr
                 ? matchPairsStr.split(';').map(pair => {
-                    const parts = pair.split('=');
-                    return { premise: parts[0] || '', response: parts[1] || '' };
-                  })
+                  const parts = pair.split('=');
+                  return { premise: parts[0] || '', response: parts[1] || '' };
+                })
                 : [];
             }
 
@@ -684,7 +684,7 @@ export default function App() {
 
     // Create the School branding header
     const headerChildren = [];
-    
+
     if (!branding.headerLogoOnly && branding.schoolName) {
       headerChildren.push(
         new docx.Paragraph({
@@ -857,7 +857,7 @@ export default function App() {
     });
 
     headerChildren.push(metaTable);
-    
+
     // Bottom border for metadata
     headerChildren.push(
       new docx.Paragraph({
@@ -875,7 +875,7 @@ export default function App() {
 
     // Now populate sections and questions
     let absoluteQuestionCount = 1;
-    
+
     sections.forEach((sec, sIdx) => {
       // Section header
       headerChildren.push(
@@ -967,8 +967,8 @@ export default function App() {
               })
             );
           });
-        } 
-        
+        }
+
         else if (sec.type === 'essay') {
           if (!metadata.separateAnswerSheet) {
             // Renders specified blank lines
@@ -987,8 +987,8 @@ export default function App() {
               );
             }
           }
-        } 
-        
+        }
+
         else if (sec.type === 'true_false') {
           headerChildren.push(
             new docx.Paragraph({
@@ -1003,8 +1003,8 @@ export default function App() {
               ]
             })
           );
-        }  
-        
+        }
+
         else if (sec.type === 'match_following' && q.matchPairs) {
           // Build match list
           const columnA = q.matchPairs.map(p => p.premise);
@@ -1127,21 +1127,21 @@ export default function App() {
 
         {/* Tab Selection */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
-          <button 
+          <button
             className={`btn btn-sm ${activeTab === 'branding' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'branding' ? '2px solid var(--accent)' : 'none' }}
             onClick={() => setActiveTab('branding')}
           >
             <ImageIcon size={14} /> School Details
           </button>
-          <button 
+          <button
             className={`btn btn-sm ${activeTab === 'metadata' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'metadata' ? '2px solid var(--accent)' : 'none' }}
             onClick={() => setActiveTab('metadata')}
           >
             <Settings size={14} /> Exam Details
           </button>
-          <button 
+          <button
             className={`btn btn-sm ${activeTab === 'sections' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'sections' ? '2px solid var(--accent)' : 'none' }}
             onClick={() => setActiveTab('sections')}
@@ -1161,10 +1161,10 @@ export default function App() {
 
                 <div className="form-group">
                   <label>Upload Logo</label>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleLogoUpload} 
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
                     style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
                   />
                   {branding.logo && (
@@ -1176,8 +1176,8 @@ export default function App() {
 
                 <div className="form-group">
                   <label>Institution Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={branding.schoolName}
                     onChange={(e) => setBranding({ ...branding, schoolName: e.target.value })}
                     placeholder="e.g. Greenwood High School"
@@ -1186,7 +1186,7 @@ export default function App() {
 
                 <div className="form-group">
                   <label>Address / Sub-header</label>
-                  <textarea 
+                  <textarea
                     value={branding.schoolAddress}
                     onChange={(e) => setBranding({ ...branding, schoolAddress: e.target.value })}
                     placeholder="Enter institution address and contacts..."
@@ -1195,7 +1195,7 @@ export default function App() {
 
                 <div className="form-group">
                   <label>Branding Font Family</label>
-                  <select 
+                  <select
                     value={branding.fontFamily}
                     onChange={(e) => setBranding({ ...branding, fontFamily: e.target.value })}
                   >
@@ -1227,8 +1227,8 @@ export default function App() {
 
               <div className="form-group">
                 <label>Examination Title</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={metadata.title}
                   onChange={(e) => setMetadata({ ...metadata, title: e.target.value })}
                   placeholder="e.g. Term 1 Summative Assessment"
@@ -1237,8 +1237,8 @@ export default function App() {
 
               <div className="form-group">
                 <label>Subject Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={metadata.subject}
                   onChange={(e) => setMetadata({ ...metadata, subject: e.target.value })}
                   placeholder="e.g. Computer Science"
@@ -1247,8 +1247,8 @@ export default function App() {
 
               <div className="form-group">
                 <label>Class & Division</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={metadata.classDiv}
                   onChange={(e) => setMetadata({ ...metadata, classDiv: e.target.value })}
                   placeholder="e.g. Class X - Div A"
@@ -1258,16 +1258,16 @@ export default function App() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Max Marks</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={metadata.maxMarks}
                     onChange={(e) => setMetadata({ ...metadata, maxMarks: Number(e.target.value) })}
                   />
                 </div>
                 <div className="form-group">
                   <label>Time Duration</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={metadata.duration}
                     onChange={(e) => setMetadata({ ...metadata, duration: e.target.value })}
                     placeholder="e.g. 2 Hours"
@@ -1334,8 +1334,8 @@ export default function App() {
                       <>
                         <div className="form-group">
                           <label>Section Title</label>
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             value={sec.title}
                             onChange={(e) => updateSectionMeta(sec.id, 'title', e.target.value)}
                           />
@@ -1344,17 +1344,17 @@ export default function App() {
                         <div className="form-row">
                           <div className="form-group">
                             <label>Declared Section Marks</label>
-                            <input 
-                              type="number" 
+                            <input
+                              type="number"
                               value={sec.marks}
                               onChange={(e) => updateSectionMeta(sec.id, 'marks', Number(e.target.value))}
                             />
                           </div>
                           <div className="form-group">
                             <label>Current Questions Total</label>
-                            <div style={{ 
-                              padding: '10px 14px', 
-                              backgroundColor: 'rgba(0,0,0,0.2)', 
+                            <div style={{
+                              padding: '10px 14px',
+                              backgroundColor: 'rgba(0,0,0,0.2)',
                               borderRadius: 'var(--radius-sm)',
                               fontSize: '14px',
                               fontWeight: 'bold',
@@ -1367,7 +1367,7 @@ export default function App() {
 
                         <div className="form-group">
                           <label>Notes / Section Instructions</label>
-                          <textarea 
+                          <textarea
                             value={sec.instructions}
                             onChange={(e) => updateSectionMeta(sec.id, 'instructions', e.target.value)}
                             placeholder="e.g. Answer any 5 of the following 7 questions"
@@ -1376,8 +1376,8 @@ export default function App() {
 
                         <div className="form-group">
                           <label>Section Question Type</label>
-                          <select 
-                            value={sec.type || 'essay'} 
+                          <select
+                            value={sec.type || 'essay'}
                             onChange={(e) => updateSectionType(sec.id, e.target.value)}
                           >
                             <option value="essay">Short Answer / Essay / Fill Blank</option>
@@ -1421,29 +1421,29 @@ export default function App() {
 
                               <div className="form-group">
                                 <label style={{ fontSize: '10px' }}>Question Text</label>
-                <textarea 
+                                <textarea
                                   value={q.text}
                                   style={{ minHeight: '60px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
                                 />
                                 {(sec.type === 'essay') && (
-                                   <button 
-                                     className="btn btn-secondary btn-sm" 
-                                     style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
-                                     onClick={() => {
-                                       const text = q.text + ' _______';
-                                       updateQuestion(sec.id, q.id, { text });
-                                     }}
-                                   >
-                                     Insert Blank
-                                   </button>
-                                 )}
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
+                                    onClick={() => {
+                                      const text = q.text + ' _______';
+                                      updateQuestion(sec.id, q.id, { text });
+                                    }}
+                                  >
+                                    Insert Blank
+                                  </button>
+                                )}
                               </div>
 
                               <div className="form-group">
                                 <label style={{ fontSize: '10px' }}>Question Marks</label>
-                                <input 
-                                  type="number" 
+                                <input
+                                  type="number"
                                   value={q.marks}
                                   style={{ padding: '6px 10px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { marks: Number(e.target.value) })}
@@ -1457,8 +1457,8 @@ export default function App() {
                                   {q.options.map((opt, oIdx) => (
                                     <div key={oIdx} style={{ display: 'flex', gap: '6px' }}>
                                       <span style={{ fontSize: '13px', alignSelf: 'center' }}>{String.fromCharCode(65 + oIdx)}.</span>
-                                      <input 
-                                        type="text" 
+                                      <input
+                                        type="text"
                                         value={opt}
                                         style={{ padding: '4px 8px', fontSize: '12px' }}
                                         onChange={(e) => {
@@ -1476,8 +1476,8 @@ export default function App() {
                               {sec.type === 'essay' && (
                                 <div className="form-group">
                                   <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
-                                  <input 
-                                    type="number" 
+                                  <input
+                                    type="number"
                                     value={q.blankLines}
                                     style={{ padding: '6px 10px', fontSize: '13px' }}
                                     onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: Number(e.target.value) })}
@@ -1490,7 +1490,7 @@ export default function App() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs</label>
-                                    <button 
+                                    <button
                                       className="btn btn-secondary btn-sm"
                                       style={{ padding: '2px 6px', fontSize: '10px' }}
                                       onClick={() => {
@@ -1504,8 +1504,8 @@ export default function App() {
                                   </div>
                                   {q.matchPairs.map((pair, pIdx) => (
                                     <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '6px' }}>
-                                      <input 
-                                        type="text" 
+                                      <input
+                                        type="text"
                                         placeholder="Premise (Col A)"
                                         value={pair.premise}
                                         style={{ padding: '4px 8px', fontSize: '12px' }}
@@ -1515,8 +1515,8 @@ export default function App() {
                                           updateQuestion(sec.id, q.id, { matchPairs: newPairs });
                                         }}
                                       />
-                                      <input 
-                                        type="text" 
+                                      <input
+                                        type="text"
                                         placeholder="Response (Col B)"
                                         value={pair.response}
                                         style={{ padding: '4px 8px', fontSize: '12px' }}
@@ -1526,7 +1526,7 @@ export default function App() {
                                           updateQuestion(sec.id, q.id, { matchPairs: newPairs });
                                         }}
                                       />
-                                      <button 
+                                      <button
                                         className="btn btn-danger btn-sm"
                                         style={{ padding: '4px' }}
                                         onClick={() => {
@@ -1541,10 +1541,10 @@ export default function App() {
                                   ))}
 
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                    <input 
-                                      type="checkbox" 
-                                      id={`shuffle-${q.id}`} 
-                                      checked={q.shuffleB} 
+                                    <input
+                                      type="checkbox"
+                                      id={`shuffle-${q.id}`}
+                                      checked={q.shuffleB}
                                       onChange={(e) => updateQuestion(sec.id, q.id, { shuffleB: e.target.checked })}
                                     />
                                     <label htmlFor={`shuffle-${q.id}`} style={{ fontSize: '11px', textTransform: 'none' }}>
@@ -1557,13 +1557,13 @@ export default function App() {
                           ))}
 
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                             <button 
-                               className="btn btn-secondary btn-sm"
-                               onClick={() => addQuestion(sec.id)}
-                             >
-                               + Add Question
-                             </button>
-                           </div>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => addQuestion(sec.id)}
+                            >
+                              + Add Question
+                            </button>
+                          </div>
                         </div>
                       </>
                     )}
@@ -1639,8 +1639,8 @@ export default function App() {
               flexWrap: 'wrap'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="preview-hideSchoolLogo"
                   checked={branding.hideSchoolLogo || false}
                   onChange={(e) => setBranding({ ...branding, hideSchoolLogo: e.target.checked })}
@@ -1652,8 +1652,8 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="preview-headerLogoOnly"
                   checked={branding.headerLogoOnly || false}
                   onChange={(e) => setBranding({ ...branding, headerLogoOnly: e.target.checked })}
@@ -1665,8 +1665,8 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="preview-separateAnswerSheet"
                   checked={metadata.separateAnswerSheet || false}
                   onChange={(e) => setMetadata({ ...metadata, separateAnswerSheet: e.target.checked })}
@@ -1677,15 +1677,15 @@ export default function App() {
                 </label>
               </div>
             </div>
-            
+
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
               <div className={`paper-sheet font-${branding.fontFamily}`}>
-                
+
                 {/* Header Layout */}
                 <div className="paper-header">
                   {branding.logo && !branding.hideSchoolLogo && (
-                    <div 
+                    <div
                       ref={logoRef}
                       className={`brand-logo-container ${isDragging ? 'dragging' : ''}`}
                       style={{
@@ -1850,9 +1850,9 @@ export default function App() {
               </button>
 
               <div className="dropdown-container" ref={dropdownRef}>
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => setIsDownloadOpen(!isDownloadOpen)} 
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setIsDownloadOpen(!isDownloadOpen)}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
                   <Download size={16} /> Download <ChevronDown size={14} />
@@ -1879,3 +1879,7 @@ export default function App() {
     </div>
   );
 }
+
+
+
+//hello this is new update from naveen, please check it.
