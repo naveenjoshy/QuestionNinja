@@ -420,7 +420,7 @@ textarea {
   pointer-events: none;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: fill;
 }
 
 /* Resize handle styling */
@@ -490,7 +490,6 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  page-break-inside: avoid;
 }
 
 .paper-section-header {
@@ -642,9 +641,13 @@ textarea {
 
 /* Print CSS Overrides */
 @media print {
+  @page {
+    margin: 0;
+  }
   body {
     background-color: #ffffff !important;
     color: #000000 !important;
+    margin: 1.6cm !important;
   }
 
   .app-container,
@@ -674,6 +677,7 @@ textarea {
 
   .modal-header,
   .modal-footer,
+  .preview-options-bar,
   .editor-panel,
   .action-bar,
   .drag-indicator,
@@ -702,4 +706,76 @@ textarea {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
+}
+
+/* Running Footer / Page Numbers */
+.paper-footer {
+  position: absolute;
+  bottom: 20px;
+  right: 40px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #777777;
+}
+
+.paper-footer::after {
+  content: "Page 1";
+}
+
+@media print {
+  .paper-footer {
+    position: fixed;
+    bottom: 1.5cm;
+    right: 1.5cm;
+    display: block !important;
+  }
+  .paper-footer::after {
+    content: "Page " counter(page);
+  }
+}
+
+/* Dropdown Container */
+.dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Dropdown Menu (Positioned above footer button) */
+.dropdown-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+
+/* Dropdown Items styling */
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background-color: rgba(99, 102, 241, 0.12);
+  color: var(--accent);
 }

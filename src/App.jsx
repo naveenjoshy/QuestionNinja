@@ -20,18 +20,21 @@ import {
   Sun,
   Moon,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Printer
 } from 'lucide-react';
 import * as docx from 'docx';
 
 const DEFAULT_BRANDING = {
   logo: '',
-  logoSize: 100,
+  logoWidth: 100,
+  logoHeight: 100,
   logoPos: { x: 0, y: 0 },
   schoolName: 'Girijyothi CMI Public School',
   schoolAddress: 'Vazhathope, Idukki',
   fontFamily: 'Cinzel',
-  headerLogoOnly: false
+  headerLogoOnly: false,
+  hideSchoolLogo: false
 };
 
 const DEFAULT_METADATA = {
@@ -46,41 +49,54 @@ const DEFAULT_METADATA = {
 const DEFAULT_SECTIONS = [
   {
     id: 'sec-1',
-    title: 'SECTION A: OBJECTIVE TYPE QUESTIONS',
-    marks: 10,
+    title: 'SECTION A: OBJECTIVE TYPE QUESTIONS (MCQ)',
+    marks: 5,
     instructions: 'Answer all the questions. Each question carries 1 mark. Select the most appropriate option.',
+    type: 'mcq',
     questions: [
       {
         id: 'q-1',
-        type: 'mcq',
         text: 'Which of the following is NOT a high-level programming language?',
         marks: 1,
         options: ['Python', 'Assembly Language', 'Java', 'C++']
       },
       {
         id: 'q-2',
-        type: 'true_false',
-        text: 'In Python, variables are statically typed and must be declared before use.',
+        text: 'Which data structure operates on a Last-In, First-Out (LIFO) basis?',
+        marks: 1,
+        options: ['Queue', 'Stack', 'Linked List', 'Array']
+      }
+    ]
+  },
+  {
+    id: 'sec-1-tf',
+    title: 'SECTION B: TRUE OR FALSE',
+    marks: 5,
+    instructions: 'State whether the following statements are True or False.',
+    type: 'true_false',
+    questions: [
+      {
+        id: 'q-2-tf-1',
+        text: 'In Python, variables are dynamically typed and do not need to be declared.',
+        marks: 1
+      },
+      {
+        id: 'q-2-tf-2',
+        text: 'HTML is a programming language used for logic execution.',
         marks: 1
       }
     ]
   },
   {
     id: 'sec-2',
-    title: 'SECTION B: SHORT ANSWER & FITB',
-    marks: 15,
-    instructions: 'Answer any 5 questions. Each question carries 3 marks. Fill in the blanks with the correct answer where applicable.',
+    title: 'SECTION C: MATCH THE COMPONENTS',
+    marks: 3,
+    instructions: 'Match the computer hardware components with their appropriate primary functions.',
+    type: 'match_following',
     questions: [
       {
-        id: 'q-3',
-        type: 'fill_blank',
-        text: 'The process of finding and resolving bugs or defects in a software program is called _______.',
-        marks: 3
-      },
-      {
         id: 'q-4',
-        type: 'match_following',
-        text: 'Match the computer hardware components with their appropriate primary functions.',
+        text: 'Associate components to functions:',
         marks: 3,
         matchPairs: [
           { premise: 'CPU', response: 'Instruction execution and logic processing' },
@@ -93,22 +109,22 @@ const DEFAULT_SECTIONS = [
   },
   {
     id: 'sec-3',
-    title: 'SECTION C: LONG ANSWER & ESSAYS',
-    marks: 25,
+    title: 'SECTION D: SHORT ANSWER & ESSAYS',
+    marks: 15,
     instructions: 'Answer all questions. Assign marks based on the depth and logic of your explanation.',
+    type: 'essay',
     questions: [
       {
         id: 'q-5',
-        type: 'essay',
         text: 'Discuss the security implications of cloud computing and explain the key differences between Public, Private, and Hybrid Cloud architectures.',
         marks: 10,
         blankLines: 12
       },
       {
         id: 'q-6',
-        type: 'normal',
-        text: 'Write a Python program to generate the Fibonacci series up to a given number N, and analyze its time complexity using Big O notation.',
-        marks: 15
+        text: 'Explain the difference between compiler and interpreter.',
+        marks: 5,
+        blankLines: 6
       }
     ]
   }
@@ -122,6 +138,21 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('branding'); // branding, metadata, sections
   const [collapsedSections, setCollapsedSections] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDownloadOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('question_ninja_theme') || 'dark';
   });
@@ -194,7 +225,9 @@ export default function App() {
       setIsResizing(true);
       resizeStart.current = {
         x: e.clientX,
-        width: branding.logoSize
+        y: e.clientY,
+        width: branding.logoWidth || 100,
+        height: branding.logoHeight || 100
       };
     } else {
       setIsDragging(true);
@@ -216,10 +249,13 @@ export default function App() {
       }));
     } else if (isResizing) {
       const deltaX = e.clientX - resizeStart.current.x;
-      const newSize = Math.max(40, Math.min(300, resizeStart.current.width + deltaX));
+      const deltaY = e.clientY - resizeStart.current.y;
+      const newWidth = Math.max(40, Math.min(400, resizeStart.current.width + deltaX));
+      const newHeight = Math.max(40, Math.min(400, resizeStart.current.height + deltaY));
       setBranding(prev => ({
         ...prev,
-        logoSize: newSize
+        logoWidth: newWidth,
+        logoHeight: newHeight
       }));
     }
   };
@@ -250,6 +286,7 @@ export default function App() {
       title: `SECTION ${String.fromCharCode(65 + sections.length)}: NEW SECTION`,
       marks: 10,
       instructions: 'Answer all questions. Each question carries equal marks.',
+      type: 'essay',
       questions: []
     };
     setSections([...sections, newSection]);
@@ -268,28 +305,58 @@ export default function App() {
     }));
   };
 
-  const addQuestion = (secId, type = 'normal') => {
-    const defaultQuestion = {
-      id: `q-${Date.now()}`,
-      type,
-      text: type === 'fill_blank' ? 'Fill in the blank: The sun rises in the _______.' : 'New Question details here...',
-      marks: 1
-    };
+  const updateSectionType = (secId, newType) => {
+    setSections(sections.map(sec => {
+      if (sec.id === secId) {
+        const updatedQuestions = sec.questions.map(q => {
+          const updatedQ = { ...q };
+          if (newType === 'mcq' && !updatedQ.options) {
+            updatedQ.options = ['Option A', 'Option B', 'Option C', 'Option D'];
+          }
+          if (newType === 'match_following' && !updatedQ.matchPairs) {
+            updatedQ.matchPairs = [
+              { premise: 'Item A', response: 'Match A' },
+              { premise: 'Item B', response: 'Match B' }
+            ];
+            updatedQ.shuffleB = true;
+          }
+          if (newType === 'essay' && updatedQ.blankLines === undefined) {
+            updatedQ.blankLines = 5;
+          }
+          return updatedQ;
+        });
+        return {
+          ...sec,
+          type: newType,
+          questions: updatedQuestions
+        };
+      }
+      return sec;
+    }));
+  };
 
-    if (type === 'mcq') {
-      defaultQuestion.options = ['Option A', 'Option B', 'Option C', 'Option D'];
-    } else if (type === 'essay') {
-      defaultQuestion.blankLines = 5;
-    } else if (type === 'match_following') {
-      defaultQuestion.matchPairs = [
-        { premise: 'Item A', response: 'Match A' },
-        { premise: 'Item B', response: 'Match B' }
-      ];
-      defaultQuestion.shuffleB = true;
-    }
-
+  const addQuestion = (secId) => {
     setSections(sections.map(s => {
       if (s.id === secId) {
+        const type = s.type || 'essay';
+        const defaultQuestion = {
+          id: `q-${Date.now()}`,
+          text: 'New Question details here...',
+          marks: 1
+        };
+
+        if (type === 'mcq') {
+          defaultQuestion.options = ['Option A', 'Option B', 'Option C', 'Option D'];
+        } else if (type === 'essay') {
+          defaultQuestion.blankLines = 5;
+        } else if (type === 'match_following') {
+          defaultQuestion.matchPairs = [
+            { premise: 'Item A', response: 'Match A' },
+            { premise: 'Item B', response: 'Match B' }
+          ];
+          defaultQuestion.shuffleB = true;
+        }
+
         return {
           ...s,
           questions: [...s.questions, defaultQuestion]
@@ -374,12 +441,14 @@ export default function App() {
     if (window.confirm('Are you sure you want to clear the entire draft?')) {
       setBranding({
         logo: '',
-        logoSize: 100,
+        logoWidth: 100,
+        logoHeight: 100,
         logoPos: { x: 0, y: 0 },
         schoolName: '',
         schoolAddress: '',
         fontFamily: 'Inter',
-        headerLogoOnly: false
+        headerLogoOnly: false,
+        hideSchoolLogo: false
       });
       setMetadata({
         title: '',
@@ -424,12 +493,12 @@ export default function App() {
       } else {
         sec.questions.forEach((q) => {
           let optionsStr = '';
-          if (q.type === 'mcq' && q.options) {
+          if (sec.type === 'mcq' && q.options) {
             optionsStr = q.options.join(';');
           }
           
           let matchPairsStr = '';
-          if (q.type === 'match_following' && q.matchPairs) {
+          if (sec.type === 'match_following' && q.matchPairs) {
             matchPairsStr = q.matchPairs.map(p => `${p.premise}=${p.response}`).join(';');
           }
 
@@ -437,7 +506,7 @@ export default function App() {
             sec.title,
             sec.marks,
             sec.instructions,
-            q.type,
+            sec.type || 'essay',
             q.text,
             q.marks,
             optionsStr,
@@ -540,6 +609,7 @@ export default function App() {
               title: secTitle,
               marks: secMarks,
               instructions: secInstructions,
+              type: qType || 'essay',
               questions: []
             };
             importedSections.push(currentSection);
@@ -551,6 +621,7 @@ export default function App() {
               title: 'Imported Section',
               marks: 0,
               instructions: '',
+              type: qType || 'essay',
               questions: []
             };
             importedSections.push(currentSection);
@@ -602,6 +673,11 @@ export default function App() {
     window.print();
   };
 
+  const triggerPdfExport = () => {
+    alert("To save as a PDF file, please select 'Save as PDF' under the 'Destination' selection in the browser print window.");
+    window.print();
+  };
+
   // DOCX Export Implementation
   const triggerDocxExport = async () => {
     const docSections = [];
@@ -615,7 +691,7 @@ export default function App() {
           alignment: docx.AlignmentType.CENTER,
           children: [
             new docx.TextRun({
-              text: branding.schoolName.toUpperCase(),
+              text: (branding.schoolName || '').toUpperCase(),
               bold: true,
               size: 28,
               font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
@@ -634,7 +710,7 @@ export default function App() {
             alignment: docx.AlignmentType.CENTER,
             children: [
               new docx.TextRun({
-                text: line,
+                text: line || '',
                 size: 20,
                 font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
               })
@@ -678,7 +754,7 @@ export default function App() {
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({ text: 'Examination: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.title, size: 22 })
+                    new docx.TextRun({ text: metadata.title || '', size: 22 })
                   ]
                 })
               ]
@@ -696,7 +772,7 @@ export default function App() {
                   alignment: docx.AlignmentType.RIGHT,
                   children: [
                     new docx.TextRun({ text: 'Subject: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.subject, size: 22 })
+                    new docx.TextRun({ text: metadata.subject || '', size: 22 })
                   ]
                 })
               ]
@@ -716,7 +792,7 @@ export default function App() {
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({ text: 'Class & Div: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.classDiv, size: 22 })
+                    new docx.TextRun({ text: metadata.classDiv || '', size: 22 })
                   ]
                 })
               ]
@@ -733,7 +809,7 @@ export default function App() {
                   alignment: docx.AlignmentType.RIGHT,
                   children: [
                     new docx.TextRun({ text: 'Max Marks: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: `${metadata.maxMarks}`, size: 22 })
+                    new docx.TextRun({ text: `${metadata.maxMarks || 0}`, size: 22 })
                   ]
                 })
               ]
@@ -753,7 +829,7 @@ export default function App() {
                 new docx.Paragraph({
                   children: [
                     new docx.TextRun({ text: 'Time Allowed: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.duration, size: 22 })
+                    new docx.TextRun({ text: metadata.duration || '', size: 22 })
                   ]
                 })
               ]
@@ -770,7 +846,7 @@ export default function App() {
                   alignment: docx.AlignmentType.RIGHT,
                   children: [
                     new docx.TextRun({ text: 'Current Marks: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: `${getExamCurrentTotalMarks()}`, size: 22 })
+                    new docx.TextRun({ text: `${getExamCurrentTotalMarks() || 0}`, size: 22 })
                   ]
                 })
               ]
@@ -807,13 +883,13 @@ export default function App() {
           spacing: { before: 240, after: 80 },
           children: [
             new docx.TextRun({
-              text: sec.title.toUpperCase(),
+              text: (sec.title || '').toUpperCase(),
               bold: true,
               size: 24,
               font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
             }),
             new docx.TextRun({
-              text: `\t(Total: ${sec.marks} Marks)`,
+              text: `\t(Total: ${sec.marks || 0} Marks)`,
               bold: true,
               size: 22,
               font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
@@ -829,7 +905,7 @@ export default function App() {
             spacing: { after: 180 },
             children: [
               new docx.TextRun({
-                text: sec.instructions,
+                text: sec.instructions || '',
                 italic: true,
                 size: 20,
                 font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
@@ -861,11 +937,11 @@ export default function App() {
                 size: 22
               }),
               new docx.TextRun({
-                text: q.text,
+                text: q.text || '',
                 size: 22
               }),
               new docx.TextRun({
-                text: `\t[${q.marks} Marks]`,
+                text: `\t[${q.marks || 0} Marks]`,
                 bold: true,
                 size: 20
               })
@@ -874,7 +950,7 @@ export default function App() {
         );
 
         // Formatting specific question types
-        if (q.type === 'mcq' && q.options) {
+        if (sec.type === 'mcq' && q.options) {
           // Render MCQ choices in a 2x2 style list or block list
           q.options.forEach((opt, oIdx) => {
             const letter = String.fromCharCode(65 + oIdx);
@@ -884,7 +960,7 @@ export default function App() {
                 spacing: { after: 40 },
                 children: [
                   new docx.TextRun({
-                    text: `(${letter})  ${opt}`,
+                    text: `(${letter})  ${opt || ''}`,
                     size: 22
                   })
                 ]
@@ -893,7 +969,7 @@ export default function App() {
           });
         } 
         
-        else if (q.type === 'essay') {
+        else if (sec.type === 'essay') {
           if (!metadata.separateAnswerSheet) {
             // Renders specified blank lines
             const linesCount = q.blankLines || 5;
@@ -913,7 +989,7 @@ export default function App() {
           }
         } 
         
-        else if (q.type === 'true_false') {
+        else if (sec.type === 'true_false') {
           headerChildren.push(
             new docx.Paragraph({
               indent: { left: 720 },
@@ -929,7 +1005,7 @@ export default function App() {
           );
         }  
         
-        else if (q.type === 'match_following' && q.matchPairs) {
+        else if (sec.type === 'match_following' && q.matchPairs) {
           // Build match list
           const columnA = q.matchPairs.map(p => p.premise);
           let columnB = q.matchPairs.map(p => p.response);
@@ -952,11 +1028,11 @@ export default function App() {
                 spacing: { after: 60 },
                 children: [
                   new docx.TextRun({
-                    text: `${index + 1}. ${columnA[index]}`,
+                    text: `${index + 1}. ${columnA[index] || ''}`,
                     size: 22
                   }),
                   new docx.TextRun({
-                    text: `\t\t\t\t\t\t${romanNum(index)}. ${columnB[index]}`,
+                    text: `\t\t\t\t\t\t${romanNum(index)}. ${columnB[index] || ''}`,
                     size: 22
                   })
                 ]
@@ -968,8 +1044,38 @@ export default function App() {
     });
 
     const doc = new docx.Document({
+      features: {
+        updateFields: true
+      },
       sections: [{
         properties: {},
+        footers: {
+          default: new docx.Footer({
+            children: [
+              new docx.Paragraph({
+                alignment: docx.AlignmentType.RIGHT,
+                children: [
+                  new docx.TextRun({
+                    text: 'Page ',
+                    size: 20
+                  }),
+                  new docx.TextRun({
+                    children: [docx.PageNumber.CURRENT],
+                    size: 20
+                  }),
+                  new docx.TextRun({
+                    text: ' of ',
+                    size: 20
+                  }),
+                  new docx.TextRun({
+                    children: [docx.PageNumber.TOTAL_PAGES],
+                    size: 20
+                  })
+                ]
+              })
+            ]
+          })
+        },
         children: headerChildren
       }]
     });
@@ -1102,18 +1208,7 @@ export default function App() {
                   </select>
                 </div>
 
-                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                  <input 
-                    type="checkbox" 
-                    id="headerLogoOnly"
-                    checked={branding.headerLogoOnly || false}
-                    onChange={(e) => setBranding({ ...branding, headerLogoOnly: e.target.checked })}
-                    style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
-                  />
-                  <label htmlFor="headerLogoOnly" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500' }}>
-                    Header Logo Only (no school name and address on printed paper)
-                  </label>
-                </div>
+
               </div>
 
               <div className="warning-badge" style={{ padding: '12px' }}>
@@ -1180,18 +1275,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                <input 
-                  type="checkbox" 
-                  id="separateAnswerSheet"
-                  checked={metadata.separateAnswerSheet || false}
-                  onChange={(e) => setMetadata({ ...metadata, separateAnswerSheet: e.target.checked })}
-                  style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
-                />
-                <label htmlFor="separateAnswerSheet" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500' }}>
-                  Separate Answer Sheet (remove write spaces & answer slots)
-                </label>
-              </div>
+
 
               {/* Validation Badges */}
               <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1290,6 +1374,19 @@ export default function App() {
                           />
                         </div>
 
+                        <div className="form-group">
+                          <label>Section Question Type</label>
+                          <select 
+                            value={sec.type || 'essay'} 
+                            onChange={(e) => updateSectionType(sec.id, e.target.value)}
+                          >
+                            <option value="essay">Short Answer / Essay / Fill Blank</option>
+                            <option value="mcq">Multiple Choice (MCQ)</option>
+                            <option value="true_false">True / False</option>
+                            <option value="match_following">Match the Following</option>
+                          </select>
+                        </div>
+
                         {isOverProvisioned && (
                           <div className="warning-badge" style={{ fontSize: '11px' }}>
                             <AlertTriangle size={12} />
@@ -1307,7 +1404,7 @@ export default function App() {
                             <div key={q.id} style={{ padding: '12px', backgroundColor: 'var(--bg-editor)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color)' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--accent)' }}>
-                                  Q{qIdx + 1} ({q.type.toUpperCase()})
+                                  Q{qIdx + 1} ({(sec.type || 'essay').toUpperCase()})
                                 </span>
                                 <div style={{ display: 'flex', gap: '4px' }}>
                                   <button className="btn-icon-only" style={{ padding: '4px' }} onClick={() => moveQuestion(sec.id, qIdx, 'up')} disabled={qIdx === 0}>
@@ -1324,23 +1421,23 @@ export default function App() {
 
                               <div className="form-group">
                                 <label style={{ fontSize: '10px' }}>Question Text</label>
-                                <textarea 
+                <textarea 
                                   value={q.text}
                                   style={{ minHeight: '60px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
                                 />
-                                {q.type === 'fill_blank' && (
-                                  <button 
-                                    className="btn btn-secondary btn-sm" 
-                                    style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
-                                    onClick={() => {
-                                      const text = q.text + ' _______';
-                                      updateQuestion(sec.id, q.id, { text });
-                                    }}
-                                  >
-                                    Insert Blank
-                                  </button>
-                                )}
+                                {(sec.type === 'essay') && (
+                                   <button 
+                                     className="btn btn-secondary btn-sm" 
+                                     style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
+                                     onClick={() => {
+                                       const text = q.text + ' _______';
+                                       updateQuestion(sec.id, q.id, { text });
+                                     }}
+                                   >
+                                     Insert Blank
+                                   </button>
+                                 )}
                               </div>
 
                               <div className="form-group">
@@ -1354,7 +1451,7 @@ export default function App() {
                               </div>
 
                               {/* MCQ Specific Fields */}
-                              {q.type === 'mcq' && q.options && (
+                              {sec.type === 'mcq' && q.options && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
                                   {q.options.map((opt, oIdx) => (
@@ -1376,7 +1473,7 @@ export default function App() {
                               )}
 
                               {/* Essay Specific Fields */}
-                              {q.type === 'essay' && (
+                              {sec.type === 'essay' && (
                                 <div className="form-group">
                                   <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
                                   <input 
@@ -1389,7 +1486,7 @@ export default function App() {
                               )}
 
                               {/* Match the Following Specific Fields */}
-                              {q.type === 'match_following' && q.matchPairs && (
+                              {sec.type === 'match_following' && q.matchPairs && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs</label>
@@ -1460,24 +1557,13 @@ export default function App() {
                           ))}
 
                           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-                            <select 
-                              style={{ width: 'auto', padding: '6px 12px', fontSize: '13px' }}
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  addQuestion(sec.id, e.target.value);
-                                  e.target.value = ''; // Reset select
-                                }
-                              }}
-                            >
-                              <option value="">+ Add Question...</option>
-                              <option value="normal">Normal Question</option>
-                              <option value="mcq">Multiple Choice (MCQ)</option>
-                              <option value="essay">Essay / Long Form</option>
-                              <option value="fill_blank">Fill in the Blanks</option>
-                              <option value="true_false">True / False</option>
-                              <option value="match_following">Match the Following</option>
-                            </select>
-                          </div>
+                             <button 
+                               className="btn btn-secondary btn-sm"
+                               onClick={() => addQuestion(sec.id)}
+                             >
+                               + Add Question
+                             </button>
+                           </div>
                         </div>
                       </>
                     )}
@@ -1540,13 +1626,56 @@ export default function App() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Question Paper Live Preview</h3>
-              <button 
-                className="btn btn-secondary btn-sm" 
-                onClick={() => setIsPreviewOpen(false)}
-                style={{ padding: '6px 10px', fontSize: '12px' }}
-              >
-                Close
-              </button>
+            </div>
+
+            {/* Live Preview Controls Bar */}
+            <div className="preview-options-bar" style={{
+              display: 'flex',
+              gap: '24px',
+              padding: '12px 24px',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-editor)',
+              alignItems: 'center',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="checkbox" 
+                  id="preview-hideSchoolLogo"
+                  checked={branding.hideSchoolLogo || false}
+                  onChange={(e) => setBranding({ ...branding, hideSchoolLogo: e.target.checked })}
+                  style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
+                />
+                <label htmlFor="preview-hideSchoolLogo" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Hide School Logo
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="checkbox" 
+                  id="preview-headerLogoOnly"
+                  checked={branding.headerLogoOnly || false}
+                  onChange={(e) => setBranding({ ...branding, headerLogoOnly: e.target.checked })}
+                  style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
+                />
+                <label htmlFor="preview-headerLogoOnly" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Hide School Name & Address
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="checkbox" 
+                  id="preview-separateAnswerSheet"
+                  checked={metadata.separateAnswerSheet || false}
+                  onChange={(e) => setMetadata({ ...metadata, separateAnswerSheet: e.target.checked })}
+                  style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
+                />
+                <label htmlFor="preview-separateAnswerSheet" style={{ cursor: 'pointer', marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Write answers on a separate sheet (do not print blanks)
+                </label>
+              </div>
             </div>
             
             <div className="modal-body">
@@ -1555,13 +1684,13 @@ export default function App() {
                 
                 {/* Header Layout */}
                 <div className="paper-header">
-                  {branding.logo && (
+                  {branding.logo && !branding.hideSchoolLogo && (
                     <div 
                       ref={logoRef}
                       className={`brand-logo-container ${isDragging ? 'dragging' : ''}`}
                       style={{
-                        width: `${branding.logoSize}px`,
-                        height: `${branding.logoSize}px`,
+                        width: `${branding.logoWidth || 100}px`,
+                        height: `${branding.logoHeight || 100}px`,
                         left: `${branding.logoPos.x}px`,
                         top: `${branding.logoPos.y}px`
                       }}
@@ -1617,7 +1746,7 @@ export default function App() {
                     </div>
                   ) : (
                     sections.map((sec, sIdx) => (
-                      <div key={sec.id} className="paper-section page-break-avoid">
+                      <div key={sec.id} className="paper-section">
                         <div className="paper-section-header">
                           <h2 className="paper-section-title">{sec.title}</h2>
                           <span className="paper-section-marks">[{sec.marks} Marks]</span>
@@ -1643,7 +1772,7 @@ export default function App() {
                                   <p style={{ fontWeight: '500' }}>{q.text}</p>
 
                                   {/* MCQ Options */}
-                                  {q.type === 'mcq' && q.options && (
+                                  {sec.type === 'mcq' && q.options && (
                                     <div className="paper-mcq-options">
                                       {q.options.map((opt, oIdx) => (
                                         <div key={oIdx} className="paper-mcq-option">
@@ -1655,7 +1784,7 @@ export default function App() {
                                   )}
 
                                   {/* Essay spaces */}
-                                  {q.type === 'essay' && !metadata.separateAnswerSheet && (
+                                  {sec.type === 'essay' && !metadata.separateAnswerSheet && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
                                       {Array.from({ length: q.blankLines || 5 }).map((_, lineIdx) => (
                                         <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
@@ -1664,7 +1793,7 @@ export default function App() {
                                   )}
 
                                   {/* True/False selection */}
-                                  {q.type === 'true_false' && (
+                                  {sec.type === 'true_false' && (
                                     <div className="paper-tf-options">
                                       {metadata.separateAnswerSheet ? (
                                         <span>(True / False)</span>
@@ -1678,7 +1807,7 @@ export default function App() {
                                   )}
 
                                   {/* Match the Following columns */}
-                                  {q.type === 'match_following' && q.matchPairs && (
+                                  {sec.type === 'match_following' && q.matchPairs && (
                                     <table className="paper-match-table">
                                       <tbody>
                                         {q.matchPairs.map((pair, pIdx) => {
@@ -1709,17 +1838,38 @@ export default function App() {
                     ))
                   )}
                 </div>
+
+                {/* Page number footer */}
+                <div className="paper-footer"></div>
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={triggerPrint}>
-                <Download size={16} /> Export PDF / Print
+            <div className="modal-footer" style={{ gap: '10px' }}>
+              <button className="btn btn-primary" onClick={triggerPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Printer size={16} /> Print
               </button>
-              <button className="btn btn-primary" onClick={triggerDocxExport}>
-                <FileText size={16} /> Export DOCX (Word)
-              </button>
-              <button className="btn btn-secondary" onClick={() => setIsPreviewOpen(false)}>
+
+              <div className="dropdown-container" ref={dropdownRef}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setIsDownloadOpen(!isDownloadOpen)} 
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Download size={16} /> Download <ChevronDown size={14} />
+                </button>
+                {isDownloadOpen && (
+                  <div className="dropdown-menu">
+                    <button className="dropdown-item" onClick={() => { setIsDownloadOpen(false); triggerPdfExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={16} className="text-accent" /> Download PDF
+                    </button>
+                    <button className="dropdown-item" onClick={() => { setIsDownloadOpen(false); triggerDocxExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={16} style={{ color: '#2b579a' }} /> Download Word (DOCX)
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <button className="btn btn-danger" onClick={() => setIsPreviewOpen(false)}>
                 Close
               </button>
             </div>
