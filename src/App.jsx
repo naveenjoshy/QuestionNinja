@@ -21,7 +21,11 @@ import {
   Moon,
   ArrowLeft,
   ArrowRight,
-  Printer
+  Printer,
+  Loader2,
+  ExternalLink,
+  Cloud,
+  Shield
 } from 'lucide-react';
 import * as docx from 'docx';
 
@@ -139,6 +143,9 @@ export default function App() {
   const [collapsedSections, setCollapsedSections] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+  const [isDocsUploading, setIsDocsUploading] = useState(false);
+  const [docsError, setDocsError] = useState('');
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -679,9 +686,7 @@ export default function App() {
   };
 
   // DOCX Export Implementation
-  const triggerDocxExport = async () => {
-    const docSections = [];
-
+  const generateDocxBlob = async () => {
     // Create the School branding header
     const headerChildren = [];
 
@@ -743,7 +748,8 @@ export default function App() {
         new docx.TableRow({
           children: [
             new docx.TableCell({
-              width: { size: 50, type: docx.WidthType.PERCENTAGE },
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              columnSpan: 2,
               borders: {
                 top: { style: docx.BorderStyle.NONE },
                 bottom: { style: docx.BorderStyle.NONE },
@@ -758,9 +764,14 @@ export default function App() {
                   ]
                 })
               ]
-            }),
+            })
+          ]
+        }),
+        new docx.TableRow({
+          children: [
             new docx.TableCell({
-              width: { size: 50, type: docx.WidthType.PERCENTAGE },
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              columnSpan: 2,
               borders: {
                 top: { style: docx.BorderStyle.NONE },
                 bottom: { style: docx.BorderStyle.NONE },
@@ -769,7 +780,6 @@ export default function App() {
               },
               children: [
                 new docx.Paragraph({
-                  alignment: docx.AlignmentType.RIGHT,
                   children: [
                     new docx.TextRun({ text: 'Subject: ', bold: true, size: 22 }),
                     new docx.TextRun({ text: metadata.subject || '', size: 22 })
@@ -782,6 +792,8 @@ export default function App() {
         new docx.TableRow({
           children: [
             new docx.TableCell({
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              columnSpan: 2,
               borders: {
                 top: { style: docx.BorderStyle.NONE },
                 bottom: { style: docx.BorderStyle.NONE },
@@ -796,8 +808,14 @@ export default function App() {
                   ]
                 })
               ]
-            }),
+            })
+          ]
+        }),
+        new docx.TableRow({
+          children: [
             new docx.TableCell({
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              columnSpan: 2,
               borders: {
                 top: { style: docx.BorderStyle.NONE },
                 bottom: { style: docx.BorderStyle.NONE },
@@ -806,7 +824,6 @@ export default function App() {
               },
               children: [
                 new docx.Paragraph({
-                  alignment: docx.AlignmentType.RIGHT,
                   children: [
                     new docx.TextRun({ text: 'Max Marks: ', bold: true, size: 22 }),
                     new docx.TextRun({ text: `${metadata.maxMarks || 0}`, size: 22 })
@@ -819,6 +836,8 @@ export default function App() {
         new docx.TableRow({
           children: [
             new docx.TableCell({
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              columnSpan: 2,
               borders: {
                 top: { style: docx.BorderStyle.NONE },
                 bottom: { style: docx.BorderStyle.NONE },
@@ -830,23 +849,6 @@ export default function App() {
                   children: [
                     new docx.TextRun({ text: 'Time Allowed: ', bold: true, size: 22 }),
                     new docx.TextRun({ text: metadata.duration || '', size: 22 })
-                  ]
-                })
-              ]
-            }),
-            new docx.TableCell({
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE }
-              },
-              children: [
-                new docx.Paragraph({
-                  alignment: docx.AlignmentType.RIGHT,
-                  children: [
-                    new docx.TextRun({ text: 'Current Marks: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: `${getExamCurrentTotalMarks() || 0}`, size: 22 })
                   ]
                 })
               ]
@@ -876,7 +878,7 @@ export default function App() {
     // Now populate sections and questions
     let absoluteQuestionCount = 1;
 
-    sections.forEach((sec, sIdx) => {
+    sections.forEach((sec) => {
       // Section header
       headerChildren.push(
         new docx.Paragraph({
@@ -1015,8 +1017,6 @@ export default function App() {
 
           // Renders a simple side-by-side matches listing
           for (let index = 0; index < columnA.length; index++) {
-            const letter = String.fromCharCode(97 + index); // a, b, c...
-            const roman = String.fromCharCode(105 + index); // wait: roman numerals i, ii, iii...
             const romanNum = (idx) => {
               const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
               return r[idx] || (idx + 1).toString();
@@ -1080,14 +1080,59 @@ export default function App() {
       }]
     });
 
-    docx.Packer.toBlob(doc).then(blob => {
+    return await docx.Packer.toBlob(doc);
+  };
+
+  const triggerDocxExport = async () => {
+    try {
+      const blob = await generateDocxBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       const safeName = (metadata.title || 'QuestionPaper').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       a.download = `${safeName}.docx`;
       a.click();
-    });
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting DOCX:', err);
+      alert('Failed to generate DOCX file.');
+    }
+  };
+  const handleGoogleDocsWebPreview = async () => {
+    setIsDocsUploading(true);
+    setDocsError('');
+    try {
+      const blob = await generateDocxBlob();
+      const safeName = (metadata.title || 'QuestionPaper').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      
+      const formData = new FormData();
+      formData.append('file', blob, `${safeName}.docx`);
+
+      const response = await fetch('https://tmpfiles.org/api/v1/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Upload failed with status: ${response.status}`);
+      }
+
+      const resData = await response.json();
+      if (resData.status !== 'success' || !resData.data || !resData.data.url) {
+        throw new Error(resData.message || 'Invalid response from file upload server');
+      }
+
+      const uploadUrl = resData.data.url;
+      const directUrl = uploadUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
+      const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(directUrl)}`;
+      window.open(googleDocsUrl, '_blank');
+      setIsDocsModalOpen(false);
+    } catch (err) {
+      console.error('Error opening in Google Docs:', err);
+      setDocsError(err.message || 'Failed to upload document for Google Docs preview.');
+    } finally {
+      setIsDocsUploading(false);
+    }
   };
 
   // Helper functions for shuffling Columns
@@ -1574,6 +1619,21 @@ export default function App() {
               <button className="btn btn-secondary" onClick={addSection}>
                 <Plus size={16} /> Add New Section
               </button>
+
+              {/* Validation Badges */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
+                  <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start' }}>
+                    <AlertTriangle size={14} />
+                    <span>Marks Mismatch: Current Questions = {getExamCurrentTotalMarks()} marks (Target = {metadata.maxMarks} marks).</span>
+                  </div>
+                ) : (
+                  <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
+                    <CheckCircle size={14} />
+                    <span>Perfect: Sum of all questions matches targets!</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1622,8 +1682,8 @@ export default function App() {
 
       {/* Preview Modal */}
       {isPreviewOpen && (
-        <div className="modal-overlay" onClick={() => setIsPreviewOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay preview-overlay" onClick={() => setIsPreviewOpen(false)}>
+          <div className="modal-content preview-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Question Paper Live Preview</h3>
             </div>
@@ -1678,6 +1738,15 @@ export default function App() {
               </div>
             </div>
 
+            {getExamCurrentTotalMarks() !== metadata.maxMarks && (
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-editor)', display: 'flex' }} className="warning-badge-container print-hide">
+                <div className="warning-badge" style={{ display: 'flex', width: '100%', boxSizing: 'border-box' }}>
+                  <AlertTriangle size={14} />
+                  <span>Marks Mismatch: Current Questions = {getExamCurrentTotalMarks()} marks (Target = {metadata.maxMarks} marks).</span>
+                </div>
+              </div>
+            )}
+
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
               <div className={`paper-sheet font-${branding.fontFamily}`}>
@@ -1687,54 +1756,55 @@ export default function App() {
                   {branding.logo && !branding.hideSchoolLogo && (
                     <div
                       ref={logoRef}
-                      className={`brand-logo-container ${isDragging ? 'dragging' : ''}`}
-                      style={{
+                      className={`brand-logo-container ${isDragging ? 'dragging' : ''} ${branding.headerLogoOnly ? 'centered' : ''}`}
+                      style={branding.headerLogoOnly ? {
+                        width: `${branding.logoWidth || 100}px`,
+                        height: `${branding.logoHeight || 100}px`
+                      } : {
                         width: `${branding.logoWidth || 100}px`,
                         height: `${branding.logoHeight || 100}px`,
                         left: `${branding.logoPos.x}px`,
                         top: `${branding.logoPos.y}px`
                       }}
-                      onPointerDown={handleLogoPointerDown}
-                      onPointerMove={handleLogoPointerMove}
-                      onPointerUp={handleLogoPointerUp}
+                      onPointerDown={branding.headerLogoOnly ? undefined : handleLogoPointerDown}
+                      onPointerMove={branding.headerLogoOnly ? undefined : handleLogoPointerMove}
+                      onPointerUp={branding.headerLogoOnly ? undefined : handleLogoPointerUp}
                     >
-                      <div className="drag-indicator">Drag to move</div>
+                      {!branding.headerLogoOnly && <div className="drag-indicator">Drag to move</div>}
                       <img src={branding.logo} className="brand-logo-img" alt="School Logo" />
-                      <div className="resize-handle"></div>
+                      {!branding.headerLogoOnly && <div className="resize-handle"></div>}
                     </div>
                   )}
 
-                  <div className="school-details">
-                    {!branding.headerLogoOnly && branding.schoolName && <h1 className="school-name-render">{branding.schoolName}</h1>}
-                    {!branding.headerLogoOnly && branding.schoolAddress && <p className="school-address-render">{branding.schoolAddress}</p>}
-                  </div>
+                  {!branding.headerLogoOnly && (
+                    <div className="school-details">
+                      {branding.schoolName && <h1 className="school-name-render">{branding.schoolName}</h1>}
+                      {branding.schoolAddress && <p className="school-address-render">{branding.schoolAddress}</p>}
+                    </div>
+                  )}
                 </div>
 
                 {/* Exam Specs Row */}
                 <div className="exam-meta-grid">
-                  <div className="exam-meta-item">
+                  <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Examination:</span>
                     <span>{metadata.title || '_______________________'}</span>
                   </div>
-                  <div className="exam-meta-item">
+                  <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Subject:</span>
                     <span>{metadata.subject || '_______________________'}</span>
                   </div>
-                  <div className="exam-meta-item">
+                  <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Class:</span>
                     <span>{metadata.classDiv || '_______________________'}</span>
                   </div>
-                  <div className="exam-meta-item">
+                  <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Max Marks:</span>
                     <span>{metadata.maxMarks}</span>
                   </div>
-                  <div className="exam-meta-item">
+                  <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Duration:</span>
                     <span>{metadata.duration || '_______________________'}</span>
-                  </div>
-                  <div className="exam-meta-item">
-                    <span className="exam-meta-label">Total Marks:</span>
-                    <span>{getExamCurrentTotalMarks()}</span>
                   </div>
                 </div>
 
@@ -1869,8 +1939,145 @@ export default function App() {
                 )}
               </div>
 
+              <button
+                className="btn btn-secondary"
+                onClick={() => setIsDocsModalOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', borderColor: 'rgba(66, 133, 244, 0.4)' }}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" style={{ fill: '#4285f4' }}>
+                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+                <span>Open in Google Docs</span>
+              </button>
+
               <button className="btn btn-danger" onClick={() => setIsPreviewOpen(false)}>
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Docs Integration Modal */}
+      {isDocsModalOpen && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }} onClick={() => setIsDocsModalOpen(false)}>
+          <div className="modal-content docs-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg viewBox="0 0 24 24" width="20" height="20" style={{ fill: '#4285f4' }}>
+                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+                Open in Google Docs
+              </h3>
+            </div>
+            <div className="modal-body docs-modal-body" style={{ flexDirection: 'column', gap: '20px', backgroundColor: 'var(--bg-sidebar)', padding: '24px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                Google Docs requires your question paper (.docx) to be uploaded to your Google account. Select your preferred method below:
+              </p>
+
+              <div className="docs-options-grid" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+                {/* Option 1: Web Preview (Secure Upload) */}
+                <div className="docs-option-card" style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '16px',
+                  backgroundColor: 'var(--bg-card)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Cloud size={18} style={{ color: '#4285f4' }} />
+                    <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>Option A: Instant Web Preview</strong>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                    Temporarily uploads a secure copy of your document (valid for 1 hour) so Google's viewer can load it. Once open, click <strong>"Open with Google Docs"</strong> at the top to edit.
+                  </p>
+                  
+                  <div className="docs-warning-alert" style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderLeft: '3px solid var(--warning)',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    color: 'var(--warning)',
+                    lineHeight: '1.4'
+                  }}>
+                    <strong>⚠️ Privacy Note:</strong> Do not use this for actual confidential school exams, as it uploads the document to a temporary public URL.
+                  </div>
+
+                  <button
+                    className="btn btn-primary"
+                    disabled={isDocsUploading}
+                    onClick={handleGoogleDocsWebPreview}
+                    style={{ alignSelf: 'flex-start', marginTop: '4px', gap: '8px', minWidth: '160px' }}
+                  >
+                    {isDocsUploading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink size={16} />
+                        <span>Proceed to Google Docs</span>
+                      </>
+                    )}
+                  </button>
+
+                  {docsError && (
+                    <div style={{ color: 'var(--danger)', fontSize: '12px', marginTop: '4px' }}>
+                      {docsError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Option 2: Offline Import (100% Private) */}
+                <div className="docs-option-card" style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '16px',
+                  backgroundColor: 'var(--bg-card)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Shield size={18} style={{ color: 'var(--success)' }} />
+                    <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>Option B: Offline Import (100% Private)</strong>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                    Download the Word (.docx) file locally to your machine, then manually upload or drag it directly into Google Drive or Docs.
+                  </p>
+                  
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        triggerDocxExport();
+                        window.open('https://drive.google.com/', '_blank');
+                      }}
+                      style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Download size={14} /> Download & Open Drive
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        triggerDocxExport();
+                        window.open('https://docs.google.com/document/', '_blank');
+                      }}
+                      style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <Download size={14} /> Download & Open Docs
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
+              <button className="btn btn-secondary" onClick={() => setIsDocsModalOpen(false)}>
+                Cancel
               </button>
             </div>
           </div>
