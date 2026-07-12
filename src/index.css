@@ -753,18 +753,25 @@ textarea {
 /* Print CSS Overrides */
 @media print {
   @page {
-    margin: 1.6cm;
-    @bottom-right {
-      content: "Page " counter(page);
-      font-size: 11px;
-      font-family: 'Inter', -apple-system, sans-serif;
-      color: #777777;
-    }
+    margin: 0;
   }
   body {
     background-color: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
+    padding-top: 1cm !important;
+    padding-bottom: 1.5cm !important;
+    padding-left: 1.6cm !important;
+    padding-right: 1.6cm !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  .brand-logo-container {
+    border: none !important;
   }
 
   .app-container,
@@ -843,7 +850,17 @@ textarea {
 
 @media print {
   .paper-footer {
-    display: none !important;
+    display: block !important;
+    position: fixed;
+    bottom: 0.8cm;
+    right: 1.6cm;
+    font-size: 11px;
+    font-family: inherit;
+    color: #777777;
+    background: transparent !important;
+  }
+  .paper-footer::after {
+    content: "Page " counter(page);
   }
 }
 

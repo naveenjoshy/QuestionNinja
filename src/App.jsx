@@ -737,13 +737,36 @@ export default function App() {
     return branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman';
   };
 
+  const imageToUint8Array = async (src) => {
+    if (!src) return null;
+    if (src.startsWith('data:')) {
+      return dataURLToUint8Array(src);
+    }
+    try {
+      const response = await fetch(src);
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      return new Uint8Array(arrayBuffer);
+    } catch (e) {
+      console.error("Failed to fetch image from URL for docx export", e);
+      return null;
+    }
+  };
+
   // DOCX Export Implementation
   const generateDocxBlob = async () => {
     // Create the School branding header
     const headerChildren = [];
 
+    // Fetch and load logo data if active and not hidden
+    let logoData = null;
+    if (branding.logo && !branding.hideSchoolLogo) {
+      logoData = await imageToUint8Array(branding.logo);
+    }
+
+    const schoolDetailsParagraphs = [];
     if (!branding.headerLogoOnly && branding.schoolName) {
-      headerChildren.push(
+      schoolDetailsParagraphs.push(
         new docx.Paragraph({
           alignment: docx.AlignmentType.CENTER,
           children: [
@@ -762,7 +785,7 @@ export default function App() {
     if (!branding.headerLogoOnly && branding.schoolAddress) {
       const addressLines = branding.schoolAddress.split('\n');
       addressLines.forEach(line => {
-        headerChildren.push(
+        schoolDetailsParagraphs.push(
           new docx.Paragraph({
             alignment: docx.AlignmentType.CENTER,
             children: [
@@ -776,6 +799,73 @@ export default function App() {
           })
         );
       });
+    }
+
+    if (logoData) {
+      const logoRun = new docx.ImageRun({
+        data: logoData,
+        transformation: {
+          width: branding.logoWidth || 100,
+          height: branding.logoHeight || 100
+        }
+      });
+
+      if (branding.headerLogoOnly) {
+        headerChildren.push(
+          new docx.Paragraph({
+            alignment: docx.AlignmentType.CENTER,
+            children: [logoRun],
+            spacing: { after: 200 }
+          })
+        );
+      } else {
+        // Construct side-by-side layout using borderless table
+        const headerTable = new docx.Table({
+          width: { size: 100, type: docx.WidthType.PERCENTAGE },
+          borders: {
+            top: { style: docx.BorderStyle.NONE },
+            bottom: { style: docx.BorderStyle.NONE },
+            left: { style: docx.BorderStyle.NONE },
+            right: { style: docx.BorderStyle.NONE },
+            insideHorizontal: { style: docx.BorderStyle.NONE },
+            insideVertical: { style: docx.BorderStyle.NONE }
+          },
+          rows: [
+            new docx.TableRow({
+              children: [
+                new docx.TableCell({
+                  width: { size: 20, type: docx.WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: docx.BorderStyle.NONE },
+                    bottom: { style: docx.BorderStyle.NONE },
+                    left: { style: docx.BorderStyle.NONE },
+                    right: { style: docx.BorderStyle.NONE }
+                  },
+                  children: [
+                    new docx.Paragraph({
+                      alignment: docx.AlignmentType.CENTER,
+                      children: [logoRun]
+                    })
+                  ]
+                }),
+                new docx.TableCell({
+                  width: { size: 80, type: docx.WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: docx.BorderStyle.NONE },
+                    bottom: { style: docx.BorderStyle.NONE },
+                    left: { style: docx.BorderStyle.NONE },
+                    right: { style: docx.BorderStyle.NONE }
+                  },
+                  children: schoolDetailsParagraphs
+                })
+              ]
+            })
+          ]
+        });
+        headerChildren.push(headerTable);
+      }
+    } else {
+      headerChildren.push(...schoolDetailsParagraphs);
     }
 
     // Divider line
@@ -793,124 +883,28 @@ export default function App() {
       })
     );
 
-    // Exam Metadata Info table
-    const metaTable = new docx.Table({
-      width: { size: 100, type: docx.WidthType.PERCENTAGE },
-      rows: [
-        new docx.TableRow({
-          children: [
-            new docx.TableCell({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
-              columnSpan: 2,
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE }
-              },
-              children: [
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({ text: 'Examination: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.title || '', size: 22 })
-                  ]
-                })
-              ]
-            })
-          ]
-        }),
-        new docx.TableRow({
-          children: [
-            new docx.TableCell({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
-              columnSpan: 2,
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE }
-              },
-              children: [
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({ text: 'Subject: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.subject || '', size: 22 })
-                  ]
-                })
-              ]
-            })
-          ]
-        }),
-        new docx.TableRow({
-          children: [
-            new docx.TableCell({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
-              columnSpan: 2,
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE }
-              },
-              children: [
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({ text: 'Class & Div: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.classDiv || '', size: 22 })
-                  ]
-                })
-              ]
-            })
-          ]
-        }),
-        new docx.TableRow({
-          children: [
-            new docx.TableCell({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
-              columnSpan: 2,
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE }
-              },
-              children: [
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({ text: 'Max Marks: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: `${metadata.maxMarks || 0}`, size: 22 })
-                  ]
-                })
-              ]
-            })
-          ]
-        }),
-        new docx.TableRow({
-          children: [
-            new docx.TableCell({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
-              columnSpan: 2,
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE }
-              },
-              children: [
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({ text: 'Time Allowed: ', bold: true, size: 22 }),
-                    new docx.TextRun({ text: metadata.duration || '', size: 22 })
-                  ]
-                })
-              ]
-            })
-          ]
-        })
-      ]
-    });
+    // Helper to generate a metadata row with labels on the left and input data aligned to the right margin
+    const createMetaParagraph = (label, value) => {
+      return new docx.Paragraph({
+        tabStops: [
+          {
+            type: docx.TabStopType.RIGHT,
+            position: docx.TabStopPosition.MAX
+          }
+        ],
+        children: [
+          new docx.TextRun({ text: label, bold: true, size: 22 }),
+          new docx.TextRun({ text: `\t${value || ''}`, size: 22 })
+        ],
+        spacing: { after: 120 }
+      });
+    };
 
-    headerChildren.push(metaTable);
+    headerChildren.push(createMetaParagraph('Examination: ', metadata.title));
+    headerChildren.push(createMetaParagraph('Subject: ', metadata.subject));
+    headerChildren.push(createMetaParagraph('Class & Div: ', metadata.classDiv));
+    headerChildren.push(createMetaParagraph('Max Marks: ', String(metadata.maxMarks || 0)));
+    headerChildren.push(createMetaParagraph('Time Allowed: ', metadata.duration));
 
     // Bottom border for metadata
     headerChildren.push(
@@ -1005,22 +999,87 @@ export default function App() {
 
         // Formatting specific question types
         if (sec.type === 'mcq' && q.options) {
-          // Render MCQ choices in a 2x2 style list or block list
-          q.options.forEach((opt, oIdx) => {
-            const letter = String.fromCharCode(65 + oIdx);
-            headerChildren.push(
-              new docx.Paragraph({
-                indent: { left: 720 },
-                spacing: { after: 40 },
+          // Render MCQ choices in a 2-column table (two options per row)
+          const optRows = [];
+          for (let i = 0; i < q.options.length; i += 2) {
+            const leftLetter = String.fromCharCode(65 + i);
+            const leftText = q.options[i] || '';
+            const rightLetter = i + 1 < q.options.length ? String.fromCharCode(65 + i + 1) : '';
+            const rightText = i + 1 < q.options.length ? (q.options[i + 1] || '') : '';
+
+            const cells = [
+              new docx.TableCell({
+                width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                borders: {
+                  top: { style: docx.BorderStyle.NONE, size: 0 },
+                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                  left: { style: docx.BorderStyle.NONE, size: 0 },
+                  right: { style: docx.BorderStyle.NONE, size: 0 }
+                },
                 children: [
-                  new docx.TextRun({
-                    text: `(${letter})  ${opt || ''}`,
-                    size: 22
+                  new docx.Paragraph({
+                    indent: { left: 360 },
+                    spacing: { after: 40 },
+                    children: [
+                      new docx.TextRun({ text: `(${leftLetter})  ${leftText}`, size: 22 })
+                    ]
                   })
                 ]
               })
-            );
-          });
+            ];
+
+            if (rightText || rightLetter) {
+              cells.push(
+                new docx.TableCell({
+                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                    left: { style: docx.BorderStyle.NONE, size: 0 },
+                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                  },
+                  children: [
+                    new docx.Paragraph({
+                      spacing: { after: 40 },
+                      children: [
+                        new docx.TextRun({ text: `(${rightLetter})  ${rightText}`, size: 22 })
+                      ]
+                    })
+                  ]
+                })
+              );
+            } else {
+              cells.push(
+                new docx.TableCell({
+                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                    left: { style: docx.BorderStyle.NONE, size: 0 },
+                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                  },
+                  children: [new docx.Paragraph({ children: [] })]
+                })
+              );
+            }
+
+            optRows.push(new docx.TableRow({ children: cells }));
+          }
+
+          headerChildren.push(
+            new docx.Table({
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              borders: {
+                top: { style: docx.BorderStyle.NONE, size: 0 },
+                bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                left: { style: docx.BorderStyle.NONE, size: 0 },
+                right: { style: docx.BorderStyle.NONE, size: 0 },
+                insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
+                insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+              },
+              rows: optRows
+            })
+          );
         }
 
         else if (sec.type === 'essay') {
@@ -1320,20 +1379,7 @@ export default function App() {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Branding Font Family</label>
-                  <select
-                    value={branding.fontFamily}
-                    onChange={(e) => setBranding({ ...branding, fontFamily: e.target.value })}
-                  >
-                    <option value="Inter">Inter (Clean Modern)</option>
-                    <option value="Playfair">Playfair Display (Elegant Serif)</option>
-                    <option value="Montserrat">Montserrat (Geometric Sans)</option>
-                    <option value="Courier">Courier Prime (Monospace / Classic)</option>
-                    <option value="Merriweather">Merriweather (Soft Serif)</option>
-                    <option value="Cinzel">Cinzel (Regal / Classical)</option>
-                  </select>
-                </div>
+
 
 
               </div>
@@ -1925,6 +1971,25 @@ export default function App() {
                   Write answers on a separate sheet (do not print blanks)
                 </label>
               </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label htmlFor="preview-fontFamily" style={{ marginBottom: 0, userSelect: 'none', fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                  Branding Font:
+                </label>
+                <select
+                  id="preview-fontFamily"
+                  value={branding.fontFamily}
+                  onChange={(e) => setBranding({ ...branding, fontFamily: e.target.value })}
+                  style={{ width: 'auto', padding: '4px 8px', fontSize: '12px', height: 'auto', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)' }}
+                >
+                  <option value="Inter">Inter (Clean Modern)</option>
+                  <option value="Playfair">Playfair Display (Elegant Serif)</option>
+                  <option value="Montserrat">Montserrat (Geometric Sans)</option>
+                  <option value="Courier">Courier Prime (Monospace / Classic)</option>
+                  <option value="Merriweather">Merriweather (Soft Serif)</option>
+                  <option value="Cinzel">Cinzel (Regal / Classical)</option>
+                </select>
+              </div>
             </div>
 
             {getExamCurrentTotalMarks() !== metadata.maxMarks && (
@@ -1938,10 +2003,10 @@ export default function App() {
 
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
-              <div className={`paper-sheet font-${branding.fontFamily} lang-${metadata.language || 'english'}`}>
+              <div className={`paper-sheet lang-${metadata.language || 'english'}`}>
 
                 {/* Header Layout */}
-                <div className="paper-header">
+                <div className={`paper-header font-${branding.fontFamily}`}>
                   {branding.logo && !branding.hideSchoolLogo && (
                     <div
                       ref={logoRef}
