@@ -828,3 +828,48 @@ textarea {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+/* Image Question Styles */
+.image-upload-dashed-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 24px;
+  cursor: pointer;
+  background-color: rgba(99, 102, 241, 0.02);
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.image-upload-dashed-zone:hover {
+  border-color: var(--accent);
+  background-color: var(--accent-alpha);
+  color: var(--accent);
+}
+
+.image-upload-dashed-zone span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.editor-image-preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+}
+
+/* Print and PDF adjustments for images */
+@media print {
+  .paper-image-container img {
+    page-break-inside: avoid;
+  }
+}

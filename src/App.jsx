@@ -330,6 +330,11 @@ export default function App() {
           if (newType === 'essay' && updatedQ.blankLines === undefined) {
             updatedQ.blankLines = 5;
           }
+          if (newType === 'image') {
+            if (updatedQ.image === undefined) updatedQ.image = '';
+            if (updatedQ.imageWidth === undefined) updatedQ.imageWidth = 300;
+            if (updatedQ.imageHeight === undefined) updatedQ.imageHeight = 200;
+          }
           return updatedQ;
         });
         return {
@@ -362,6 +367,10 @@ export default function App() {
             { premise: 'Item B', response: 'Match B' }
           ];
           defaultQuestion.shuffleB = true;
+        } else if (type === 'image') {
+          defaultQuestion.image = '';
+          defaultQuestion.imageWidth = 300;
+          defaultQuestion.imageHeight = 200;
         }
 
         return {
@@ -480,7 +489,10 @@ export default function App() {
       'Question Marks',
       'Options',
       'Blank Lines',
-      'Match Pairs'
+      'Match Pairs',
+      'Image Data',
+      'Image Width',
+      'Image Height'
     ];
 
     const rows = [];
@@ -490,6 +502,9 @@ export default function App() {
           sec.title,
           sec.marks,
           sec.instructions,
+          '',
+          '',
+          '',
           '',
           '',
           '',
@@ -518,7 +533,10 @@ export default function App() {
             q.marks,
             optionsStr,
             q.blankLines || '',
-            matchPairsStr
+            matchPairsStr,
+            q.image || '',
+            q.imageWidth || '',
+            q.imageHeight || ''
           ]);
         });
       }
@@ -607,6 +625,9 @@ export default function App() {
           const optionsStr = row[6];
           const blankLinesVal = row[7];
           const matchPairsStr = row[8];
+          const imageData = row[9];
+          const imageWidthVal = row[10];
+          const imageHeightVal = row[11];
 
           if (!secTitle && !qText) continue;
 
@@ -653,6 +674,10 @@ export default function App() {
                   return { premise: parts[0] || '', response: parts[1] || '' };
                 })
                 : [];
+            } else if (qType === 'image') {
+              q.image = imageData || '';
+              q.imageWidth = Number(imageWidthVal) || 300;
+              q.imageHeight = Number(imageHeightVal) || 200;
             }
 
             currentSection.questions.push(q);
@@ -683,6 +708,26 @@ export default function App() {
   const triggerPdfExport = () => {
     alert("To save as a PDF file, please select 'Save as PDF' under the 'Destination' selection in the browser print window.");
     window.print();
+  };
+
+  // Helper to convert Data URL to Uint8Array for docx ImageRun
+  const dataURLToUint8Array = (dataURL) => {
+    if (!dataURL) return null;
+    const parts = dataURL.split(';base64,');
+    if (parts.length < 2) return null;
+    const base64 = parts[1];
+    try {
+      const raw = window.atob(base64);
+      const rawLength = raw.length;
+      const array = new Uint8Array(new ArrayBuffer(rawLength));
+      for (let i = 0; i < rawLength; i++) {
+        array[i] = raw.charCodeAt(i);
+      }
+      return array;
+    } catch (e) {
+      console.error("Failed to decode base64 image", e);
+      return null;
+    }
   };
 
   // DOCX Export Implementation
@@ -1034,6 +1079,27 @@ export default function App() {
                   new docx.TextRun({
                     text: `\t\t\t\t\t\t${romanNum(index)}. ${columnB[index] || ''}`,
                     size: 22
+                  })
+                ]
+              })
+            );
+          }
+        }
+
+        else if (sec.type === 'image' && q.image) {
+          const imageBytes = dataURLToUint8Array(q.image);
+          if (imageBytes) {
+            headerChildren.push(
+              new docx.Paragraph({
+                indent: { left: 720 },
+                spacing: { before: 120, after: 120 },
+                children: [
+                  new docx.ImageRun({
+                    data: imageBytes,
+                    transformation: {
+                      width: q.imageWidth || 300,
+                      height: q.imageHeight || 200
+                    }
                   })
                 ]
               })
@@ -1429,6 +1495,7 @@ export default function App() {
                             <option value="mcq">Multiple Choice (MCQ)</option>
                             <option value="true_false">True / False</option>
                             <option value="match_following">Match the Following</option>
+                            <option value="image">Image Question</option>
                           </select>
                         </div>
 
@@ -1595,6 +1662,100 @@ export default function App() {
                                     <label htmlFor={`shuffle-${q.id}`} style={{ fontSize: '11px', textTransform: 'none' }}>
                                       Shuffle Column B in preview/exports
                                     </label>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Image Question Specific Fields */}
+                              {sec.type === 'image' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image</label>
+                                  {q.image ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      <div className="editor-image-preview-container">
+                                        <img
+                                          src={q.image}
+                                          alt="Question"
+                                          style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '150px',
+                                            objectFit: 'contain',
+                                            borderRadius: 'var(--radius-sm)',
+                                            border: '1px solid var(--border-color)',
+                                            padding: '4px',
+                                            backgroundColor: 'rgba(255,255,255,0.05)'
+                                          }}
+                                        />
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '4px 8px', fontSize: '11px' }}>
+                                          Change Image
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                            onChange={(e) => {
+                                              const file = e.target.files[0];
+                                              if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (uploadEvent) => {
+                                                  updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        <button
+                                          className="btn btn-danger btn-sm"
+                                          style={{ padding: '4px 8px', fontSize: '11px' }}
+                                          onClick={() => updateQuestion(sec.id, q.id, { image: '' })}
+                                        >
+                                          Remove Image
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <label className="image-upload-dashed-zone">
+                                      <ImageIcon size={20} className="text-secondary" />
+                                      <span>Upload Question Image</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => {
+                                          const file = e.target.files[0];
+                                          if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (uploadEvent) => {
+                                              updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                            };
+                                            reader.readAsDataURL(file);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                      <label style={{ fontSize: '10px' }}>Image Width (px)</label>
+                                      <input
+                                        type="number"
+                                        value={q.imageWidth || 300}
+                                        style={{ padding: '4px 8px', fontSize: '12px' }}
+                                        onChange={(e) => updateQuestion(sec.id, q.id, { imageWidth: Number(e.target.value) || 0 })}
+                                      />
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                      <label style={{ fontSize: '10px' }}>Image Height (px)</label>
+                                      <input
+                                        type="number"
+                                        value={q.imageHeight || 200}
+                                        style={{ padding: '4px 8px', fontSize: '12px' }}
+                                        onChange={(e) => updateQuestion(sec.id, q.id, { imageHeight: Number(e.target.value) || 0 })}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               )}
@@ -1897,6 +2058,22 @@ export default function App() {
                                         })}
                                       </tbody>
                                     </table>
+                                  )}
+
+                                  {/* Image question render */}
+                                  {sec.type === 'image' && q.image && (
+                                    <div className="paper-image-container" style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-start' }}>
+                                      <img
+                                        src={q.image}
+                                        alt={`Question ${globalNum}`}
+                                        style={{
+                                          width: `${q.imageWidth || 300}px`,
+                                          height: `${q.imageHeight || 200}px`,
+                                          objectFit: 'contain',
+                                          maxWidth: '100%'
+                                        }}
+                                      />
+                                    </div>
                                   )}
                                 </div>
                                 <span className="paper-question-marks">({q.marks} M)</span>
