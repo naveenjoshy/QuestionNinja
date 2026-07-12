@@ -696,6 +696,30 @@ textarea {
   vertical-align: top;
 }
 
+/* Table Question render */
+.paper-table-question {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.paper-table-question th,
+.paper-table-question td {
+  border: 1px solid #333;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.paper-table-question th {
+  font-weight: 700;
+  background-color: #f0f0f0;
+}
+
+.paper-table-question td {
+  font-weight: 400;
+}
+
 /* Validation warnings */
 .warning-badge {
   background-color: rgba(245, 158, 11, 0.15);

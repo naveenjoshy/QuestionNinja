@@ -336,6 +336,19 @@ export default function App() {
             if (updatedQ.imageWidth === undefined) updatedQ.imageWidth = 300;
             if (updatedQ.imageHeight === undefined) updatedQ.imageHeight = 200;
           }
+          if (newType === 'table') {
+            if (!updatedQ.tableData) {
+              updatedQ.tableRows = 3;
+              updatedQ.tableCols = 3;
+              updatedQ.tableData = {
+                headers: ['Column 1', 'Column 2', 'Column 3'],
+                rows: [
+                  ['', '', ''],
+                  ['', '', '']
+                ]
+              };
+            }
+          }
           return updatedQ;
         });
         return {
@@ -372,6 +385,16 @@ export default function App() {
           defaultQuestion.image = '';
           defaultQuestion.imageWidth = 300;
           defaultQuestion.imageHeight = 200;
+        } else if (type === 'table') {
+          defaultQuestion.tableRows = 3;
+          defaultQuestion.tableCols = 3;
+          defaultQuestion.tableData = {
+            headers: ['Column 1', 'Column 2', 'Column 3'],
+            rows: [
+              ['', '', ''],
+              ['', '', '']
+            ]
+          };
         }
 
         return {
@@ -473,9 +496,11 @@ export default function App() {
         classDiv: '',
         maxMarks: 100,
         duration: '',
-        separateAnswerSheet: false
+        separateAnswerSheet: false,
+        language: 'english'
       });
       setSections([]);
+      localStorage.removeItem('question_ninja_draft');
     }
   };
 
@@ -1172,6 +1197,52 @@ export default function App() {
             );
           }
         }
+
+        else if (sec.type === 'table' && q.tableData) {
+          // Build a bordered table in DOCX with bold headers and regular body
+          const tblRows = [];
+
+          // Header row
+          const headerCells = q.tableData.headers.map(h =>
+            new docx.TableCell({
+              shading: { fill: 'E8E8E8' },
+              children: [
+                new docx.Paragraph({
+                  spacing: { before: 40, after: 40 },
+                  children: [
+                    new docx.TextRun({ text: h || '', bold: true, size: 22 })
+                  ]
+                })
+              ]
+            })
+          );
+          tblRows.push(new docx.TableRow({ children: headerCells }));
+
+          // Body rows
+          q.tableData.rows.forEach(row => {
+            const bodyCells = row.map(cell =>
+              new docx.TableCell({
+                children: [
+                  new docx.Paragraph({
+                    spacing: { before: 40, after: 40 },
+                    children: [
+                      new docx.TextRun({ text: cell || '', size: 22 })
+                    ]
+                  })
+                ]
+              })
+            );
+            tblRows.push(new docx.TableRow({ children: bodyCells }));
+          });
+
+          headerChildren.push(
+            new docx.Table({
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              indent: { size: 360, type: docx.WidthType.DXA },
+              rows: tblRows
+            })
+          );
+        }
       });
     });
 
@@ -1570,6 +1641,7 @@ export default function App() {
                             <option value="true_false">True / False</option>
                             <option value="match_following">Match the Following</option>
                             <option value="image">Image Question</option>
+                            <option value="table">Table Question</option>
                           </select>
                         </div>
 
@@ -1831,6 +1903,116 @@ export default function App() {
                                       />
                                     </div>
                                   </div>
+                                </div>
+                              )}
+
+                              {/* Table Question Specific Fields */}
+                              {sec.type === 'table' && q.tableData && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Table Configuration</label>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                      <label style={{ fontSize: '10px' }}>Rows (excl. header)</label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        value={q.tableRows - 1}
+                                        style={{ padding: '4px 8px', fontSize: '12px' }}
+                                        onChange={(e) => {
+                                          const bodyRows = Math.max(1, Math.min(20, Number(e.target.value) || 1));
+                                          const totalRows = bodyRows + 1;
+                                          const cols = q.tableCols || 3;
+                                          const newData = { ...q.tableData };
+                                          const currentBodyRows = newData.rows || [];
+                                          const newBodyRows = [];
+                                          for (let r = 0; r < bodyRows; r++) {
+                                            if (r < currentBodyRows.length) {
+                                              const existingRow = [...currentBodyRows[r]];
+                                              while (existingRow.length < cols) existingRow.push('');
+                                              newBodyRows.push(existingRow.slice(0, cols));
+                                            } else {
+                                              newBodyRows.push(Array(cols).fill(''));
+                                            }
+                                          }
+                                          newData.rows = newBodyRows;
+                                          updateQuestion(sec.id, q.id, { tableRows: totalRows, tableData: newData });
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="form-group" style={{ margin: 0 }}>
+                                      <label style={{ fontSize: '10px' }}>Columns</label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        value={q.tableCols}
+                                        style={{ padding: '4px 8px', fontSize: '12px' }}
+                                        onChange={(e) => {
+                                          const cols = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+                                          const newData = { ...q.tableData };
+                                          const oldHeaders = newData.headers || [];
+                                          const newHeaders = [];
+                                          for (let c = 0; c < cols; c++) {
+                                            newHeaders.push(c < oldHeaders.length ? oldHeaders[c] : `Column ${c + 1}`);
+                                          }
+                                          newData.headers = newHeaders;
+                                          newData.rows = (newData.rows || []).map(row => {
+                                            const newRow = [];
+                                            for (let c = 0; c < cols; c++) {
+                                              newRow.push(c < row.length ? row[c] : '');
+                                            }
+                                            return newRow;
+                                          });
+                                          updateQuestion(sec.id, q.id, { tableCols: cols, tableData: newData });
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Table header cells */}
+                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Header Row (Bold)</label>
+                                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '4px' }}>
+                                    {q.tableData.headers.map((h, hIdx) => (
+                                      <input
+                                        key={hIdx}
+                                        type="text"
+                                        value={h}
+                                        placeholder={`Header ${hIdx + 1}`}
+                                        style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold' }}
+                                        onChange={(e) => {
+                                          const newData = { ...q.tableData };
+                                          const newHeaders = [...newData.headers];
+                                          newHeaders[hIdx] = e.target.value;
+                                          newData.headers = newHeaders;
+                                          updateQuestion(sec.id, q.id, { tableData: newData });
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
+
+                                  {/* Table body cells */}
+                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Body Rows (Regular)</label>
+                                  {q.tableData.rows.map((row, rIdx) => (
+                                    <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '4px' }}>
+                                      {row.map((cell, cIdx) => (
+                                        <input
+                                          key={cIdx}
+                                          type="text"
+                                          value={cell}
+                                          placeholder={`R${rIdx + 1}C${cIdx + 1}`}
+                                          style={{ padding: '4px 6px', fontSize: '11px' }}
+                                          onChange={(e) => {
+                                            const newData = { ...q.tableData };
+                                            const newRows = newData.rows.map(r => [...r]);
+                                            newRows[rIdx][cIdx] = e.target.value;
+                                            newData.rows = newRows;
+                                            updateQuestion(sec.id, q.id, { tableData: newData });
+                                          }}
+                                        />
+                                      ))}
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
@@ -2167,6 +2349,28 @@ export default function App() {
                                         }}
                                       />
                                     </div>
+                                  )}
+
+                                  {/* Table question render */}
+                                  {sec.type === 'table' && q.tableData && (
+                                    <table className="paper-table-question">
+                                      <thead>
+                                        <tr>
+                                          {q.tableData.headers.map((h, hIdx) => (
+                                            <th key={hIdx}>{h}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {q.tableData.rows.map((row, rIdx) => (
+                                          <tr key={rIdx}>
+                                            {row.map((cell, cIdx) => (
+                                              <td key={cIdx}>{cell}</td>
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
                                   )}
                                 </div>
                                 <span className="paper-question-marks">({q.marks} M)</span>
