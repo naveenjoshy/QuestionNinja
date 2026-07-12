@@ -47,7 +47,8 @@ const DEFAULT_METADATA = {
   classDiv: 'Class X - Division A & B',
   maxMarks: 50,
   duration: '90 Minutes',
-  separateAnswerSheet: false
+  separateAnswerSheet: false,
+  language: 'english'
 };
 
 const DEFAULT_SECTIONS = [
@@ -730,6 +731,12 @@ export default function App() {
     }
   };
 
+  const getFontFamily = () => {
+    if (metadata.language === 'malayalam') return 'Manjari';
+    if (metadata.language === 'hindi') return 'Noto Sans Devanagari';
+    return branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman';
+  };
+
   // DOCX Export Implementation
   const generateDocxBlob = async () => {
     // Create the School branding header
@@ -744,7 +751,7 @@ export default function App() {
               text: (branding.schoolName || '').toUpperCase(),
               bold: true,
               size: 28,
-              font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
+              font: getFontFamily()
             })
           ],
           spacing: { after: 120 }
@@ -762,7 +769,7 @@ export default function App() {
               new docx.TextRun({
                 text: line || '',
                 size: 20,
-                font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
+                font: getFontFamily()
               })
             ],
             spacing: { after: 80 }
@@ -933,13 +940,13 @@ export default function App() {
               text: (sec.title || '').toUpperCase(),
               bold: true,
               size: 24,
-              font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
+              font: getFontFamily()
             }),
             new docx.TextRun({
               text: `\t(Total: ${sec.marks || 0} Marks)`,
               bold: true,
               size: 22,
-              font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
+              font: getFontFamily()
             })
           ]
         })
@@ -955,7 +962,7 @@ export default function App() {
                 text: sec.instructions || '',
                 italic: true,
                 size: 20,
-                font: branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman'
+                font: getFontFamily()
               })
             ]
           })
@@ -1112,6 +1119,15 @@ export default function App() {
     const doc = new docx.Document({
       features: {
         updateFields: true
+      },
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: getFontFamily()
+            }
+          }
+        }
       },
       sections: [{
         properties: {},
@@ -1384,6 +1400,18 @@ export default function App() {
                     placeholder="e.g. 2 Hours"
                   />
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label>Question Paper Language</label>
+                <select
+                  value={metadata.language || 'english'}
+                  onChange={(e) => setMetadata({ ...metadata, language: e.target.value })}
+                >
+                  <option value="english">English (Default)</option>
+                  <option value="malayalam">Malayalam</option>
+                  <option value="hindi">Hindi</option>
+                </select>
               </div>
 
 
@@ -1910,7 +1938,7 @@ export default function App() {
 
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
-              <div className={`paper-sheet font-${branding.fontFamily}`}>
+              <div className={`paper-sheet font-${branding.fontFamily} lang-${metadata.language || 'english'}`}>
 
                 {/* Header Layout */}
                 <div className="paper-header">
