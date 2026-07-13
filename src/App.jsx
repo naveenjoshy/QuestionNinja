@@ -315,28 +315,141 @@ export default function App() {
   const [isDocsUploading, setIsDocsUploading] = useState(false);
   const [docsError, setDocsError] = useState('');
   const [formulaModal, setFormulaModal] = useState({ isOpen: false, latex: '', onSave: null });
+  const [activeInputInfo, setActiveInputInfo] = useState(null);
   const formulaInputRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  // Helper to open formula editor and insert LaTeX wrapped in $...$ at current cursor position
-  const handleInsertFormulaClick = (elementId, currentValue, onSave) => {
+  // Hook to track focus on formula-enabled text inputs
+  useEffect(() => {
+    const handleFocus = (e) => {
+      const target = e.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        if (target.id && target.id.startsWith('q__')) {
+          setActiveInputInfo({ id: target.id });
+        } else {
+          setActiveInputInfo(null);
+        }
+      }
+    };
+
+    document.addEventListener('focusin', handleFocus);
+    return () => {
+      document.removeEventListener('focusin', handleFocus);
+    };
+  }, []);
+
+  const updateValueForId = (id, newValue) => {
+    const parts = id.split('__');
+    const type = parts[1];
+    const secId = parts[2];
+    const qId = parts[3];
+
+    if (type === 'text') {
+      updateQuestion(secId, qId, { text: newValue });
+    } else if (type === 'opt') {
+      const oIdx = parseInt(parts[4], 10);
+      setSections(prev => prev.map(s => {
+        if (s.id !== secId) return s;
+        return {
+          ...s,
+          questions: s.questions.map(q => {
+            if (q.id !== qId) return q;
+            const newOpts = [...q.options];
+            newOpts[oIdx] = newValue;
+            return { ...q, options: newOpts };
+          })
+        };
+      }));
+    } else if (type === 'matcha') {
+      const pIdx = parseInt(parts[4], 10);
+      setSections(prev => prev.map(s => {
+        if (s.id !== secId) return s;
+        return {
+          ...s,
+          questions: s.questions.map(q => {
+            if (q.id !== qId) return q;
+            const newPairs = [...q.matchPairs];
+            newPairs[pIdx] = { ...newPairs[pIdx], premise: newValue };
+            return { ...q, matchPairs: newPairs };
+          })
+        };
+      }));
+    } else if (type === 'matchb') {
+      const pIdx = parseInt(parts[4], 10);
+      setSections(prev => prev.map(s => {
+        if (s.id !== secId) return s;
+        return {
+          ...s,
+          questions: s.questions.map(q => {
+            if (q.id !== qId) return q;
+            const newPairs = [...q.matchPairs];
+            newPairs[pIdx] = { ...newPairs[pIdx], response: newValue };
+            return { ...q, matchPairs: newPairs };
+          })
+        };
+      }));
+    } else if (type === 'tblh') {
+      const hIdx = parseInt(parts[4], 10);
+      setSections(prev => prev.map(s => {
+        if (s.id !== secId) return s;
+        return {
+          ...s,
+          questions: s.questions.map(q => {
+            if (q.id !== qId) return q;
+            const newData = { ...q.tableData };
+            const newHeaders = [...newData.headers];
+            newHeaders[hIdx] = newValue;
+            newData.headers = newHeaders;
+            return { ...q, tableData: newData };
+          })
+        };
+      }));
+    } else if (type === 'tblc') {
+      const rIdx = parseInt(parts[4], 10);
+      const cIdx = parseInt(parts[5], 10);
+      setSections(prev => prev.map(s => {
+        if (s.id !== secId) return s;
+        return {
+          ...s,
+          questions: s.questions.map(q => {
+            if (q.id !== qId) return q;
+            const newData = { ...q.tableData };
+            const newRows = newData.rows.map(r => [...r]);
+            newRows[rIdx][cIdx] = newValue;
+            newData.rows = newRows;
+            return { ...q, tableData: newData };
+          })
+        };
+      }));
+    }
+  };
+
+  const handleFloatingFormulaClick = () => {
+    if (!activeInputInfo) return;
+    const elementId = activeInputInfo.id;
     const el = document.getElementById(elementId);
-    const start = el ? el.selectionStart : currentValue.length;
-    const end = el ? el.selectionEnd : currentValue.length;
+    if (!el) return;
+
+    const currentValue = el.value;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+
     setFormulaModal({
       isOpen: true,
       latex: '',
       onSave: (latex) => {
         const formulaString = `$${latex}$`;
         const newValue = currentValue.substring(0, start) + formulaString + currentValue.substring(end);
-        onSave(newValue);
-        // Focus back and place cursor after inserted math
+        updateValueForId(elementId, newValue);
+
+        // Restore focus and cursor
         setTimeout(() => {
           const inputEl = document.getElementById(elementId);
           if (inputEl) {
             inputEl.focus();
             const newCursorPos = start + formulaString.length;
             inputEl.setSelectionRange(newCursorPos, newCursorPos);
+            setActiveInputInfo({ id: elementId });
           }
         }, 50);
       }
@@ -1866,19 +1979,9 @@ export default function App() {
                               </div>
 
                               <div className="form-group">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                  <label style={{ fontSize: '10px', margin: 0 }}>Question Text</label>
-                                  <button
-                                    type="button"
-                                    className="btn-formula-outline"
-                                    style={{ gap: '3px', fontSize: '10px', padding: '3px 8px' }}
-                                    onClick={() => handleInsertFormulaClick(`q-text-${sec.id}-${q.id}`, q.text, (val) => updateQuestion(sec.id, q.id, { text: val }))}
-                                  >
-                                    <span style={{ fontStyle: 'italic', fontWeight: 'bold' }}>𝑓</span> Formula
-                                  </button>
-                                </div>
+                                <label style={{ fontSize: '10px' }}>Question Text</label>
                                 <textarea
-                                  id={`q-text-${sec.id}-${q.id}`}
+                                  id={`q__text__${sec.id}__${q.id}`}
                                   value={q.text}
                                   style={{ minHeight: '60px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
@@ -1914,30 +2017,17 @@ export default function App() {
                                   {q.options.map((opt, oIdx) => (
                                     <div key={oIdx} style={{ display: 'flex', gap: '6px', width: '100%' }}>
                                       <span style={{ fontSize: '13px', alignSelf: 'center' }}>{String.fromCharCode(65 + oIdx)}.</span>
-                                      <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
-                                        <input
-                                          id={`q-opt-${sec.id}-${q.id}-${oIdx}`}
-                                          type="text"
-                                          value={opt}
-                                          style={{ padding: '4px 8px', fontSize: '12px', flex: 1 }}
-                                          onChange={(e) => {
-                                            const newOpts = [...q.options];
-                                            newOpts[oIdx] = e.target.value;
-                                            updateQuestion(sec.id, q.id, { options: newOpts });
-                                          }}
-                                        />
-                                        <button
-                                          type="button"
-                                          className="btn-formula-outline"
-                                          onClick={() => handleInsertFormulaClick(`q-opt-${sec.id}-${q.id}-${oIdx}`, opt, (val) => {
-                                            const newOpts = [...q.options];
-                                            newOpts[oIdx] = val;
-                                            updateQuestion(sec.id, q.id, { options: newOpts });
-                                          })}
-                                        >
-                                          𝑓
-                                        </button>
-                                      </div>
+                                      <input
+                                        id={`q__opt__${sec.id}__${q.id}__${oIdx}`}
+                                        type="text"
+                                        value={opt}
+                                        style={{ padding: '4px 8px', fontSize: '12px', flex: 1 }}
+                                        onChange={(e) => {
+                                          const newOpts = [...q.options];
+                                          newOpts[oIdx] = e.target.value;
+                                          updateQuestion(sec.id, q.id, { options: newOpts });
+                                        }}
+                                      />
                                     </div>
                                   ))}
                                 </div>
@@ -1974,9 +2064,9 @@ export default function App() {
                                     </button>
                                   </div>
                                   {q.matchPairs.map((pair, pIdx) => (
-                                    <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto auto', gap: '6px', alignItems: 'center' }}>
+                                    <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '6px', alignItems: 'center' }}>
                                       <input
-                                        id={`q-match-a-${sec.id}-${q.id}-${pIdx}`}
+                                        id={`q__matcha__${sec.id}__${q.id}__${pIdx}`}
                                         type="text"
                                         placeholder="Premise (Col A)"
                                         value={pair.premise}
@@ -1987,19 +2077,8 @@ export default function App() {
                                           updateQuestion(sec.id, q.id, { matchPairs: newPairs });
                                         }}
                                       />
-                                      <button
-                                        type="button"
-                                        className="btn-formula-outline"
-                                        onClick={() => handleInsertFormulaClick(`q-match-a-${sec.id}-${q.id}-${pIdx}`, pair.premise, (val) => {
-                                          const newPairs = [...q.matchPairs];
-                                          newPairs[pIdx].premise = val;
-                                          updateQuestion(sec.id, q.id, { matchPairs: newPairs });
-                                        })}
-                                      >
-                                        𝑓
-                                      </button>
                                       <input
-                                        id={`q-match-b-${sec.id}-${q.id}-${pIdx}`}
+                                        id={`q__matchb__${sec.id}__${q.id}__${pIdx}`}
                                         type="text"
                                         placeholder="Response (Col B)"
                                         value={pair.response}
@@ -2010,17 +2089,6 @@ export default function App() {
                                           updateQuestion(sec.id, q.id, { matchPairs: newPairs });
                                         }}
                                       />
-                                      <button
-                                        type="button"
-                                        className="btn-formula-outline"
-                                        onClick={() => handleInsertFormulaClick(`q-match-b-${sec.id}-${q.id}-${pIdx}`, pair.response, (val) => {
-                                          const newPairs = [...q.matchPairs];
-                                          newPairs[pIdx].response = val;
-                                          updateQuestion(sec.id, q.id, { matchPairs: newPairs });
-                                        })}
-                                      >
-                                        𝑓
-                                      </button>
                                       <button
                                         className="btn btn-danger btn-sm"
                                         style={{ padding: '4px' }}
@@ -2211,35 +2279,21 @@ export default function App() {
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Header Row (Bold)</label>
                                   <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
                                     {q.tableData.headers.map((h, hIdx) => (
-                                      <div key={hIdx} style={{ display: 'flex', gap: '2px' }}>
-                                        <input
-                                          id={`q-tbl-h-${sec.id}-${q.id}-${hIdx}`}
-                                          type="text"
-                                          value={h}
-                                          placeholder={`Header ${hIdx + 1}`}
-                                          style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold', flex: 1 }}
-                                          onChange={(e) => {
-                                            const newData = { ...q.tableData };
-                                            const newHeaders = [...newData.headers];
-                                            newHeaders[hIdx] = e.target.value;
-                                            newData.headers = newHeaders;
-                                            updateQuestion(sec.id, q.id, { tableData: newData });
-                                          }}
-                                        />
-                                        <button
-                                          type="button"
-                                          className="btn-formula-outline"
-                                          onClick={() => handleInsertFormulaClick(`q-tbl-h-${sec.id}-${q.id}-${hIdx}`, h, (val) => {
-                                            const newData = { ...q.tableData };
-                                            const newHeaders = [...newData.headers];
-                                            newHeaders[hIdx] = val;
-                                            newData.headers = newHeaders;
-                                            updateQuestion(sec.id, q.id, { tableData: newData });
-                                          })}
-                                        >
-                                          𝑓
-                                        </button>
-                                      </div>
+                                      <input
+                                        key={hIdx}
+                                        id={`q__tblh__${sec.id}__${q.id}__${hIdx}`}
+                                        type="text"
+                                        value={h}
+                                        placeholder={`Header ${hIdx + 1}`}
+                                        style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold' }}
+                                        onChange={(e) => {
+                                          const newData = { ...q.tableData };
+                                          const newHeaders = [...newData.headers];
+                                          newHeaders[hIdx] = e.target.value;
+                                          newData.headers = newHeaders;
+                                          updateQuestion(sec.id, q.id, { tableData: newData });
+                                        }}
+                                      />
                                     ))}
                                   </div>
 
@@ -2248,35 +2302,21 @@ export default function App() {
                                   {q.tableData.rows.map((row, rIdx) => (
                                     <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
                                       {row.map((cell, cIdx) => (
-                                        <div key={cIdx} style={{ display: 'flex', gap: '2px' }}>
-                                          <input
-                                            id={`q-tbl-c-${sec.id}-${q.id}-${rIdx}-${cIdx}`}
-                                            type="text"
-                                            value={cell}
-                                            placeholder={`R${rIdx + 1}C${cIdx + 1}`}
-                                            style={{ padding: '4px 6px', fontSize: '11px', flex: 1 }}
-                                            onChange={(e) => {
-                                              const newData = { ...q.tableData };
-                                              const newRows = newData.rows.map(r => [...r]);
-                                              newRows[rIdx][cIdx] = e.target.value;
-                                              newData.rows = newRows;
-                                              updateQuestion(sec.id, q.id, { tableData: newData });
-                                            }}
-                                          />
-                                          <button
-                                            type="button"
-                                            className="btn-formula-outline"
-                                            onClick={() => handleInsertFormulaClick(`q-tbl-c-${sec.id}-${q.id}-${rIdx}-${cIdx}`, cell, (val) => {
-                                              const newData = { ...q.tableData };
-                                              const newRows = newData.rows.map(r => [...r]);
-                                              newRows[rIdx][cIdx] = val;
-                                              newData.rows = newRows;
-                                              updateQuestion(sec.id, q.id, { tableData: newData });
-                                            })}
-                                          >
-                                            𝑓
-                                          </button>
-                                        </div>
+                                        <input
+                                          key={cIdx}
+                                          id={`q__tblc__${sec.id}__${q.id}__${rIdx}__${cIdx}`}
+                                          type="text"
+                                          value={cell}
+                                          placeholder={`R${rIdx + 1}C${cIdx + 1}`}
+                                          style={{ padding: '4px 6px', fontSize: '11px' }}
+                                          onChange={(e) => {
+                                            const newData = { ...q.tableData };
+                                            const newRows = newData.rows.map(r => [...r]);
+                                            newRows[rIdx][cIdx] = e.target.value;
+                                            newData.rows = newRows;
+                                            updateQuestion(sec.id, q.id, { tableData: newData });
+                                          }}
+                                        />
                                       ))}
                                     </div>
                                   ))}
@@ -2826,6 +2866,18 @@ export default function App() {
           </div>
         </div>
       )}
+      {/* Floating Formula FAB */}
+      {activeInputInfo && (
+        <button
+          type="button"
+          className="floating-formula-btn"
+          onClick={handleFloatingFormulaClick}
+          title="Insert formula into selected inputbox"
+        >
+          <span style={{ fontStyle: 'italic', fontWeight: 'bold' }}>𝑓</span> Formula
+        </button>
+      )}
+
       {/* Formula Editor Modal */}
       {formulaModal.isOpen && (
         <div className="modal-overlay" onClick={() => setFormulaModal({ ...formulaModal, isOpen: false })} style={{ zIndex: 10000 }}>

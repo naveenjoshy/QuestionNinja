@@ -1163,3 +1163,47 @@ textarea {
     color: #000 !important;
   }
 }
+
+/* Floating Formula Button */
+.floating-formula-btn {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 9999;
+  background-color: var(--accent);
+  color: #ffffff !important;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 50px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slide-up-fade 0.2s ease-out;
+}
+
+.floating-formula-btn:hover {
+  background-color: var(--accent-hover);
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+}
+
+.floating-formula-btn:active {
+  transform: scale(0.98) translateY(0);
+}
+
+@keyframes slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
