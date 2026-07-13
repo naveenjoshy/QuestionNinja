@@ -581,6 +581,13 @@ export default function App() {
     e.target.releasePointerCapture(e.pointerId);
   };
 
+  // Helper to format marks to show at most 2 decimal places
+  const formatMarks = (val) => {
+    const num = Number(val) || 0;
+    if (Number.isInteger(num)) return String(num);
+    return num.toFixed(2);
+  };
+
   // Helper calculation functions
   const getSectionTotalMarks = (section) => {
     const rawTotal = section.questions.reduce((total, q) => total + (Number(q.marks) || 0), 0);
@@ -739,6 +746,55 @@ export default function App() {
       }
       return s;
     }));
+  };
+
+  const handlePasteImage = (e, secId, qId) => {
+    const section = sections.find(s => s.id === secId);
+    if (!section || section.type !== 'image') return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = (uploadEvent) => {
+            updateQuestion(secId, qId, { image: uploadEvent.target.result });
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  };
+
+  const handleDragLeave = (e) => {
+    e.currentTarget.classList.remove('drag-over');
+  };
+
+  const handleDropImage = (e, secId, qId) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          updateQuestion(secId, qId, { image: uploadEvent.target.result });
+        };
+        reader.readAsDataURL(file);
+      }
+    }
   };
 
   const moveSection = (index, direction) => {
@@ -949,11 +1005,11 @@ export default function App() {
           if (row.length < 3) continue;
 
           const secTitle = row[0];
-          const secMarks = Number(row[1]) || 0;
+          const secMarks = Math.round((Number(row[1]) || 0) * 100) / 100;
           const secInstructions = row[2];
           const qType = row[3];
           const qText = row[4];
-          const qMarks = Number(row[5]) || 0;
+          const qMarks = Math.round((Number(row[5]) || 0) * 100) / 100;
           const optionsStr = row[6];
           const blankLinesVal = row[7];
           const matchPairsStr = row[8];
@@ -1234,7 +1290,7 @@ export default function App() {
     headerChildren.push(createMetaParagraph('Examination: ', metadata.title));
     headerChildren.push(createMetaParagraph('Subject: ', metadata.subject));
     headerChildren.push(createMetaParagraph('Class & Div: ', metadata.classDiv));
-    headerChildren.push(createMetaParagraph('Max Marks: ', String(metadata.maxMarks || 0)));
+    headerChildren.push(createMetaParagraph('Max Marks: ', formatMarks(metadata.maxMarks)));
     headerChildren.push(createMetaParagraph('Time Allowed: ', metadata.duration));
 
     // Bottom border for metadata
@@ -1268,7 +1324,7 @@ export default function App() {
               font: getFontFamily()
             }),
             new docx.TextRun({
-              text: `\t(Total: ${sec.marks || 0} Marks)`,
+              text: `\t(Total: ${formatMarks(sec.marks)} Marks)`,
               bold: true,
               size: 22,
               font: getFontFamily()
@@ -1317,7 +1373,7 @@ export default function App() {
               }),
               ...docxTextRunsWithMath(q.text || ''),
               new docx.TextRun({
-                text: `\t[${q.marks || 0} Marks]`,
+                text: `\t[${formatMarks(q.marks)} Marks]`,
                 bold: true,
                 size: 20
               })
@@ -1810,6 +1866,7 @@ export default function App() {
                     step="any"
                     value={metadata.maxMarks}
                     onChange={(e) => setMetadata({ ...metadata, maxMarks: Number(e.target.value) })}
+                    onBlur={(e) => setMetadata({ ...metadata, maxMarks: Math.round(Number(e.target.value) * 100) / 100 })}
                   />
                 </div>
                 <div className="form-group">
@@ -1842,7 +1899,7 @@ export default function App() {
                 {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
                   <div className="warning-badge">
                     <AlertTriangle size={14} />
-                    <span>Marks Mismatch: Current Questions = {getExamCurrentTotalMarks()} marks (Target = {metadata.maxMarks} marks).</span>
+                    <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
                   </div>
                 ) : (
                   <div className="warning-badge" style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
@@ -1909,6 +1966,7 @@ export default function App() {
                               step="any"
                               value={sec.marks}
                               onChange={(e) => updateSectionMeta(sec.id, 'marks', Number(e.target.value))}
+                              onBlur={(e) => updateSectionMeta(sec.id, 'marks', Math.round(Number(e.target.value) * 100) / 100)}
                             />
                           </div>
                           <div className="form-group">
@@ -1921,7 +1979,7 @@ export default function App() {
                               fontWeight: 'bold',
                               color: isOverProvisioned ? 'var(--warning)' : isUnderProvisioned ? 'var(--danger)' : 'var(--success)'
                             }}>
-                              {secTotal} / {sec.marks} Marks
+                              {formatMarks(secTotal)} / {formatMarks(sec.marks)} Marks
                             </div>
                           </div>
                         </div>
@@ -1953,7 +2011,7 @@ export default function App() {
                         {isOverProvisioned && (
                           <div className="warning-badge" style={{ fontSize: '11px' }}>
                             <AlertTriangle size={12} />
-                            <span>Choice Provisioning: Question total ({secTotal}) exceeds Declared section marks ({sec.marks}). Permitted for optional choices.</span>
+                            <span>Choice Provisioning: Question total ({formatMarks(secTotal)}) exceeds Declared section marks ({formatMarks(sec.marks)}). Permitted for optional choices.</span>
                           </div>
                         )}
 
@@ -1964,7 +2022,7 @@ export default function App() {
                           </div>
 
                           {sec.questions.map((q, qIdx) => (
-                            <div key={q.id} style={{ padding: '12px', backgroundColor: 'var(--bg-editor)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color)' }}>
+                            <div key={q.id} onPaste={(e) => handlePasteImage(e, sec.id, q.id)} style={{ padding: '12px', backgroundColor: 'var(--bg-editor)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color)' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--accent)' }}>
                                   Q{qIdx + 1} ({(sec.type || 'essay').toUpperCase()})
@@ -2012,6 +2070,7 @@ export default function App() {
                                   value={q.marks}
                                   style={{ padding: '6px 10px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { marks: Number(e.target.value) })}
+                                  onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.round(Number(e.target.value) * 100) / 100 })}
                                 />
                               </div>
 
@@ -2128,7 +2187,12 @@ export default function App() {
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image</label>
                                   {q.image ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                      <div className="editor-image-preview-container">
+                                      <div 
+                                        className="editor-image-preview-container"
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                      >
                                         <img
                                           src={q.image}
                                           alt="Question"
@@ -2172,9 +2236,17 @@ export default function App() {
                                       </div>
                                     </div>
                                   ) : (
-                                    <label className="image-upload-dashed-zone">
+                                    <label 
+                                      className="image-upload-dashed-zone"
+                                      onDragOver={handleDragOver}
+                                      onDragLeave={handleDragLeave}
+                                      onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                    >
                                       <ImageIcon size={20} className="text-secondary" />
-                                      <span>Upload Question Image</span>
+                                      <span>Upload Question Image, drag & drop, or paste here</span>
+                                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', opacity: 0.7 }}>
+                                        (Click to browse, drag file, or Ctrl+V / Cmd+V to paste)
+                                      </span>
                                       <input
                                         type="file"
                                         accept="image/*"
@@ -2354,7 +2426,7 @@ export default function App() {
                 {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
                   <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start' }}>
                     <AlertTriangle size={14} />
-                    <span>Marks Mismatch: Current Questions = {getExamCurrentTotalMarks()} marks (Target = {metadata.maxMarks} marks).</span>
+                    <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
                   </div>
                 ) : (
                   <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
@@ -2491,7 +2563,7 @@ export default function App() {
               <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-editor)', display: 'flex' }} className="warning-badge-container print-hide">
                 <div className="warning-badge" style={{ display: 'flex', width: '100%', boxSizing: 'border-box' }}>
                   <AlertTriangle size={14} />
-                  <span>Marks Mismatch: Current Questions = {getExamCurrentTotalMarks()} marks (Target = {metadata.maxMarks} marks).</span>
+                  <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
                 </div>
               </div>
             )}
@@ -2549,7 +2621,7 @@ export default function App() {
                   </div>
                   <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Max Marks:</span>
-                    <span>{metadata.maxMarks}</span>
+                    <span>{formatMarks(metadata.maxMarks)}</span>
                   </div>
                   <div className="exam-meta-item full-width">
                     <span className="exam-meta-label">Duration:</span>
@@ -2568,7 +2640,7 @@ export default function App() {
                       <div key={sec.id} className="paper-section">
                         <div className="paper-section-header">
                           <h2 className="paper-section-title">{sec.title}</h2>
-                          <span className="paper-section-marks">[{sec.marks} Marks]</span>
+                          <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
                         </div>
                         {sec.instructions && (
                           <p className="paper-section-instructions">{sec.instructions}</p>
@@ -2688,7 +2760,7 @@ export default function App() {
                                     </table>
                                   )}
                                 </div>
-                                <span className="paper-question-marks">({q.marks} M)</span>
+                                <span className="paper-question-marks">({formatMarks(q.marks)} M)</span>
                               </div>
                             );
                           })}

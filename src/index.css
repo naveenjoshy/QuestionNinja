@@ -831,7 +831,9 @@ textarea {
   .drag-indicator,
   .resize-handle,
   .warning-badge,
-  .warning-badge-container {
+  .warning-badge-container,
+  .app-footer-fixed,
+  .print-hide {
     display: none !important;
   }
 
@@ -965,7 +967,8 @@ textarea {
   text-align: center;
 }
 
-.image-upload-dashed-zone:hover {
+.image-upload-dashed-zone:hover,
+.image-upload-dashed-zone.drag-over {
   border-color: var(--accent);
   background-color: var(--accent-alpha);
   color: var(--accent);
@@ -985,6 +988,12 @@ textarea {
   border-radius: var(--radius-sm);
   background-color: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--border-color);
+  transition: all 0.2s ease;
+}
+
+.editor-image-preview-container.drag-over {
+  border-color: var(--accent) !important;
+  background-color: var(--accent-alpha) !important;
 }
 
 /* Print and PDF adjustments for images */
