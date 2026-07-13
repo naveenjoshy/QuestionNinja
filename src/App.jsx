@@ -9,7 +9,6 @@ import {
   Settings,
   BookOpen,
   Layers,
-  HelpCircle,
   Image as ImageIcon,
   CheckCircle,
   AlertTriangle,
@@ -28,6 +27,174 @@ import {
   Shield
 } from 'lucide-react';
 import * as docx from 'docx';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+
+// Helper: render LaTeX to HTML string
+const renderLatex = (latex) => {
+  try {
+    return katex.renderToString(latex, {
+      throwOnError: false,
+      displayMode: true,
+      output: 'html'
+    });
+  } catch {
+    return `<span style="color:red;">Invalid formula</span>`;
+  }
+};
+
+// Helper: render text that contains $...$ math blocks using KaTeX
+const renderTextWithMath = (text) => {
+  if (!text) return '';
+  return text.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
+    try {
+      return katex.renderToString(mathContent, {
+        throwOnError: false,
+        displayMode: false,
+        output: 'html'
+      });
+    } catch {
+      return `<span style="color:red;">${match}</span>`;
+    }
+  });
+};
+
+// Helper: convert text with $...$ math into an array of docx.TextRun objects
+const docxTextRunsWithMath = (text, defaultOptions = {}) => {
+  if (!text) return [];
+  const parts = text.split('$');
+  return parts.map((part, index) => {
+    if (index % 2 === 1) {
+      // This is math
+      const plainMath = latexToPlainText(part);
+      return new docx.TextRun({
+        text: plainMath,
+        italics: true,
+        font: 'Cambria Math',
+        size: defaultOptions.size || 22,
+        ...defaultOptions
+      });
+    } else {
+      // This is plain text
+      return new docx.TextRun({
+        text: part,
+        size: defaultOptions.size || 22,
+        ...defaultOptions
+      });
+    }
+  });
+};
+
+// Helper: convert LaTeX to readable plain text for DOCX
+const latexToPlainText = (latex) => {
+  if (!latex) return '';
+  let text = latex;
+  // Fractions
+  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)');
+  // Square root
+  text = text.replace(/\\sqrt\{([^}]*)\}/g, '√($1)');
+  // Superscript
+  text = text.replace(/\^\{([^}]*)\}/g, (_, p) => {
+    const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','+':'⁺','-':'⁻' };
+    return p.split('').map(c => supMap[c] || `^${c}`).join('');
+  });
+  text = text.replace(/\^([0-9n])/g, (_, c) => {
+    const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ' };
+    return supMap[c] || `^${c}`;
+  });
+  // Subscript
+  text = text.replace(/_\{([^}]*)\}/g, (_, p) => {
+    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉' };
+    return p.split('').map(c => subMap[c] || `_${c}`).join('');
+  });
+  text = text.replace(/_([0-9])/g, (_, c) => {
+    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉' };
+    return subMap[c] || `_${c}`;
+  });
+  // Greek letters
+  const greeks = { '\\alpha':'α','\\beta':'β','\\gamma':'γ','\\delta':'δ','\\theta':'θ','\\lambda':'λ','\\mu':'μ','\\pi':'π','\\sigma':'σ','\\phi':'φ','\\omega':'ω','\\Delta':'Δ','\\Sigma':'Σ','\\Pi':'Π','\\Omega':'Ω' };
+  for (const [k, v] of Object.entries(greeks)) {
+    text = text.replaceAll(k, v);
+  }
+  // Operators
+  const ops = { '\\pm':'±','\\times':'×','\\div':'÷','\\neq':'≠','\\leq':'≤','\\geq':'≥','\\infty':'∞','\\propto':'∝','\\approx':'≈','\\rightarrow':'→','\\leftarrow':'←','\\leftrightarrow':'↔','\\int':'∫','\\partial':'∂','\\sum':'Σ','\\prod':'∏','\\cdot':'·','\\ldots':'…' };
+  for (const [k, v] of Object.entries(ops)) {
+    text = text.replaceAll(k, v);
+  }
+  // Clean remaining commands
+  text = text.replace(/\\(lim|log|sin|cos|tan|ln)/g, '$1');
+  text = text.replace(/\\[a-zA-Z]+/g, '');
+  text = text.replace(/[{}]/g, '');
+  text = text.replace(/\s+/g, ' ').trim();
+  return text;
+};
+
+// Formula toolbar button definitions
+const FORMULA_BUTTONS = [
+  { label: 'Basic', buttons: [
+    { symbol: 'x²', latex: '^{2}', hint: 'Superscript' },
+    { symbol: 'xₙ', latex: '_{n}', hint: 'Subscript' },
+    { symbol: '⁄', latex: '\\frac{a}{b}', hint: 'Fraction', replace: true },
+    { symbol: '√', latex: '\\sqrt{x}', hint: 'Square root', replace: true },
+    { symbol: '∛', latex: '\\sqrt[3]{x}', hint: 'Cube root', replace: true },
+    { symbol: 'xⁿ', latex: '^{n}', hint: 'nth power' },
+  ]},
+  { label: 'Greek', buttons: [
+    { symbol: 'α', latex: '\\alpha', hint: 'Alpha' },
+    { symbol: 'β', latex: '\\beta', hint: 'Beta' },
+    { symbol: 'γ', latex: '\\gamma', hint: 'Gamma' },
+    { symbol: 'δ', latex: '\\delta', hint: 'Delta' },
+    { symbol: 'θ', latex: '\\theta', hint: 'Theta' },
+    { symbol: 'λ', latex: '\\lambda', hint: 'Lambda' },
+    { symbol: 'μ', latex: '\\mu', hint: 'Mu' },
+    { symbol: 'π', latex: '\\pi', hint: 'Pi' },
+    { symbol: 'σ', latex: '\\sigma', hint: 'Sigma (lowercase)' },
+    { symbol: 'φ', latex: '\\phi', hint: 'Phi' },
+    { symbol: 'ω', latex: '\\omega', hint: 'Omega' },
+    { symbol: 'Δ', latex: '\\Delta', hint: 'Delta (uppercase)' },
+    { symbol: 'Σ', latex: '\\Sigma', hint: 'Sigma (uppercase)' },
+    { symbol: 'Π', latex: '\\Pi', hint: 'Pi (uppercase)' },
+    { symbol: 'Ω', latex: '\\Omega', hint: 'Omega (uppercase)' },
+  ]},
+  { label: 'Operators', buttons: [
+    { symbol: '±', latex: '\\pm', hint: 'Plus-minus' },
+    { symbol: '×', latex: '\\times', hint: 'Multiply' },
+    { symbol: '÷', latex: '\\div', hint: 'Divide' },
+    { symbol: '·', latex: '\\cdot', hint: 'Dot product' },
+    { symbol: '≠', latex: '\\neq', hint: 'Not equal' },
+    { symbol: '≤', latex: '\\leq', hint: 'Less than or equal' },
+    { symbol: '≥', latex: '\\geq', hint: 'Greater than or equal' },
+    { symbol: '≈', latex: '\\approx', hint: 'Approximately' },
+    { symbol: '∞', latex: '\\infty', hint: 'Infinity' },
+    { symbol: '∝', latex: '\\propto', hint: 'Proportional' },
+  ]},
+  { label: 'Calculus', buttons: [
+    { symbol: '∫', latex: '\\int_{a}^{b}', hint: 'Integral', replace: true },
+    { symbol: '∂', latex: '\\partial', hint: 'Partial derivative' },
+    { symbol: 'lim', latex: '\\lim_{x \\to \\infty}', hint: 'Limit', replace: true },
+    { symbol: 'Σ', latex: '\\sum_{i=1}^{n}', hint: 'Summation', replace: true },
+    { symbol: '∏', latex: '\\prod_{i=1}^{n}', hint: 'Product', replace: true },
+    { symbol: 'log', latex: '\\log', hint: 'Logarithm' },
+    { symbol: 'ln', latex: '\\ln', hint: 'Natural log' },
+  ]},
+  { label: 'Trig', buttons: [
+    { symbol: 'sin', latex: '\\sin', hint: 'Sine' },
+    { symbol: 'cos', latex: '\\cos', hint: 'Cosine' },
+    { symbol: 'tan', latex: '\\tan', hint: 'Tangent' },
+  ]},
+  { label: 'Arrows', buttons: [
+    { symbol: '→', latex: '\\rightarrow', hint: 'Right arrow' },
+    { symbol: '←', latex: '\\leftarrow', hint: 'Left arrow' },
+    { symbol: '↔', latex: '\\leftrightarrow', hint: 'Double arrow' },
+  ]},
+  { label: 'Templates', buttons: [
+    { symbol: 'a/b', latex: '\\frac{a}{b}', hint: 'Fraction', replace: true },
+    { symbol: '√x', latex: '\\sqrt{x}', hint: 'Square root', replace: true },
+    { symbol: 'x²+y²', latex: 'x^{2} + y^{2}', hint: 'Sum of squares', replace: true },
+    { symbol: 'Quadratic', latex: 'x = \\frac{-b \\pm \\sqrt{b^{2}-4ac}}{2a}', hint: 'Quadratic formula', replace: true },
+    { symbol: 'E=mc²', latex: 'E = mc^{2}', hint: "Einstein's equation", replace: true },
+  ]},
+];
 
 const DEFAULT_BRANDING = {
   logo: '',
@@ -147,7 +314,34 @@ export default function App() {
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [isDocsUploading, setIsDocsUploading] = useState(false);
   const [docsError, setDocsError] = useState('');
+  const [formulaModal, setFormulaModal] = useState({ isOpen: false, latex: '', onSave: null });
+  const formulaInputRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  // Helper to open formula editor and insert LaTeX wrapped in $...$ at current cursor position
+  const handleInsertFormulaClick = (elementId, currentValue, onSave) => {
+    const el = document.getElementById(elementId);
+    const start = el ? el.selectionStart : currentValue.length;
+    const end = el ? el.selectionEnd : currentValue.length;
+    setFormulaModal({
+      isOpen: true,
+      latex: '',
+      onSave: (latex) => {
+        const formulaString = `$${latex}$`;
+        const newValue = currentValue.substring(0, start) + formulaString + currentValue.substring(end);
+        onSave(newValue);
+        // Focus back and place cursor after inserted math
+        setTimeout(() => {
+          const inputEl = document.getElementById(elementId);
+          if (inputEl) {
+            inputEl.focus();
+            const newCursorPos = start + formulaString.length;
+            inputEl.setSelectionRange(newCursorPos, newCursorPos);
+          }
+        }, 50);
+      }
+    });
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -283,9 +477,6 @@ export default function App() {
     return sections.reduce((total, s) => total + getSectionTotalMarks(s), 0);
   };
 
-  const getSectionTargetMarks = () => {
-    return sections.reduce((total, s) => total + (Number(s.marks) || 0), 0);
-  };
 
   // State update helpers for Sections & Questions
   const addSection = () => {
@@ -1009,10 +1200,7 @@ export default function App() {
                 bold: true,
                 size: 22
               }),
-              new docx.TextRun({
-                text: q.text || '',
-                size: 22
-              }),
+              ...docxTextRunsWithMath(q.text || ''),
               new docx.TextRun({
                 text: `\t[${q.marks || 0} Marks]`,
                 bold: true,
@@ -1046,7 +1234,8 @@ export default function App() {
                     indent: { left: 360 },
                     spacing: { after: 40 },
                     children: [
-                      new docx.TextRun({ text: `(${leftLetter})  ${leftText}`, size: 22 })
+                      new docx.TextRun({ text: `(${leftLetter})  `, size: 22 }),
+                      ...docxTextRunsWithMath(leftText)
                     ]
                   })
                 ]
@@ -1067,7 +1256,8 @@ export default function App() {
                     new docx.Paragraph({
                       spacing: { after: 40 },
                       children: [
-                        new docx.TextRun({ text: `(${rightLetter})  ${rightText}`, size: 22 })
+                        new docx.TextRun({ text: `(${rightLetter})  `, size: 22 }),
+                        ...docxTextRunsWithMath(rightText)
                       ]
                     })
                   ]
@@ -1164,13 +1354,15 @@ export default function App() {
                 spacing: { after: 60 },
                 children: [
                   new docx.TextRun({
-                    text: `${index + 1}. ${columnA[index] || ''}`,
+                    text: `${index + 1}. `,
                     size: 22
                   }),
+                  ...docxTextRunsWithMath(columnA[index] || ''),
                   new docx.TextRun({
-                    text: `\t\t\t\t\t\t${romanNum(index)}. ${columnB[index] || ''}`,
+                    text: `\t\t\t\t\t\t${romanNum(index)}. `,
                     size: 22
-                  })
+                  }),
+                  ...docxTextRunsWithMath(columnB[index] || '')
                 ]
               })
             );
@@ -1209,9 +1401,7 @@ export default function App() {
               children: [
                 new docx.Paragraph({
                   spacing: { before: 40, after: 40 },
-                  children: [
-                    new docx.TextRun({ text: h || '', bold: true, size: 22 })
-                  ]
+                  children: docxTextRunsWithMath(h || '', { bold: true })
                 })
               ]
             })
@@ -1225,9 +1415,7 @@ export default function App() {
                 children: [
                   new docx.Paragraph({
                     spacing: { before: 40, after: 40 },
-                    children: [
-                      new docx.TextRun({ text: cell || '', size: 22 })
-                    ]
+                    children: docxTextRunsWithMath(cell || '')
                   })
                 ]
               })
@@ -1678,8 +1866,19 @@ export default function App() {
                               </div>
 
                               <div className="form-group">
-                                <label style={{ fontSize: '10px' }}>Question Text</label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                  <label style={{ fontSize: '10px', margin: 0 }}>Question Text</label>
+                                  <button
+                                    type="button"
+                                    className="btn-formula-outline"
+                                    style={{ gap: '3px', fontSize: '10px', padding: '3px 8px' }}
+                                    onClick={() => handleInsertFormulaClick(`q-text-${sec.id}-${q.id}`, q.text, (val) => updateQuestion(sec.id, q.id, { text: val }))}
+                                  >
+                                    <span style={{ fontStyle: 'italic', fontWeight: 'bold' }}>𝑓</span> Formula
+                                  </button>
+                                </div>
                                 <textarea
+                                  id={`q-text-${sec.id}-${q.id}`}
                                   value={q.text}
                                   style={{ minHeight: '60px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
@@ -1713,18 +1912,32 @@ export default function App() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
                                   {q.options.map((opt, oIdx) => (
-                                    <div key={oIdx} style={{ display: 'flex', gap: '6px' }}>
+                                    <div key={oIdx} style={{ display: 'flex', gap: '6px', width: '100%' }}>
                                       <span style={{ fontSize: '13px', alignSelf: 'center' }}>{String.fromCharCode(65 + oIdx)}.</span>
-                                      <input
-                                        type="text"
-                                        value={opt}
-                                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                                        onChange={(e) => {
-                                          const newOpts = [...q.options];
-                                          newOpts[oIdx] = e.target.value;
-                                          updateQuestion(sec.id, q.id, { options: newOpts });
-                                        }}
-                                      />
+                                      <div style={{ display: 'flex', gap: '4px', flex: 1 }}>
+                                        <input
+                                          id={`q-opt-${sec.id}-${q.id}-${oIdx}`}
+                                          type="text"
+                                          value={opt}
+                                          style={{ padding: '4px 8px', fontSize: '12px', flex: 1 }}
+                                          onChange={(e) => {
+                                            const newOpts = [...q.options];
+                                            newOpts[oIdx] = e.target.value;
+                                            updateQuestion(sec.id, q.id, { options: newOpts });
+                                          }}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="btn-formula-outline"
+                                          onClick={() => handleInsertFormulaClick(`q-opt-${sec.id}-${q.id}-${oIdx}`, opt, (val) => {
+                                            const newOpts = [...q.options];
+                                            newOpts[oIdx] = val;
+                                            updateQuestion(sec.id, q.id, { options: newOpts });
+                                          })}
+                                        >
+                                          𝑓
+                                        </button>
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -1761,8 +1974,9 @@ export default function App() {
                                     </button>
                                   </div>
                                   {q.matchPairs.map((pair, pIdx) => (
-                                    <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '6px' }}>
+                                    <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto auto', gap: '6px', alignItems: 'center' }}>
                                       <input
+                                        id={`q-match-a-${sec.id}-${q.id}-${pIdx}`}
                                         type="text"
                                         placeholder="Premise (Col A)"
                                         value={pair.premise}
@@ -1773,7 +1987,19 @@ export default function App() {
                                           updateQuestion(sec.id, q.id, { matchPairs: newPairs });
                                         }}
                                       />
+                                      <button
+                                        type="button"
+                                        className="btn-formula-outline"
+                                        onClick={() => handleInsertFormulaClick(`q-match-a-${sec.id}-${q.id}-${pIdx}`, pair.premise, (val) => {
+                                          const newPairs = [...q.matchPairs];
+                                          newPairs[pIdx].premise = val;
+                                          updateQuestion(sec.id, q.id, { matchPairs: newPairs });
+                                        })}
+                                      >
+                                        𝑓
+                                      </button>
                                       <input
+                                        id={`q-match-b-${sec.id}-${q.id}-${pIdx}`}
                                         type="text"
                                         placeholder="Response (Col B)"
                                         value={pair.response}
@@ -1784,6 +2010,17 @@ export default function App() {
                                           updateQuestion(sec.id, q.id, { matchPairs: newPairs });
                                         }}
                                       />
+                                      <button
+                                        type="button"
+                                        className="btn-formula-outline"
+                                        onClick={() => handleInsertFormulaClick(`q-match-b-${sec.id}-${q.id}-${pIdx}`, pair.response, (val) => {
+                                          const newPairs = [...q.matchPairs];
+                                          newPairs[pIdx].response = val;
+                                          updateQuestion(sec.id, q.id, { matchPairs: newPairs });
+                                        })}
+                                      >
+                                        𝑓
+                                      </button>
                                       <button
                                         className="btn btn-danger btn-sm"
                                         style={{ padding: '4px' }}
@@ -1972,44 +2209,74 @@ export default function App() {
 
                                   {/* Table header cells */}
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Header Row (Bold)</label>
-                                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '4px' }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
                                     {q.tableData.headers.map((h, hIdx) => (
-                                      <input
-                                        key={hIdx}
-                                        type="text"
-                                        value={h}
-                                        placeholder={`Header ${hIdx + 1}`}
-                                        style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold' }}
-                                        onChange={(e) => {
-                                          const newData = { ...q.tableData };
-                                          const newHeaders = [...newData.headers];
-                                          newHeaders[hIdx] = e.target.value;
-                                          newData.headers = newHeaders;
-                                          updateQuestion(sec.id, q.id, { tableData: newData });
-                                        }}
-                                      />
+                                      <div key={hIdx} style={{ display: 'flex', gap: '2px' }}>
+                                        <input
+                                          id={`q-tbl-h-${sec.id}-${q.id}-${hIdx}`}
+                                          type="text"
+                                          value={h}
+                                          placeholder={`Header ${hIdx + 1}`}
+                                          style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold', flex: 1 }}
+                                          onChange={(e) => {
+                                            const newData = { ...q.tableData };
+                                            const newHeaders = [...newData.headers];
+                                            newHeaders[hIdx] = e.target.value;
+                                            newData.headers = newHeaders;
+                                            updateQuestion(sec.id, q.id, { tableData: newData });
+                                          }}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="btn-formula-outline"
+                                          onClick={() => handleInsertFormulaClick(`q-tbl-h-${sec.id}-${q.id}-${hIdx}`, h, (val) => {
+                                            const newData = { ...q.tableData };
+                                            const newHeaders = [...newData.headers];
+                                            newHeaders[hIdx] = val;
+                                            newData.headers = newHeaders;
+                                            updateQuestion(sec.id, q.id, { tableData: newData });
+                                          })}
+                                        >
+                                          𝑓
+                                        </button>
+                                      </div>
                                     ))}
                                   </div>
 
                                   {/* Table body cells */}
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Body Rows (Regular)</label>
                                   {q.tableData.rows.map((row, rIdx) => (
-                                    <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '4px' }}>
+                                    <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
                                       {row.map((cell, cIdx) => (
-                                        <input
-                                          key={cIdx}
-                                          type="text"
-                                          value={cell}
-                                          placeholder={`R${rIdx + 1}C${cIdx + 1}`}
-                                          style={{ padding: '4px 6px', fontSize: '11px' }}
-                                          onChange={(e) => {
-                                            const newData = { ...q.tableData };
-                                            const newRows = newData.rows.map(r => [...r]);
-                                            newRows[rIdx][cIdx] = e.target.value;
-                                            newData.rows = newRows;
-                                            updateQuestion(sec.id, q.id, { tableData: newData });
-                                          }}
-                                        />
+                                        <div key={cIdx} style={{ display: 'flex', gap: '2px' }}>
+                                          <input
+                                            id={`q-tbl-c-${sec.id}-${q.id}-${rIdx}-${cIdx}`}
+                                            type="text"
+                                            value={cell}
+                                            placeholder={`R${rIdx + 1}C${cIdx + 1}`}
+                                            style={{ padding: '4px 6px', fontSize: '11px', flex: 1 }}
+                                            onChange={(e) => {
+                                              const newData = { ...q.tableData };
+                                              const newRows = newData.rows.map(r => [...r]);
+                                              newRows[rIdx][cIdx] = e.target.value;
+                                              newData.rows = newRows;
+                                              updateQuestion(sec.id, q.id, { tableData: newData });
+                                            }}
+                                          />
+                                          <button
+                                            type="button"
+                                            className="btn-formula-outline"
+                                            onClick={() => handleInsertFormulaClick(`q-tbl-c-${sec.id}-${q.id}-${rIdx}-${cIdx}`, cell, (val) => {
+                                              const newData = { ...q.tableData };
+                                              const newRows = newData.rows.map(r => [...r]);
+                                              newRows[rIdx][cIdx] = val;
+                                              newData.rows = newRows;
+                                              updateQuestion(sec.id, q.id, { tableData: newData });
+                                            })}
+                                          >
+                                            𝑓
+                                          </button>
+                                        </div>
                                       ))}
                                     </div>
                                   ))}
@@ -2275,7 +2542,7 @@ export default function App() {
                               <div key={q.id} className="paper-question-item">
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500' }}>{q.text}</p>
+                                  <p style={{ fontWeight: '500' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
                                   {/* MCQ Options */}
                                   {sec.type === 'mcq' && q.options && (
@@ -2283,7 +2550,7 @@ export default function App() {
                                       {q.options.map((opt, oIdx) => (
                                         <div key={oIdx} className="paper-mcq-option">
                                           <span style={{ fontWeight: '600' }}>({String.fromCharCode(65 + oIdx)})</span>
-                                          <span>{opt}</span>
+                                          <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(opt) }} />
                                         </div>
                                       ))}
                                     </div>
@@ -2324,9 +2591,11 @@ export default function App() {
                                           };
                                           return (
                                             <tr key={pIdx}>
-                                              <td style={{ padding: '4px 0' }}>{pIdx + 1}. {pair.premise}</td>
+                                              <td style={{ padding: '4px 0' }}>
+                                                {pIdx + 1}. <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />
+                                              </td>
                                               <td style={{ padding: '4px 0', paddingLeft: '20px' }}>
-                                                {roman(pIdx)}. {shuffledList[pIdx] || pair.response}
+                                                {roman(pIdx)}. <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(shuffledList[pIdx] || pair.response) }} />
                                               </td>
                                             </tr>
                                           );
@@ -2357,7 +2626,7 @@ export default function App() {
                                       <thead>
                                         <tr>
                                           {q.tableData.headers.map((h, hIdx) => (
-                                            <th key={hIdx}>{h}</th>
+                                            <th key={hIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(h) }} />
                                           ))}
                                         </tr>
                                       </thead>
@@ -2365,7 +2634,7 @@ export default function App() {
                                         {q.tableData.rows.map((row, rIdx) => (
                                           <tr key={rIdx}>
                                             {row.map((cell, cIdx) => (
-                                              <td key={cIdx}>{cell}</td>
+                                              <td key={cIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(cell) }} />
                                             ))}
                                           </tr>
                                         ))}
@@ -2552,6 +2821,89 @@ export default function App() {
             <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)' }}>
               <button className="btn btn-secondary" onClick={() => setIsDocsModalOpen(false)}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Formula Editor Modal */}
+      {formulaModal.isOpen && (
+        <div className="modal-overlay" onClick={() => setFormulaModal({ ...formulaModal, isOpen: false })} style={{ zIndex: 10000 }}>
+          <div className="modal-content formula-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontStyle: 'italic', fontWeight: 'bold', fontSize: '20px' }}>𝑓(x)</span> Formula Editor
+              </h3>
+            </div>
+
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
+              {/* Toolbar */}
+              <div className="formula-toolbar">
+                {FORMULA_BUTTONS.map((group) => (
+                  <div key={group.label} className="formula-toolbar-group">
+                    <span className="formula-toolbar-label">{group.label}</span>
+                    <div className="formula-toolbar-buttons">
+                      {group.buttons.map((btn, bIdx) => (
+                        <button
+                          key={bIdx}
+                          className="formula-btn"
+                          title={btn.hint}
+                          onClick={() => {
+                            if (btn.replace) {
+                              setFormulaModal(prev => ({ ...prev, latex: btn.latex }));
+                            } else {
+                              setFormulaModal(prev => ({ ...prev, latex: prev.latex + ' ' + btn.latex }));
+                            }
+                            formulaInputRef.current?.focus();
+                          }}
+                        >
+                          {btn.symbol}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* LaTeX Input */}
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LaTeX Formula</label>
+                <textarea
+                  ref={formulaInputRef}
+                  value={formulaModal.latex}
+                  onChange={(e) => setFormulaModal(prev => ({ ...prev, latex: e.target.value }))}
+                  placeholder="Type LaTeX here, e.g. x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}"
+                  style={{ minHeight: '80px', fontSize: '14px', fontFamily: 'monospace' }}
+                />
+              </div>
+
+              {/* Live Preview */}
+              <div className="formula-live-preview">
+                <label style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', display: 'block' }}>Live Preview</label>
+                <div className="formula-preview-box">
+                  {formulaModal.latex ? (
+                    <div dangerouslySetInnerHTML={{ __html: renderLatex(formulaModal.latex) }} />
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Formula preview will appear here...</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ gap: '8px' }}>
+              <button className="btn btn-secondary" onClick={() => setFormulaModal({ isOpen: false, latex: '', onSave: null })}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (formulaModal.onSave) {
+                    formulaModal.onSave(formulaModal.latex);
+                  }
+                  setFormulaModal({ isOpen: false, latex: '', onSave: null });
+                }}
+              >
+                Insert Formula
               </button>
             </div>
           </div>
