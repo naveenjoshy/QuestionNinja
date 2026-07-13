@@ -599,6 +599,14 @@ export default function App() {
     return Math.round(rawTotal * 100) / 100;
   };
 
+  const hasBlankQuestions = () => {
+    return sections.some(s => s.questions.some(q => !q.text || !q.text.trim()));
+  };
+
+  const hasZeroMarkQuestions = () => {
+    return sections.some(s => s.questions.some(q => Number(q.marks) === 0));
+  };
+
 
   // State update helpers for Sections & Questions
   const addSection = () => {
@@ -680,7 +688,7 @@ export default function App() {
         const type = s.type || 'essay';
         const defaultQuestion = {
           id: `q-${Date.now()}`,
-          text: 'New Question details here...',
+          text: '',
           marks: 1
         };
 
@@ -1005,11 +1013,11 @@ export default function App() {
           if (row.length < 3) continue;
 
           const secTitle = row[0];
-          const secMarks = Math.round((Number(row[1]) || 0) * 100) / 100;
+          const secMarks = Math.max(0, Math.round((Number(row[1]) || 0) * 100) / 100);
           const secInstructions = row[2];
           const qType = row[3];
           const qText = row[4];
-          const qMarks = Math.round((Number(row[5]) || 0) * 100) / 100;
+          const qMarks = Math.max(0, Math.round((Number(row[5]) || 0) * 100) / 100);
           const optionsStr = row[6];
           const blankLinesVal = row[7];
           const matchPairsStr = row[8];
@@ -1054,7 +1062,7 @@ export default function App() {
             if (qType === 'mcq') {
               q.options = optionsStr ? optionsStr.split(';') : ['', '', '', ''];
             } else if (qType === 'essay') {
-              q.blankLines = Number(blankLinesVal) || 5;
+              q.blankLines = (blankLinesVal !== '' && !isNaN(blankLinesVal)) ? Math.max(0, parseInt(blankLinesVal, 10)) : 5;
             } else if (qType === 'match_following') {
               q.matchPairs = matchPairsStr
                 ? matchPairsStr.split(';').map(pair => {
@@ -1090,10 +1098,20 @@ export default function App() {
 
   // Print PDF Trigger
   const triggerPrint = () => {
+    if (hasBlankQuestions()) {
+      if (!window.confirm("Some questions have empty text. Are you sure you want to print?")) {
+        return;
+      }
+    }
     window.print();
   };
 
   const triggerPdfExport = () => {
+    if (hasBlankQuestions()) {
+      if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
+        return;
+      }
+    }
     alert("To save as a PDF file, please select 'Save as PDF' under the 'Destination' selection in the browser print window.");
     window.print();
   };
@@ -1471,7 +1489,7 @@ export default function App() {
         else if (sec.type === 'essay') {
           if (!metadata.separateAnswerSheet) {
             // Renders specified blank lines
-            const linesCount = q.blankLines || 5;
+            const linesCount = (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5;
             for (let i = 0; i < linesCount; i++) {
               headerChildren.push(
                 new docx.Paragraph({
@@ -1630,18 +1648,12 @@ export default function App() {
                     text: 'Page ',
                     size: 20
                   }),
-                  new docx.TextRun({
-                    children: [docx.PageNumber.CURRENT],
-                    size: 20
-                  }),
+                  new docx.SimpleField("PAGE"),
                   new docx.TextRun({
                     text: ' of ',
                     size: 20
                   }),
-                  new docx.TextRun({
-                    children: [docx.PageNumber.TOTAL_PAGES],
-                    size: 20
-                  })
+                  new docx.SimpleField("NUMPAGES")
                 ]
               })
             ]
@@ -1655,6 +1667,11 @@ export default function App() {
   };
 
   const triggerDocxExport = async () => {
+    if (hasBlankQuestions()) {
+      if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
+        return;
+      }
+    }
     try {
       const blob = await generateDocxBlob();
       const url = URL.createObjectURL(blob);
@@ -1670,6 +1687,11 @@ export default function App() {
     }
   };
   const handleGoogleDocsWebPreview = async () => {
+    if (hasBlankQuestions()) {
+      if (!window.confirm("Some questions have empty text. Are you sure you want to preview?")) {
+        return;
+      }
+    }
     setIsDocsUploading(true);
     setDocsError('');
     try {
@@ -1864,9 +1886,10 @@ export default function App() {
                   <input
                     type="number"
                     step="any"
+                    min="0"
                     value={metadata.maxMarks}
-                    onChange={(e) => setMetadata({ ...metadata, maxMarks: Number(e.target.value) })}
-                    onBlur={(e) => setMetadata({ ...metadata, maxMarks: Math.round(Number(e.target.value) * 100) / 100 })}
+                    onChange={(e) => setMetadata({ ...metadata, maxMarks: Math.max(0, Number(e.target.value)) })}
+                    onBlur={(e) => setMetadata({ ...metadata, maxMarks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
                   />
                 </div>
                 <div className="form-group">
@@ -1905,6 +1928,12 @@ export default function App() {
                   <div className="warning-badge" style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
                     <CheckCircle size={14} />
                     <span>Perfect: Sum of all questions matches targets!</span>
+                  </div>
+                )}
+                {hasZeroMarkQuestions() && (
+                  <div className="warning-badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                    <AlertTriangle size={14} />
+                    <span>Warning: One or more questions have 0 marks.</span>
                   </div>
                 )}
               </div>
@@ -1964,9 +1993,10 @@ export default function App() {
                             <input
                               type="number"
                               step="any"
+                              min="0"
                               value={sec.marks}
-                              onChange={(e) => updateSectionMeta(sec.id, 'marks', Number(e.target.value))}
-                              onBlur={(e) => updateSectionMeta(sec.id, 'marks', Math.round(Number(e.target.value) * 100) / 100)}
+                              onChange={(e) => updateSectionMeta(sec.id, 'marks', Math.max(0, Number(e.target.value)))}
+                              onBlur={(e) => updateSectionMeta(sec.id, 'marks', Math.max(0, Math.round(Number(e.target.value) * 100) / 100))}
                             />
                           </div>
                           <div className="form-group">
@@ -2045,9 +2075,24 @@ export default function App() {
                                 <textarea
                                   id={`q__text__${sec.id}__${q.id}`}
                                   value={q.text}
-                                  style={{ minHeight: '60px', fontSize: '13px' }}
+                                  placeholder="Enter question details here..."
+                                  style={{
+                                    minHeight: '60px',
+                                    fontSize: '13px',
+                                    borderColor: (!q.text || !q.text.trim()) ? 'var(--danger)' : 'var(--border-color)'
+                                  }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
+                                  onFocus={(e) => {
+                                    if (e.target.value === 'New Question details here...') {
+                                      updateQuestion(sec.id, q.id, { text: '' });
+                                    }
+                                  }}
                                 />
+                                {(!q.text || !q.text.trim()) && (
+                                  <span style={{ color: 'var(--danger)', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <AlertTriangle size={12} /> Please enter the question text.
+                                  </span>
+                                )}
                                 {(sec.type === 'essay') && (
                                   <button
                                     className="btn btn-secondary btn-sm"
@@ -2067,10 +2112,11 @@ export default function App() {
                                 <input
                                   type="number"
                                   step="any"
+                                  min="0"
                                   value={q.marks}
                                   style={{ padding: '6px 10px', fontSize: '13px' }}
-                                  onChange={(e) => updateQuestion(sec.id, q.id, { marks: Number(e.target.value) })}
-                                  onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.round(Number(e.target.value) * 100) / 100 })}
+                                  onChange={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Number(e.target.value)) })}
+                                  onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
                                 />
                               </div>
 
@@ -2103,9 +2149,10 @@ export default function App() {
                                   <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
                                   <input
                                     type="number"
+                                    min="0"
                                     value={q.blankLines}
                                     style={{ padding: '6px 10px', fontSize: '13px' }}
-                                    onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: Number(e.target.value) })}
+                                    onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                                   />
                                 </div>
                               )}
@@ -2434,6 +2481,12 @@ export default function App() {
                     <span>Perfect: Sum of all questions matches targets!</span>
                   </div>
                 )}
+                {hasZeroMarkQuestions() && (
+                  <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                    <AlertTriangle size={14} />
+                    <span>Warning: One or more questions have 0 marks.</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2568,6 +2621,15 @@ export default function App() {
               </div>
             )}
 
+            {hasZeroMarkQuestions() && (
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-editor)', display: 'flex' }} className="warning-badge-container print-hide">
+                <div className="warning-badge" style={{ display: 'flex', width: '100%', boxSizing: 'border-box', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+                  <AlertTriangle size={14} />
+                  <span>Warning: One or more questions have 0 marks assigned.</span>
+                </div>
+              </div>
+            )}
+
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
               <div className={`paper-sheet lang-${metadata.language || 'english'}`}>
@@ -2677,7 +2739,7 @@ export default function App() {
                                   {/* Essay spaces */}
                                   {sec.type === 'essay' && !metadata.separateAnswerSheet && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
-                                      {Array.from({ length: q.blankLines || 5 }).map((_, lineIdx) => (
+                                      {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5 }).map((_, lineIdx) => (
                                         <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
                                       ))}
                                     </div>
