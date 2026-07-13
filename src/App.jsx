@@ -583,11 +583,13 @@ export default function App() {
 
   // Helper calculation functions
   const getSectionTotalMarks = (section) => {
-    return section.questions.reduce((total, q) => total + (Number(q.marks) || 0), 0);
+    const rawTotal = section.questions.reduce((total, q) => total + (Number(q.marks) || 0), 0);
+    return Math.round(rawTotal * 100) / 100;
   };
 
   const getExamCurrentTotalMarks = () => {
-    return sections.reduce((total, s) => total + getSectionTotalMarks(s), 0);
+    const rawTotal = sections.reduce((total, s) => total + getSectionTotalMarks(s), 0);
+    return Math.round(rawTotal * 100) / 100;
   };
 
 
@@ -1805,6 +1807,7 @@ export default function App() {
                   <label>Max Marks</label>
                   <input
                     type="number"
+                    step="any"
                     value={metadata.maxMarks}
                     onChange={(e) => setMetadata({ ...metadata, maxMarks: Number(e.target.value) })}
                   />
@@ -1903,6 +1906,7 @@ export default function App() {
                             <label>Declared Section Marks</label>
                             <input
                               type="number"
+                              step="any"
                               value={sec.marks}
                               onChange={(e) => updateSectionMeta(sec.id, 'marks', Number(e.target.value))}
                             />
@@ -2004,6 +2008,7 @@ export default function App() {
                                 <label style={{ fontSize: '10px' }}>Question Marks</label>
                                 <input
                                   type="number"
+                                  step="any"
                                   value={q.marks}
                                   style={{ padding: '6px 10px', fontSize: '13px' }}
                                   onChange={(e) => updateQuestion(sec.id, q.id, { marks: Number(e.target.value) })}
