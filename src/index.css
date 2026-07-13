@@ -363,7 +363,7 @@ textarea {
   display: flex;
   gap: 12px;
   padding: 16px 24px;
-  background-color: rgba(19, 21, 32, 0.45);
+  background-color: var(--bg-sidebar);
   border-top: 1px solid var(--border-color);
   position: sticky;
   bottom: 0;
@@ -1223,7 +1223,7 @@ textarea {
   left: 0;
   width: 100vw;
   padding: 8px 24px;
-  background-color: rgba(19, 21, 32, 0.7);
+  background-color: var(--bg-sidebar);
   border-top: 1px solid var(--border-color);
   text-align: center;
   font-size: 11px;
