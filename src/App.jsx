@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import pageLogo from './assets/logo.png';
 import {
   Plus,
   Trash2,
@@ -7,7 +8,6 @@ import {
   Download,
   FileText,
   Settings,
-  BookOpen,
   Layers,
   Image as ImageIcon,
   CheckCircle,
@@ -1668,7 +1668,7 @@ export default function App() {
         <div className="editor-header">
           <div>
             <h1>
-              <BookOpen size={24} className="text-accent" />
+              <img src={pageLogo} style={{ width: '26px', height: '26px', objectFit: 'contain', marginRight: '2px' }} alt="Logo" />
               <span>QuestionNinja</span>
             </h1>
             <p>Question Paper Designer for Schools</p>
@@ -2402,6 +2402,7 @@ export default function App() {
             </label>
           </div>
         </div>
+
       </div>
 
       {/* Preview Modal */}
@@ -2961,6 +2962,12 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Fixed App Footer */}
+      <footer className="app-footer-fixed">
+        <span>© {new Date().getFullYear()} Mr. Naveen Joshy. All Rights Reserved.</span>
+        <span>Contact: <a href="mailto:naveenjoshy64@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '500' }}>naveenjoshy64@gmail.com</a></span>
+      </footer>
     </div>
   );
 }

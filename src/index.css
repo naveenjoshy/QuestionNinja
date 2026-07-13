@@ -1207,3 +1207,42 @@ textarea {
   }
 }
 
+/* Fixed App Footer */
+.app-footer-fixed {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  padding: 8px 24px;
+  background-color: rgba(19, 21, 32, 0.7);
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-sizing: border-box;
+}
+
+.app-footer-fixed a:hover {
+  text-decoration: underline !important;
+}
+
+@media (max-width: 768px) {
+  .app-footer-fixed {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 12px;
+  }
+}
+
+/* Compensate editor panel padding bottom for fixed footer */
+.editor-panel {
+  padding-bottom: 38px !important;
+}
+
+
