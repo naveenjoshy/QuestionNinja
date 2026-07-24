@@ -315,6 +315,7 @@ export default function App() {
   const [isDocsUploading, setIsDocsUploading] = useState(false);
   const [docsError, setDocsError] = useState('');
   const [formulaModal, setFormulaModal] = useState({ isOpen: false, latex: '', onSave: null });
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [activeInputInfo, setActiveInputInfo] = useState(null);
   const formulaInputRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -3102,10 +3103,67 @@ export default function App() {
         </div>
       )}
 
+      {/* About Developer Modal */}
+      {isAboutModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsAboutModalOpen(false)}>
+          <div className="modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                About Developer
+              </h3>
+              <button className="modal-close" onClick={() => setIsAboutModalOpen(false)}>×</button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--accent)', color: 'var(--accent)', fontWeight: 'bold', fontSize: '20px' }}>
+                  NJ
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>Naveen Joshy</h4>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>QuestionNinja Creator & Developer</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', backgroundColor: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mail ID</div>
+                    <a href="mailto:naveenjoshy64@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '500' }}>naveenjoshy64@gmail.com</a>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', backgroundColor: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</div>
+                    <a href="tel:+919400489149" style={{ color: 'var(--text-main)', textDecoration: 'none', fontWeight: '500' }}>+91 9400489149</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setIsAboutModalOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fixed App Footer */}
       <footer className="app-footer-fixed">
         <span>© {new Date().getFullYear()} Mr. Naveen Joshy. All Rights Reserved.</span>
-        <span>Contact: <a href="mailto:naveenjoshy64@gmail.com" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '500' }}>naveenjoshy64@gmail.com</a></span>
+        <span>Contact: <a href="#about" onClick={(e) => { e.preventDefault(); setIsAboutModalOpen(true); }} style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '500', cursor: 'pointer' }}>naveenjoshy64@gmail.com</a></span>
       </footer>
     </div>
   );
