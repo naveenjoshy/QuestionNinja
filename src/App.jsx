@@ -516,10 +516,18 @@ export default function App() {
     localStorage.setItem('question_ninja_draft', JSON.stringify(stateToSave));
   }, [branding, metadata, sections]);
 
-  // Handle Logo Upload
+  // Handle Logo Upload with validation
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file (PNG, JPEG, etc.).');
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) { // 3MB limit
+        alert('Selected image exceeds the 3MB size limit. Please choose a smaller image.');
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (uploadEvent) => {
         setBranding(prev => ({
