@@ -43,6 +43,12 @@ const renderLatex = (latex) => {
   }
 };
 
+// Helper: check if text contains formulas or LaTeX math
+const hasFormula = (text) => {
+  if (!text) return false;
+  return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
+};
+
 // Helper: render text that contains $...$ math blocks using KaTeX
 const renderTextWithMath = (text) => {
   if (!text) return '';
@@ -1532,6 +1538,7 @@ export default function App() {
         // Add question text
         headerChildren.push(
           new docx.Paragraph({
+            alignment: hasFormula(q.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
             spacing: { before: 120, after: 80 },
             tabStops: [
               {
@@ -1648,6 +1655,7 @@ export default function App() {
               const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
               headerChildren.push(
                 new docx.Paragraph({
+                  alignment: hasFormula(sq.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
                   indent: { left: 360 },
                   spacing: { before: 80, after: 60 },
                   tabStops: [
@@ -3083,7 +3091,7 @@ export default function App() {
                               <div key={q.id} className="paper-question-item">
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+                                  <p style={{ fontWeight: '500', textAlign: hasFormula(q.text) ? 'left' : 'justify' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
                                   {/* MCQ Options */}
                                   {sec.type === 'mcq' && q.options && (
@@ -3106,8 +3114,8 @@ export default function App() {
                                             <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                                                 <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
-                                                  <span style={{ fontWeight: '600' }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
-                                                  <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
+                                                  <span style={{ flex: 1, textAlign: hasFormula(sq.text) ? 'left' : 'justify' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
                                                 </div>
                                                 <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '12px' }}>({formatMarks(sq.marks)} M)</span>
                                               </div>
