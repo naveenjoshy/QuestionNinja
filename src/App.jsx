@@ -288,9 +288,25 @@ const DEFAULT_SECTIONS = [
     questions: [
       {
         id: 'q-5',
-        text: 'Discuss the security implications of cloud computing and explain the key differences between Public, Private, and Hybrid Cloud architectures.',
+        text: 'Discuss cloud computing architectures and security:',
         marks: 10,
-        blankLines: 12
+        blankLines: 12,
+        subQuestions: [
+          {
+            id: 'sq-1',
+            label: '(a)',
+            text: 'Explain the key differences between Public, Private, and Hybrid Cloud architectures.',
+            marks: 5,
+            blankLines: 6
+          },
+          {
+            id: 'sq-2',
+            label: '(b)',
+            text: 'List three critical security concerns when hosting sensitive data in public cloud servers.',
+            marks: 5,
+            blankLines: 6
+          }
+        ]
       },
       {
         id: 'q-6',
@@ -422,6 +438,9 @@ export default function App() {
           })
         };
       }));
+    } else if (type === 'sqtext') {
+      const sqId = parts[4];
+      updateSubQuestion(secId, qId, sqId, { text: newValue });
     }
   };
 
@@ -598,8 +617,15 @@ export default function App() {
   };
 
   // Helper calculation functions
+  const getQuestionMarks = (q) => {
+    if (q && q.subQuestions && q.subQuestions.length > 0) {
+      return q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+    }
+    return Number(q?.marks) || 0;
+  };
+
   const getSectionTotalMarks = (section) => {
-    const rawTotal = section.questions.reduce((total, q) => total + (Number(q.marks) || 0), 0);
+    const rawTotal = section.questions.reduce((total, q) => total + getQuestionMarks(q), 0);
     return Math.round(rawTotal * 100) / 100;
   };
 
@@ -609,11 +635,21 @@ export default function App() {
   };
 
   const hasBlankQuestions = () => {
-    return sections.some(s => s.questions.some(q => !q.text || !q.text.trim()));
+    return sections.some(s => s.questions.some(q => {
+      if (q.subQuestions && q.subQuestions.length > 0) {
+        return q.subQuestions.some(sq => !sq.text || !sq.text.trim());
+      }
+      return !q.text || !q.text.trim();
+    }));
   };
 
   const hasZeroMarkQuestions = () => {
-    return sections.some(s => s.questions.some(q => Number(q.marks) === 0));
+    return sections.some(s => s.questions.some(q => {
+      if (q.subQuestions && q.subQuestions.length > 0) {
+        return q.subQuestions.some(sq => Number(sq.marks) === 0);
+      }
+      return Number(q.marks) === 0;
+    }));
   };
 
 
@@ -765,6 +801,100 @@ export default function App() {
     }));
   };
 
+  const addSubQuestion = (secId, qId) => {
+    setSections(prev => prev.map(s => {
+      if (s.id !== secId) return s;
+      return {
+        ...s,
+        questions: s.questions.map(q => {
+          if (q.id !== qId) return q;
+          const subQs = q.subQuestions || [];
+          const labelIndex = subQs.length;
+          const defaultLabel = `(${String.fromCharCode(97 + (labelIndex % 26))})`;
+          const newSubQ = {
+            id: `sq-${Date.now()}`,
+            label: defaultLabel,
+            text: '',
+            marks: 1,
+            blankLines: 4
+          };
+          const updatedSubQs = [...subQs, newSubQ];
+          const newTotalMarks = updatedSubQs.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+          return {
+            ...q,
+            subQuestions: updatedSubQs,
+            marks: newTotalMarks
+          };
+        })
+      };
+    }));
+  };
+
+  const updateSubQuestion = (secId, qId, sqId, updatedFields) => {
+    setSections(prev => prev.map(s => {
+      if (s.id !== secId) return s;
+      return {
+        ...s,
+        questions: s.questions.map(q => {
+          if (q.id !== qId) return q;
+          if (!q.subQuestions) return q;
+          const updatedSubQs = q.subQuestions.map(sq => {
+            if (sq.id !== sqId) return sq;
+            return { ...sq, ...updatedFields };
+          });
+          const newTotalMarks = updatedSubQs.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+          return {
+            ...q,
+            subQuestions: updatedSubQs,
+            marks: newTotalMarks
+          };
+        })
+      };
+    }));
+  };
+
+  const deleteSubQuestion = (secId, qId, sqId) => {
+    setSections(prev => prev.map(s => {
+      if (s.id !== secId) return s;
+      return {
+        ...s,
+        questions: s.questions.map(q => {
+          if (q.id !== qId) return q;
+          if (!q.subQuestions) return q;
+          const updatedSubQs = q.subQuestions.filter(sq => sq.id !== sqId);
+          const newTotalMarks = updatedSubQs.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+          return {
+            ...q,
+            subQuestions: updatedSubQs,
+            marks: updatedSubQs.length > 0 ? newTotalMarks : q.marks
+          };
+        })
+      };
+    }));
+  };
+
+  const moveSubQuestion = (secId, qId, sqIndex, direction) => {
+    setSections(prev => prev.map(s => {
+      if (s.id !== secId) return s;
+      return {
+        ...s,
+        questions: s.questions.map(q => {
+          if (q.id !== qId) return q;
+          if (!q.subQuestions) return q;
+          if (direction === 'up' && sqIndex === 0) return q;
+          if (direction === 'down' && sqIndex === q.subQuestions.length - 1) return q;
+
+          const nextIndex = direction === 'up' ? sqIndex - 1 : sqIndex + 1;
+          const newSubQs = [...q.subQuestions];
+          const temp = newSubQs[sqIndex];
+          newSubQs[sqIndex] = newSubQs[nextIndex];
+          newSubQs[nextIndex] = temp;
+          return { ...q, subQuestions: newSubQs };
+        })
+      };
+    }));
+  };
+
   const handlePasteImage = (e, secId, qId) => {
     const section = sections.find(s => s.id === secId);
     if (!section || section.type !== 'image') return;
@@ -897,7 +1027,8 @@ export default function App() {
       'Match Pairs',
       'Image Data',
       'Image Width',
-      'Image Height'
+      'Image Height',
+      'Sub Questions'
     ];
 
     const rows = [];
@@ -929,19 +1060,25 @@ export default function App() {
             matchPairsStr = q.matchPairs.map(p => `${p.premise}=${p.response}`).join(';');
           }
 
+          let subQsStr = '';
+          if (q.subQuestions && q.subQuestions.length > 0) {
+            subQsStr = JSON.stringify(q.subQuestions);
+          }
+
           rows.push([
             sec.title,
             sec.marks,
             sec.instructions,
             sec.type || 'essay',
             q.text,
-            q.marks,
+            getQuestionMarks(q),
             optionsStr,
             q.blankLines || '',
             matchPairsStr,
             q.image || '',
             q.imageWidth || '',
-            q.imageHeight || ''
+            q.imageHeight || '',
+            subQsStr
           ]);
         });
       }
@@ -1033,6 +1170,7 @@ export default function App() {
           const imageData = row[9];
           const imageWidthVal = row[10];
           const imageHeightVal = row[11];
+          const subQsStr = row[12];
 
           if (!secTitle && !qText) continue;
 
@@ -1067,6 +1205,15 @@ export default function App() {
               text: qText,
               marks: qMarks
             };
+
+            if (subQsStr) {
+              try {
+                q.subQuestions = JSON.parse(subQsStr);
+                q.marks = q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+              } catch (e) {
+                console.warn('Failed to parse subQuestions from CSV', e);
+              }
+            }
 
             if (qType === 'mcq') {
               q.options = optionsStr ? optionsStr.split(';') : ['', '', '', ''];
@@ -1400,7 +1547,7 @@ export default function App() {
               }),
               ...docxTextRunsWithMath(q.text || ''),
               new docx.TextRun({
-                text: `\t[${formatMarks(q.marks)} Marks]`,
+                text: `\t[${formatMarks(getQuestionMarks(q))} Marks]`,
                 bold: true,
                 size: 20
               })
@@ -1496,7 +1643,54 @@ export default function App() {
         }
 
         else if (sec.type === 'essay') {
-          if (!metadata.separateAnswerSheet) {
+          if (q.subQuestions && q.subQuestions.length > 0) {
+            q.subQuestions.forEach((sq, sqIdx) => {
+              const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
+              headerChildren.push(
+                new docx.Paragraph({
+                  indent: { left: 360 },
+                  spacing: { before: 80, after: 60 },
+                  tabStops: [
+                    {
+                      type: docx.TabStopType.RIGHT,
+                      position: docx.TabStopPosition.MAX
+                    }
+                  ],
+                  children: [
+                    new docx.TextRun({
+                      text: `${sqLabel}  `,
+                      bold: true,
+                      size: 22
+                    }),
+                    ...docxTextRunsWithMath(sq.text || ''),
+                    new docx.TextRun({
+                      text: `\t[${formatMarks(sq.marks)} Marks]`,
+                      bold: true,
+                      size: 20
+                    })
+                  ]
+                })
+              );
+
+              if (!metadata.separateAnswerSheet) {
+                const sqLines = (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4;
+                for (let i = 0; i < sqLines; i++) {
+                  headerChildren.push(
+                    new docx.Paragraph({
+                      indent: { left: 360 },
+                      spacing: { after: 120 },
+                      children: [
+                        new docx.TextRun({
+                          text: '____________________________________________________________________________',
+                          color: 'E0E0E0'
+                        })
+                      ]
+                    })
+                  );
+                }
+              }
+            });
+          } else if (!metadata.separateAnswerSheet) {
             // Renders specified blank lines
             const linesCount = (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5;
             for (let i = 0; i < linesCount; i++) {
@@ -2118,15 +2312,29 @@ export default function App() {
 
                               <div className="form-group">
                                 <label style={{ fontSize: '10px' }}>Question Marks</label>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  value={q.marks}
-                                  style={{ padding: '6px 10px', fontSize: '13px' }}
-                                  onChange={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Number(e.target.value)) })}
-                                  onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
-                                />
+                                {q.subQuestions && q.subQuestions.length > 0 ? (
+                                  <div style={{
+                                    padding: '6px 10px',
+                                    fontSize: '13px',
+                                    fontWeight: 'bold',
+                                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid var(--accent)',
+                                    color: 'var(--accent)'
+                                  }}>
+                                    {formatMarks(getQuestionMarks(q))} Marks (Calculated from sub-questions)
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    value={q.marks}
+                                    style={{ padding: '6px 10px', fontSize: '13px' }}
+                                    onChange={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Number(e.target.value)) })}
+                                    onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
+                                  />
+                                )}
                               </div>
 
                               {/* MCQ Specific Fields */}
@@ -2152,17 +2360,161 @@ export default function App() {
                                 </div>
                               )}
 
-                              {/* Essay Specific Fields */}
+                              {/* Essay Specific Fields & Sub-Questions */}
                               {sec.type === 'essay' && (
-                                <div className="form-group">
-                                  <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={q.blankLines}
-                                    style={{ padding: '6px 10px', fontSize: '13px' }}
-                                    onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                                  />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                  {(!q.subQuestions || q.subQuestions.length === 0) && (
+                                    <div className="form-group">
+                                      <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={q.blankLines}
+                                        style={{ padding: '6px 10px', fontSize: '13px' }}
+                                        onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Sub-Questions Management Area */}
+                                  <div style={{
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    padding: '10px',
+                                    backgroundColor: 'rgba(0,0,0,0.15)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '10px'
+                                  }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+                                        Sub-Questions {q.subQuestions && q.subQuestions.length > 0 ? `(${q.subQuestions.length})` : ''}
+                                      </span>
+                                      <button
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ padding: '3px 8px', fontSize: '11px' }}
+                                        onClick={() => addSubQuestion(sec.id, q.id)}
+                                      >
+                                        + Add Sub-Question
+                                      </button>
+                                    </div>
+
+                                    {q.subQuestions && q.subQuestions.map((sq, sqIdx) => (
+                                      <div
+                                        key={sq.id}
+                                        style={{
+                                          padding: '10px',
+                                          backgroundColor: 'var(--bg-card)',
+                                          borderRadius: 'var(--radius-sm)',
+                                          border: '1px solid var(--border-color)',
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          gap: '8px'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent)' }}>
+                                            Sub-Question {sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}
+                                          </span>
+                                          <div style={{ display: 'flex', gap: '4px' }}>
+                                            <button
+                                              className="btn-icon-only"
+                                              style={{ padding: '2px 4px' }}
+                                              onClick={() => moveSubQuestion(sec.id, q.id, sqIdx, 'up')}
+                                              disabled={sqIdx === 0}
+                                              title="Move Up"
+                                            >
+                                              <ArrowUp size={12} />
+                                            </button>
+                                            <button
+                                              className="btn-icon-only"
+                                              style={{ padding: '2px 4px' }}
+                                              onClick={() => moveSubQuestion(sec.id, q.id, sqIdx, 'down')}
+                                              disabled={sqIdx === q.subQuestions.length - 1}
+                                              title="Move Down"
+                                            >
+                                              <ArrowDown size={12} />
+                                            </button>
+                                            <button
+                                              className="btn-icon-only"
+                                              style={{ padding: '2px 4px', color: 'var(--danger)' }}
+                                              onClick={() => deleteSubQuestion(sec.id, q.id, sq.id)}
+                                              title="Delete Sub-Question"
+                                            >
+                                              <Trash2 size={12} />
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '8px' }}>
+                                          <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '9px' }}>Label</label>
+                                            <input
+                                              type="text"
+                                              value={sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}
+                                              style={{ padding: '4px 6px', fontSize: '12px' }}
+                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { label: e.target.value })}
+                                            />
+                                          </div>
+
+                                          <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '9px' }}>Sub-Question Text</label>
+                                            <textarea
+                                              id={`q__sqtext__${sec.id}__${q.id}__${sq.id}`}
+                                              value={sq.text}
+                                              placeholder="Enter sub-question text..."
+                                              style={{
+                                                minHeight: '45px',
+                                                fontSize: '12px',
+                                                borderColor: (!sq.text || !sq.text.trim()) ? 'var(--danger)' : 'var(--border-color)'
+                                              }}
+                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { text: e.target.value })}
+                                            />
+                                            {(!sq.text || !sq.text.trim()) && (
+                                              <span style={{ color: 'var(--danger)', fontSize: '10px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                <AlertTriangle size={10} /> Please enter sub-question text.
+                                              </span>
+                                            )}
+                                            <button
+                                              className="btn btn-secondary btn-sm"
+                                              style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '10px', padding: '2px 6px' }}
+                                              onClick={() => {
+                                                const text = sq.text + ' _______';
+                                                updateSubQuestion(sec.id, q.id, sq.id, { text });
+                                              }}
+                                            >
+                                              Insert Blank
+                                            </button>
+                                          </div>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                          <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '9px' }}>Sub-Question Marks</label>
+                                            <input
+                                              type="number"
+                                              step="any"
+                                              min="0"
+                                              value={sq.marks}
+                                              style={{ padding: '4px 6px', fontSize: '12px' }}
+                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { marks: Math.max(0, Number(e.target.value)) })}
+                                              onBlur={(e) => updateSubQuestion(sec.id, q.id, sq.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
+                                            />
+                                          </div>
+                                          <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '9px' }}>Blank Lines for printing</label>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={sq.blankLines !== undefined ? sq.blankLines : 4}
+                                              style={{ padding: '4px 6px', fontSize: '12px' }}
+                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
 
@@ -2745,13 +3097,40 @@ export default function App() {
                                     </div>
                                   )}
 
-                                  {/* Essay spaces */}
-                                  {sec.type === 'essay' && !metadata.separateAnswerSheet && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
-                                      {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5 }).map((_, lineIdx) => (
-                                        <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
-                                      ))}
-                                    </div>
+                                  {/* Essay spaces and Sub-Questions */}
+                                  {sec.type === 'essay' && (
+                                    <>
+                                      {q.subQuestions && q.subQuestions.length > 0 ? (
+                                        <div className="paper-subquestions-list" style={{ marginTop: '8px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                          {q.subQuestions.map((sq, sqIdx) => (
+                                            <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                                <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                                                  <span style={{ fontWeight: '600' }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
+                                                  <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                </div>
+                                                <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '12px' }}>({formatMarks(sq.marks)} M)</span>
+                                              </div>
+                                              {!metadata.separateAnswerSheet && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', paddingLeft: '20px' }}>
+                                                  {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4 }).map((_, lineIdx) => (
+                                                    <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        !metadata.separateAnswerSheet && (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
+                                            {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5 }).map((_, lineIdx) => (
+                                              <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
+                                            ))}
+                                          </div>
+                                        )
+                                      )}
+                                    </>
                                   )}
 
                                   {/* True/False selection */}
@@ -2831,7 +3210,7 @@ export default function App() {
                                     </table>
                                   )}
                                 </div>
-                                <span className="paper-question-marks">({formatMarks(q.marks)} M)</span>
+                                <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
                               </div>
                             );
                           })}
