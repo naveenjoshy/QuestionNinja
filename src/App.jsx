@@ -3842,43 +3842,26 @@ export default function App() {
             </div>
 
             <div className="modal-footer" style={{ gap: '10px' }}>
-              <button className="btn btn-primary" onClick={triggerPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Printer size={16} /> Print
+              <button
+                className="btn btn-primary"
+                disabled={isPdfExporting}
+                onClick={triggerPdfExport}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                {isPdfExporting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                {isPdfExporting ? 'Generating PDF...' : 'Download PDF'}
               </button>
-
-              <div className="dropdown-container" ref={dropdownRef}>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setIsDownloadOpen(!isDownloadOpen)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Download size={16} /> Download <ChevronDown size={14} />
-                </button>
-                {isDownloadOpen && (
-                  <div className="dropdown-menu">
-                    <button className="dropdown-item" disabled={isPdfExporting} onClick={() => { setIsDownloadOpen(false); triggerPdfExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {isPdfExporting ? <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} /> : <FileText size={16} className="text-accent" />}
-                      {isPdfExporting ? 'Generating PDF...' : 'Download PDF'}
-                    </button>
-                    <button className="dropdown-item" onClick={() => { setIsDownloadOpen(false); triggerDocxExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <FileText size={16} style={{ color: '#2b579a' }} /> Download Word (DOCX)
-                    </button>
-                  </div>
-                )}
-              </div>
 
               <button
                 className="btn btn-secondary"
-                onClick={() => setIsDocsModalOpen(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', borderColor: 'rgba(66, 133, 244, 0.4)' }}
+                onClick={triggerDocxExport}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <svg viewBox="0 0 24 24" width="16" height="16" style={{ fill: '#4285f4' }}>
-                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-                </svg>
-                <span>Open in Google Docs</span>
+                <FileText size={16} style={{ color: '#2b579a' }} />
+                Download Word (DOCX)
               </button>
 
-              <button className="btn btn-danger" onClick={() => setIsPreviewOpen(false)}>
+              <button className="btn btn-secondary" onClick={() => setIsPreviewOpen(false)}>
                 Close
               </button>
             </div>
