@@ -2435,7 +2435,7 @@ export default function App() {
               <img src={pageLogo} style={{ width: '26px', height: '26px', objectFit: 'contain', marginRight: '2px' }} alt="Logo" />
               <span>QuestionNinja</span>
             </h1>
-            <p>Question Paper Designer for Schools</p>
+            <p>Where Great Questions Begin</p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn btn-secondary btn-sm" onClick={toggleTheme} title="Toggle Light/Dark Theme">
