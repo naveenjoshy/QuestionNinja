@@ -70,26 +70,35 @@ const renderTextWithMath = (text) => {
 const docxTextRunsWithMath = (text, defaultOptions = {}) => {
   if (!text) return [];
   const parts = text.split('$');
-  return parts.map((part, index) => {
+  const runs = [];
+  parts.forEach((part, index) => {
     if (index % 2 === 1) {
       // This is math
       const plainMath = latexToPlainText(part);
-      return new docx.TextRun({
+      runs.push(new docx.TextRun({
         text: plainMath,
         italics: true,
         font: 'Cambria Math',
         size: defaultOptions.size || 22,
         ...defaultOptions
-      });
+      }));
     } else {
-      // This is plain text
-      return new docx.TextRun({
-        text: part,
-        size: defaultOptions.size || 22,
-        ...defaultOptions
+      // This is plain text, which may contain newlines '\n'
+      const lines = part.split('\n');
+      lines.forEach((line, lIdx) => {
+        const runProps = {
+          text: line,
+          size: defaultOptions.size || 22,
+          ...defaultOptions
+        };
+        if (lIdx > 0) {
+          runProps.break = 1;
+        }
+        runs.push(new docx.TextRun(runProps));
       });
     }
   });
+  return runs;
 };
 
 // Helper: convert LaTeX to readable plain text for DOCX
@@ -1703,14 +1712,14 @@ export default function App() {
           }
         }
 
-        else if (sec.type === 'true_false') {
+        else if (sec.type === 'true_false' && !metadata.separateAnswerSheet) {
           headerChildren.push(
             new docx.Paragraph({
               indent: { left: 720 },
               spacing: { after: 60 },
               children: [
                 new docx.TextRun({
-                  text: metadata.separateAnswerSheet ? '(True / False)' : '[    ] True        [    ] False',
+                  text: '[    ] True        [    ] False',
                   bold: true,
                   size: 20
                 })
@@ -1720,36 +1729,67 @@ export default function App() {
         }
 
         else if (sec.type === 'match_following' && q.matchPairs) {
+          // Column Headers
+          headerChildren.push(
+            new docx.Paragraph({
+              indent: { left: 720 },
+              spacing: { after: 100 },
+              children: [
+                new docx.TextRun({ text: 'Column A', bold: true, size: 22 }),
+                new docx.TextRun({ text: '\t\t\t\t\t\tColumn B', bold: true, size: 22 })
+              ]
+            })
+          );
+
           // Build match list
-          const columnA = q.matchPairs.map(p => p.premise);
-          let columnB = q.matchPairs.map(p => p.response);
+          const columnA = q.matchPairs.map(p => ({ text: p.premise, image: p.premiseImage }));
+          let columnB = q.matchPairs.map(p => ({
+            text: typeof p === 'string' ? p : (p.response || ''),
+            image: p.responseImage || ''
+          }));
           if (q.shuffleB) {
             columnB = [...columnB].sort(() => Math.random() - 0.5);
           }
 
-          // Renders a simple side-by-side matches listing
+          // Renders a side-by-side matches listing
           for (let index = 0; index < columnA.length; index++) {
             const romanNum = (idx) => {
               const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
               return r[idx] || (idx + 1).toString();
             };
 
+            const itemA = columnA[index];
+            const itemB = columnB[index];
+
+            const runsA = [
+              new docx.TextRun({ text: `${index + 1}. `, size: 22 }),
+              ...docxTextRunsWithMath(itemA.text || '')
+            ];
+            if (itemA.image) {
+              const imgBytes = dataURLToUint8Array(itemA.image);
+              if (imgBytes) {
+                runsA.push(new docx.TextRun({ break: 1 }));
+                runsA.push(new docx.ImageRun({ data: imgBytes, transformation: { width: 120, height: 80 } }));
+              }
+            }
+
+            const runsB = [
+              new docx.TextRun({ text: `\t\t\t\t\t\t${romanNum(index)}. `, size: 22 }),
+              ...docxTextRunsWithMath(itemB.text || '')
+            ];
+            if (itemB.image) {
+              const imgBytes = dataURLToUint8Array(itemB.image);
+              if (imgBytes) {
+                runsB.push(new docx.TextRun({ break: 1 }));
+                runsB.push(new docx.ImageRun({ data: imgBytes, transformation: { width: 120, height: 80 } }));
+              }
+            }
+
             headerChildren.push(
               new docx.Paragraph({
                 indent: { left: 720 },
                 spacing: { after: 60 },
-                children: [
-                  new docx.TextRun({
-                    text: `${index + 1}. `,
-                    size: 22
-                  }),
-                  ...docxTextRunsWithMath(columnA[index] || ''),
-                  new docx.TextRun({
-                    text: `\t\t\t\t\t\t${romanNum(index)}. `,
-                    size: 22
-                  }),
-                  ...docxTextRunsWithMath(columnB[index] || '')
-                ]
+                children: [...runsA, ...runsB]
               })
             );
           }
@@ -1929,7 +1969,11 @@ export default function App() {
   const getShuffledList = (q) => {
     if (!q.matchPairs) return [];
     if (!q._shuffledB || q._shuffledB.length !== q.matchPairs.length) {
-      const list = q.matchPairs.map(p => p.response);
+      const list = q.matchPairs.map(p => (
+        typeof p === 'string'
+          ? { response: p, responseImage: '' }
+          : { response: p.response || '', responseImage: p.responseImage || '' }
+      ));
       if (q.shuffleB) {
         list.sort(() => 0.5 - Math.random());
       }
@@ -2358,21 +2402,67 @@ export default function App() {
                               {/* MCQ Specific Fields */}
                               {sec.type === 'mcq' && q.options && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+                                      onClick={() => {
+                                        const nextChar = String.fromCharCode(65 + q.options.length);
+                                        const newOpts = [...q.options, `Option ${nextChar}`];
+                                        updateQuestion(sec.id, q.id, { options: newOpts });
+                                      }}
+                                    >
+                                      + Add Option
+                                    </button>
+                                  </div>
                                   {q.options.map((opt, oIdx) => (
-                                    <div key={oIdx} style={{ display: 'flex', gap: '6px', width: '100%' }}>
-                                      <span style={{ fontSize: '13px', alignSelf: 'center' }}>{String.fromCharCode(65 + oIdx)}.</span>
-                                      <input
+                                    <div key={oIdx} style={{ display: 'flex', gap: '6px', width: '100%', alignItems: 'flex-start' }}>
+                                      <span style={{ fontSize: '13px', fontWeight: 'bold', paddingTop: '6px', minWidth: '18px' }}>
+                                        {String.fromCharCode(65 + oIdx)}.
+                                      </span>
+                                      <textarea
                                         id={`q__opt__${sec.id}__${q.id}__${oIdx}`}
-                                        type="text"
                                         value={opt}
-                                        style={{ padding: '4px 8px', fontSize: '12px', flex: 1 }}
+                                        rows={opt && opt.includes('\n') ? Math.max(2, opt.split('\n').length) : 1}
+                                        placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                        className="mcq-option-textarea"
+                                        style={{
+                                          padding: '6px 8px',
+                                          fontSize: '12px',
+                                          flex: 1,
+                                          minHeight: '34px',
+                                          resize: 'vertical',
+                                          fontFamily: 'inherit'
+                                        }}
                                         onChange={(e) => {
                                           const newOpts = [...q.options];
                                           newOpts[oIdx] = e.target.value;
                                           updateQuestion(sec.id, q.id, { options: newOpts });
                                         }}
                                       />
+                                      {q.options.length > 2 && (
+                                        <button
+                                          type="button"
+                                          title="Remove Option"
+                                          style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'var(--danger, #ef4444)',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            padding: '6px 4px',
+                                            lineHeight: 1
+                                          }}
+                                          onClick={() => {
+                                            const newOpts = q.options.filter((_, idx) => idx !== oIdx);
+                                            updateQuestion(sec.id, q.id, { options: newOpts });
+                                          }}
+                                        >
+                                          ✕
+                                        </button>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -2540,65 +2630,177 @@ export default function App() {
                               {sec.type === 'match_following' && q.matchPairs && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs</label>
+                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs (Column A & Column B)</label>
                                     <button
+                                      type="button"
                                       className="btn btn-secondary btn-sm"
                                       style={{ padding: '2px 6px', fontSize: '10px' }}
                                       onClick={() => {
                                         updateQuestion(sec.id, q.id, {
-                                          matchPairs: [...q.matchPairs, { premise: 'New Item', response: 'New Match' }]
+                                          matchPairs: [...q.matchPairs, { premise: '', premiseImage: '', response: '', responseImage: '' }],
+                                          _shuffledB: null
                                         });
                                       }}
                                     >
                                       + Pair
                                     </button>
                                   </div>
+
+                                  {/* Column Headings Banner */}
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '4px 8px', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                    <span>Column A</span>
+                                    <span>Column B</span>
+                                  </div>
+
                                   {q.matchPairs.map((pair, pIdx) => (
-                                    <div key={pIdx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '6px', alignItems: 'center' }}>
-                                      <input
-                                        id={`q__matcha__${sec.id}__${q.id}__${pIdx}`}
-                                        type="text"
-                                        placeholder="Premise (Col A)"
-                                        value={pair.premise}
-                                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                                        onChange={(e) => {
-                                          const newPairs = [...q.matchPairs];
-                                          newPairs[pIdx].premise = e.target.value;
-                                          updateQuestion(sec.id, q.id, { matchPairs: newPairs });
-                                        }}
-                                      />
-                                      <input
-                                        id={`q__matchb__${sec.id}__${q.id}__${pIdx}`}
-                                        type="text"
-                                        placeholder="Response (Col B)"
-                                        value={pair.response}
-                                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                                        onChange={(e) => {
-                                          const newPairs = [...q.matchPairs];
-                                          newPairs[pIdx].response = e.target.value;
-                                          updateQuestion(sec.id, q.id, { matchPairs: newPairs });
-                                        }}
-                                      />
-                                      <button
-                                        className="btn btn-danger btn-sm"
-                                        style={{ padding: '4px' }}
-                                        onClick={() => {
-                                          updateQuestion(sec.id, q.id, {
-                                            matchPairs: q.matchPairs.filter((_, idx) => idx !== pIdx)
-                                          });
-                                        }}
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
+                                    <div key={pIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid var(--border-color)', padding: '8px', borderRadius: '6px', backgroundColor: 'rgba(0,0,0,0.05)' }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent)' }}>Pair {pIdx + 1}</span>
+                                        {q.matchPairs.length > 1 && (
+                                          <button
+                                            type="button"
+                                            className="btn btn-danger btn-sm"
+                                            style={{ padding: '2px 6px', fontSize: '10px' }}
+                                            onClick={() => {
+                                              updateQuestion(sec.id, q.id, {
+                                                matchPairs: q.matchPairs.filter((_, idx) => idx !== pIdx),
+                                                _shuffledB: null
+                                              });
+                                            }}
+                                          >
+                                            <Trash2 size={12} /> Remove
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                        {/* Column A Item */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Col A ({pIdx + 1})</span>
+                                          <input
+                                            id={`q__matcha__${sec.id}__${q.id}__${pIdx}`}
+                                            type="text"
+                                            placeholder="Premise text"
+                                            value={pair.premise || ''}
+                                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                                            onChange={(e) => {
+                                              const newPairs = [...q.matchPairs];
+                                              newPairs[pIdx] = { ...newPairs[pIdx], premise: e.target.value };
+                                              updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                            }}
+                                          />
+                                          {pair.premiseImage ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                              <img
+                                                src={pair.premiseImage}
+                                                alt="Col A Preview"
+                                                style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#fff' }}
+                                              />
+                                              <button
+                                                type="button"
+                                                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '11px' }}
+                                                onClick={() => {
+                                                  const newPairs = [...q.matchPairs];
+                                                  newPairs[pIdx] = { ...newPairs[pIdx], premiseImage: '' };
+                                                  updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                }}
+                                              >
+                                                ✕ Remove Image
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
+                                              <ImageIcon size={13} />
+                                              <span>Add Image</span>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                style={{ display: 'none' }}
+                                                onChange={(e) => {
+                                                  const file = e.target.files[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (uploadEvent) => {
+                                                      const newPairs = [...q.matchPairs];
+                                                      newPairs[pIdx] = { ...newPairs[pIdx], premiseImage: uploadEvent.target.result };
+                                                      updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                              />
+                                            </label>
+                                          )}
+                                        </div>
+
+                                        {/* Column B Item */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Col B ({String.fromCharCode(97 + (pIdx % 26))})</span>
+                                          <input
+                                            id={`q__matchb__${sec.id}__${q.id}__${pIdx}`}
+                                            type="text"
+                                            placeholder="Response text"
+                                            value={pair.response || ''}
+                                            style={{ padding: '4px 8px', fontSize: '12px' }}
+                                            onChange={(e) => {
+                                              const newPairs = [...q.matchPairs];
+                                              newPairs[pIdx] = { ...newPairs[pIdx], response: e.target.value };
+                                              updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                            }}
+                                          />
+                                          {pair.responseImage ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                              <img
+                                                src={pair.responseImage}
+                                                alt="Col B Preview"
+                                                style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#fff' }}
+                                              />
+                                              <button
+                                                type="button"
+                                                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '11px' }}
+                                                onClick={() => {
+                                                  const newPairs = [...q.matchPairs];
+                                                  newPairs[pIdx] = { ...newPairs[pIdx], responseImage: '' };
+                                                  updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                }}
+                                              >
+                                                ✕ Remove Image
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
+                                              <ImageIcon size={13} />
+                                              <span>Add Image</span>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                style={{ display: 'none' }}
+                                                onChange={(e) => {
+                                                  const file = e.target.files[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (uploadEvent) => {
+                                                      const newPairs = [...q.matchPairs];
+                                                      newPairs[pIdx] = { ...newPairs[pIdx], responseImage: uploadEvent.target.result };
+                                                      updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                              />
+                                            </label>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
                                   ))}
 
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
                                     <input
                                       type="checkbox"
                                       id={`shuffle-${q.id}`}
                                       checked={q.shuffleB}
-                                      onChange={(e) => updateQuestion(sec.id, q.id, { shuffleB: e.target.checked })}
+                                      onChange={(e) => updateQuestion(sec.id, q.id, { shuffleB: e.target.checked, _shuffledB: null })}
                                     />
                                     <label htmlFor={`shuffle-${q.id}`} style={{ fontSize: '11px', textTransform: 'none' }}>
                                       Shuffle Column B in preview/exports
@@ -2607,8 +2809,8 @@ export default function App() {
                                 </div>
                               )}
 
-                              {/* Image Question Specific Fields */}
-                              {sec.type === 'image' && (
+                              {/* Question Image Fields */}
+                              {(sec.type === 'image' || (q.image && sec.type !== 'match_following')) && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                   <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image</label>
                                   {q.image ? (
@@ -3108,8 +3310,8 @@ export default function App() {
                                     <div className="paper-mcq-options">
                                       {q.options.map((opt, oIdx) => (
                                         <div key={oIdx} className="paper-mcq-option">
-                                          <span style={{ fontWeight: '600' }}>({String.fromCharCode(65 + oIdx)})</span>
-                                          <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(opt) }} />
+                                          <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
+                                          <span style={{ flex: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(opt) }} />
                                         </div>
                                       ))}
                                     </div>
@@ -3152,22 +3354,22 @@ export default function App() {
                                   )}
 
                                   {/* True/False selection */}
-                                  {sec.type === 'true_false' && (
+                                  {sec.type === 'true_false' && !metadata.separateAnswerSheet && (
                                     <div className="paper-tf-options">
-                                      {metadata.separateAnswerSheet ? (
-                                        <span>(True / False)</span>
-                                      ) : (
-                                        <>
-                                          <span>[   ] True</span>
-                                          <span>[   ] False</span>
-                                        </>
-                                      )}
+                                      <span>[   ] True</span>
+                                      <span>[   ] False</span>
                                     </div>
                                   )}
 
                                   {/* Match the Following columns */}
                                   {sec.type === 'match_following' && q.matchPairs && (
                                     <table className="paper-match-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Column A</th>
+                                          <th style={{ paddingLeft: '20px' }}>Column B</th>
+                                        </tr>
+                                      </thead>
                                       <tbody>
                                         {q.matchPairs.map((pair, pIdx) => {
                                           const shuffledList = getShuffledList(q);
@@ -3175,13 +3377,41 @@ export default function App() {
                                             const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
                                             return r[idx] || (idx + 1).toString();
                                           };
+                                          const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
+                                          const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
+                                          const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
+
                                           return (
                                             <tr key={pIdx}>
-                                              <td style={{ padding: '4px 0' }}>
-                                                {pIdx + 1}. <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />
+                                              <td style={{ padding: '6px 0', verticalAlign: 'top' }}>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
+                                                  <div>
+                                                    {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
+                                                    {pair.premiseImage && (
+                                                      <img
+                                                        src={pair.premiseImage}
+                                                        alt={`Col A ${pIdx + 1}`}
+                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                </div>
                                               </td>
-                                              <td style={{ padding: '4px 0', paddingLeft: '20px' }}>
-                                                {roman(pIdx)}. <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(shuffledList[pIdx] || pair.response) }} />
+                                              <td style={{ padding: '6px 0', paddingLeft: '20px', verticalAlign: 'top' }}>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{roman(pIdx)}.</span>
+                                                  <div>
+                                                    {respText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(respText) }} />}
+                                                    {respImg && (
+                                                      <img
+                                                        src={respImg}
+                                                        alt={`Col B ${pIdx + 1}`}
+                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                </div>
                                               </td>
                                             </tr>
                                           );
@@ -3190,8 +3420,8 @@ export default function App() {
                                     </table>
                                   )}
 
-                                  {/* Image question render */}
-                                  {sec.type === 'image' && q.image && (
+                                  {/* Question Image render */}
+                                  {(sec.type === 'image' || (q.image && sec.type !== 'match_following')) && q.image && (
                                     <div className="paper-image-container" style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-start' }}>
                                       <img
                                         src={q.image}

@@ -672,6 +672,13 @@ textarea {
 .paper-mcq-option {
   display: flex;
   gap: 8px;
+  align-items: flex-start;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+textarea.mcq-option-textarea {
+  min-height: 34px;
 }
 
 /* True/False render */
@@ -690,8 +697,17 @@ textarea {
   margin-top: 8px;
 }
 
+.paper-match-table th {
+  padding: 6px 0;
+  width: 50%;
+  text-align: left;
+  font-weight: 700;
+  font-size: 13px;
+  border-bottom: 1px solid var(--text-primary, #000);
+}
+
 .paper-match-table td {
-  padding: 6px 12px;
+  padding: 6px 0;
   width: 50%;
   vertical-align: top;
 }
