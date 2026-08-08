@@ -3853,15 +3853,15 @@ export default function App() {
               </button>
 
               <button
-                className="btn btn-secondary"
+                className="btn btn-docx"
                 onClick={triggerDocxExport}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
-                <FileText size={16} style={{ color: '#2b579a' }} />
+                <FileText size={16} style={{ color: '#ffffff' }} />
                 Download Word (DOCX)
               </button>
 
-              <button className="btn btn-secondary" onClick={() => setIsPreviewOpen(false)}>
+              <button className="btn btn-danger" onClick={() => setIsPreviewOpen(false)}>
                 Close
               </button>
             </div>
