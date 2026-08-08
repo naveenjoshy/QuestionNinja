@@ -505,6 +505,7 @@ textarea {
   touch-action: none;
   border: 1px dashed transparent;
   transition: border-color 0.2s ease;
+  margin-top: -10px;
 }
 
 .brand-logo-container:hover {
@@ -519,7 +520,7 @@ textarea {
   position: relative !important;
   left: auto !important;
   top: auto !important;
-  margin: 0 auto !important;
+  margin: -10px auto 0 auto !important;
   cursor: default !important;
   border: none !important;
 }

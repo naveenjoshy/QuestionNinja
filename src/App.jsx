@@ -25,7 +25,12 @@ import {
   Loader2,
   ExternalLink,
   Cloud,
-  Shield
+  Shield,
+  Upload,
+  BookOpen,
+  GraduationCap,
+  School,
+  Check
 } from 'lucide-react';
 import * as docx from 'docx';
 import katex from 'katex';
@@ -53,7 +58,7 @@ const hasFormula = (text) => {
 // Helper: render text that contains $...$ math blocks using KaTeX
 const renderTextWithMath = (text) => {
   if (!text) return '';
-  return text.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
+  let result = text.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
       return katex.renderToString(mathContent, {
         throwOnError: false,
@@ -64,6 +69,8 @@ const renderTextWithMath = (text) => {
       return `<span style="color:red;">${match}</span>`;
     }
   });
+  result = result.replace(/\n/g, '<br>');
+  return result;
 };
 
 // Helper: convert text with $...$ math into an array of docx.TextRun objects
@@ -349,6 +356,7 @@ export default function App() {
   const [formulaModal, setFormulaModal] = useState({ isOpen: false, latex: '', onSave: null });
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [activeInputInfo, setActiveInputInfo] = useState(null);
+  const [csvImportModal, setCsvImportModal] = useState({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: true, importExam: true, importQuestions: true });
   const formulaInputRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -1145,7 +1153,15 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `${metadata.title || 'question_paper'}.csv`);
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
+    const timeStr = String(now.getHours()).padStart(2, '0') + '-' +
+      String(now.getMinutes()).padStart(2, '0') + '-' +
+      String(now.getSeconds()).padStart(2, '0');
+    const subjectName = (metadata.subject || 'question_paper').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+    link.setAttribute('download', `${subjectName}_${dateStr}_${timeStr}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -1396,25 +1412,19 @@ export default function App() {
         }
 
         const hasSections = importedSections.length > 0;
-        const hasBrandingOrMeta = (importedBranding && Object.keys(importedBranding).length > 0) || (importedMetadata && Object.keys(importedMetadata).length > 0);
+        const hasBranding = importedBranding && Object.keys(importedBranding).length > 0;
+        const hasMeta = importedMetadata && Object.keys(importedMetadata).length > 0;
 
-        if (hasSections || hasBrandingOrMeta) {
-          const detailMsg = hasBrandingOrMeta ? ' (including branding & exam details)' : '';
-          const confirmMsg = hasSections
-            ? `Successfully parsed ${importedSections.length} section(s)${detailMsg}. Import and update paper?`
-            : `Successfully parsed branding & exam details${detailMsg}. Import and update paper?`;
-
-          if (window.confirm(confirmMsg)) {
-            if (hasSections) {
-              setSections(importedSections);
-            }
-            if (importedBranding && Object.keys(importedBranding).length > 0) {
-              setBranding(prev => ({ ...prev, ...importedBranding }));
-            }
-            if (importedMetadata && Object.keys(importedMetadata).length > 0) {
-              setMetadata(prev => ({ ...prev, ...importedMetadata }));
-            }
-          }
+        if (hasSections || hasBranding || hasMeta) {
+          setCsvImportModal({
+            isOpen: true,
+            branding: hasBranding ? importedBranding : null,
+            metadata: hasMeta ? importedMetadata : null,
+            sections: hasSections ? importedSections : [],
+            importSchool: hasBranding,
+            importExam: hasMeta,
+            importQuestions: hasSections
+          });
         } else {
           alert('No valid sections, questions, or branding/exam details found in the CSV.');
         }
@@ -1425,6 +1435,24 @@ export default function App() {
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  const confirmCsvImport = () => {
+    const { importSchool, importExam, importQuestions, branding: iBranding, metadata: iMetadata, sections: iSections } = csvImportModal;
+    if (!importSchool && !importExam && !importQuestions) {
+      alert('Please select at least one category to import.');
+      return;
+    }
+    if (importQuestions && iSections.length > 0) {
+      setSections(iSections);
+    }
+    if (importSchool && iBranding && Object.keys(iBranding).length > 0) {
+      setBranding(prev => ({ ...prev, ...iBranding }));
+    }
+    if (importExam && iMetadata && Object.keys(iMetadata).length > 0) {
+      setMetadata(prev => ({ ...prev, ...iMetadata }));
+    }
+    setCsvImportModal({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: true, importExam: true, importQuestions: true });
   };
 
   // Print PDF Trigger
@@ -1552,7 +1580,7 @@ export default function App() {
           new docx.Paragraph({
             alignment: docx.AlignmentType.CENTER,
             children: [logoRun],
-            spacing: { after: 200 }
+            spacing: { before: -200, after: 200 }
           })
         );
       } else {
@@ -4003,6 +4031,145 @@ export default function App() {
       )}
 
       {/* About Developer Modal */}
+      {/* CSV Import Options Modal */}
+      {csvImportModal.isOpen && (
+        <div className="modal-overlay" style={{ zIndex: 1200 }} onClick={() => setCsvImportModal({ ...csvImportModal, isOpen: false })}>
+          <div className="modal-content" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Upload size={18} style={{ color: 'var(--accent)' }} />
+                Import Options
+              </h3>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '20px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, lineHeight: '1.5' }}>
+                Select which sections to import from the CSV file:
+              </p>
+
+              {/* School Details */}
+              <label
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
+                  backgroundColor: csvImportModal.importSchool ? 'var(--accent-glow)' : 'var(--bg-main)',
+                  borderRadius: '10px', border: `1.5px solid ${csvImportModal.importSchool ? 'var(--accent)' : 'var(--border-color)'}`,
+                  cursor: csvImportModal.branding ? 'pointer' : 'not-allowed', opacity: csvImportModal.branding ? 1 : 0.45,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={csvImportModal.importSchool}
+                  disabled={!csvImportModal.branding}
+                  onChange={(e) => setCsvImportModal({ ...csvImportModal, importSchool: e.target.checked })}
+                  style={{ display: 'none' }}
+                />
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0,
+                  border: `2px solid ${csvImportModal.importSchool ? 'var(--accent)' : 'var(--border-color)'}`,
+                  backgroundColor: csvImportModal.importSchool ? 'var(--accent)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease'
+                }}>
+                  {csvImportModal.importSchool && <Check size={14} style={{ color: '#fff' }} />}
+                </div>
+                <School size={18} style={{ color: csvImportModal.importSchool ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>School Details</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {csvImportModal.branding ? 'School name, address, logo & font' : 'Not found in CSV'}
+                  </span>
+                </div>
+              </label>
+
+              {/* Exam Details */}
+              <label
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
+                  backgroundColor: csvImportModal.importExam ? 'var(--accent-glow)' : 'var(--bg-main)',
+                  borderRadius: '10px', border: `1.5px solid ${csvImportModal.importExam ? 'var(--accent)' : 'var(--border-color)'}`,
+                  cursor: csvImportModal.metadata ? 'pointer' : 'not-allowed', opacity: csvImportModal.metadata ? 1 : 0.45,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={csvImportModal.importExam}
+                  disabled={!csvImportModal.metadata}
+                  onChange={(e) => setCsvImportModal({ ...csvImportModal, importExam: e.target.checked })}
+                  style={{ display: 'none' }}
+                />
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0,
+                  border: `2px solid ${csvImportModal.importExam ? 'var(--accent)' : 'var(--border-color)'}`,
+                  backgroundColor: csvImportModal.importExam ? 'var(--accent)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease'
+                }}>
+                  {csvImportModal.importExam && <Check size={14} style={{ color: '#fff' }} />}
+                </div>
+                <GraduationCap size={18} style={{ color: csvImportModal.importExam ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>Exam Details</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {csvImportModal.metadata ? 'Title, subject, class, marks & duration' : 'Not found in CSV'}
+                  </span>
+                </div>
+              </label>
+
+              {/* Questions */}
+              <label
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
+                  backgroundColor: csvImportModal.importQuestions ? 'var(--accent-glow)' : 'var(--bg-main)',
+                  borderRadius: '10px', border: `1.5px solid ${csvImportModal.importQuestions ? 'var(--accent)' : 'var(--border-color)'}`,
+                  cursor: csvImportModal.sections.length > 0 ? 'pointer' : 'not-allowed', opacity: csvImportModal.sections.length > 0 ? 1 : 0.45,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={csvImportModal.importQuestions}
+                  disabled={csvImportModal.sections.length === 0}
+                  onChange={(e) => setCsvImportModal({ ...csvImportModal, importQuestions: e.target.checked })}
+                  style={{ display: 'none' }}
+                />
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0,
+                  border: `2px solid ${csvImportModal.importQuestions ? 'var(--accent)' : 'var(--border-color)'}`,
+                  backgroundColor: csvImportModal.importQuestions ? 'var(--accent)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease'
+                }}>
+                  {csvImportModal.importQuestions && <Check size={14} style={{ color: '#fff' }} />}
+                </div>
+                <BookOpen size={18} style={{ color: csvImportModal.importQuestions ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>Questions</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {csvImportModal.sections.length > 0
+                      ? `${csvImportModal.sections.length} section(s), ${csvImportModal.sections.reduce((sum, s) => sum + s.questions.length, 0)} question(s)`
+                      : 'Not found in CSV'}
+                  </span>
+                </div>
+              </label>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', gap: '10px', padding: '16px 20px' }}>
+              <button
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => setCsvImportModal({ ...csvImportModal, isOpen: false })}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                onClick={confirmCsvImport}
+              >
+                <Upload size={14} /> Import Selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAboutModalOpen && (
         <div className="modal-backdrop" onClick={() => setIsAboutModalOpen(false)}>
           <div className="modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
