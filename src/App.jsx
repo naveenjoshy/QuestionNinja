@@ -33,8 +33,7 @@ import {
   Check
 } from 'lucide-react';
 import * as docx from 'docx';
-import html2canvas from 'html2canvas-pro';
-import { jsPDF } from 'jspdf';
+import html2pdf from 'html2pdf.js';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -1482,64 +1481,48 @@ export default function App() {
     }
     setIsPdfExporting(true);
     try {
-      // Hide the paper-footer so we can add page numbers via jsPDF
+      // Hide the paper-footer element during capture so we can stamp custom page numbers
       const footer = el.querySelector('.paper-footer');
       if (footer) footer.style.display = 'none';
-
-      const scale = 2;
-      const canvas = await html2canvas(el, {
-        scale,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: el.scrollWidth,
-        windowHeight: el.scrollHeight
-      });
-
-      if (footer) footer.style.display = '';
-
-      // A4 dimensions in mm
-      const pageW = 210;
-      const pageH = 297;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-      // Calculate how many pages we need
-      const imgW = pageW;
-      const imgH = (canvas.height * pageW) / canvas.width;
-      const totalPages = Math.ceil(imgH / pageH);
-
-      for (let i = 0; i < totalPages; i++) {
-        if (i > 0) pdf.addPage();
-
-        // Source crop from the canvas
-        const srcY = i * (canvas.width * pageH / pageW);
-        const srcH = Math.min(canvas.width * pageH / pageW, canvas.height - srcY);
-
-        // Create a page-sized canvas slice
-        const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = srcH;
-        const ctx = pageCanvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-        ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-
-        const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
-        const destH = (srcH * pageW) / canvas.width;
-        pdf.addImage(pageImgData, 'JPEG', 0, 0, pageW, destH);
-
-        // Add page number footer
-        pdf.setFontSize(10);
-        pdf.setTextColor(120, 120, 120);
-        pdf.text(`Page ${i + 1} of ${totalPages}`, pageW - 15, pageH - 8, { align: 'right' });
-      }
 
       const subjectName = (metadata.subject || 'question_paper').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
       const now = new Date();
       const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
       const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
-      pdf.save(`${subjectName}_${dateStr}_${timeStr}.pdf`);
+      const filename = `${subjectName}_${dateStr}_${timeStr}.pdf`;
+
+      const opt = {
+        margin: [10, 0, 18, 0], // top: 10mm, left/right: 0mm (preserves 210mm paper width), bottom: 18mm (reserved for footer)
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: ['.paper-question-item', '.paper-section-header', '.paper-header', '.paper-subquestion-item', '.paper-mcq-options', '.paper-match-table', '.paper-table-question']
+        }
+      };
+
+      // Generate PDF object
+      const pdf = await html2pdf().set(opt).from(el).toPdf().get('pdf');
+      
+      // Stamp page number footer in the reserved 18mm bottom margin (y = 287mm)
+      const totalPages = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(9);
+        pdf.setTextColor(120, 120, 120);
+        pdf.text(`Page ${i} of ${totalPages}`, 198, 287, { align: 'right' });
+      }
+
+      pdf.save(filename);
+      if (footer) footer.style.display = '';
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('PDF export failed. Please try again or use Print instead.');

@@ -604,6 +604,17 @@ textarea {
   gap: 12px;
 }
 
+.paper-header,
+.paper-section-header,
+.paper-question-item,
+.paper-subquestion-item,
+.paper-mcq-options,
+.paper-match-table,
+.paper-table-question {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}
+
 .paper-section-header {
   border-bottom: 1.5px solid var(--text-paper);
   padding-bottom: 6px;
