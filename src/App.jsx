@@ -689,6 +689,14 @@ export default function App() {
     return sections.some(s => s.questions && s.questions.length > 0);
   };
 
+  const canFitSingleLine = (options) => {
+    if (!options || options.length === 0) return false;
+    if (options.some(opt => typeof opt === 'string' && opt.includes('\n'))) return false;
+    const totalChars = options.reduce((acc, opt) => acc + (opt ? String(opt).length : 0), 0);
+    const maxOptLen = Math.max(...options.map(opt => (opt ? String(opt).length : 0)));
+    return options.length <= 4 && totalChars <= 55 && maxOptLen <= 20;
+  };
+
 
   // State update helpers for Sections & Questions
   const addSection = () => {
@@ -1881,59 +1889,95 @@ export default function App() {
             return paragraphs;
           };
 
-          const optRows = [];
-          for (let i = 0; i < q.options.length; i += 2) {
-            const leftLetter = String.fromCharCode(65 + i);
-            const leftText = q.options[i] || '';
-            const rightLetter = i + 1 < q.options.length ? String.fromCharCode(65 + i + 1) : '';
-            const rightText = i + 1 < q.options.length ? (q.options[i + 1] || '') : '';
+          const isSingle = canFitSingleLine(q.options);
 
-            const leftChildren = createOptionParagraphs(leftLetter, leftText);
-            const rightChildren = rightLetter ? createOptionParagraphs(rightLetter, rightText) : [new docx.Paragraph({ children: [] })];
+          if (isSingle) {
+            const numOpts = q.options.length;
+            const colWidth = Math.floor(9000 / numOpts);
+            const cells = q.options.map((opt, oIdx) => {
+              const letter = String.fromCharCode(65 + oIdx);
+              return new docx.TableCell({
+                width: { size: colWidth, type: docx.WidthType.DXA },
+                borders: {
+                  top: { style: docx.BorderStyle.NONE, size: 0 },
+                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                  left: { style: docx.BorderStyle.NONE, size: 0 },
+                  right: { style: docx.BorderStyle.NONE, size: 0 }
+                },
+                children: createOptionParagraphs(letter, opt)
+              });
+            });
 
-            optRows.push(
-              new docx.TableRow({
-                children: [
-                  new docx.TableCell({
-                    width: { size: 4500, type: docx.WidthType.DXA },
-                    borders: {
-                      top: { style: docx.BorderStyle.NONE, size: 0 },
-                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                      left: { style: docx.BorderStyle.NONE, size: 0 },
-                      right: { style: docx.BorderStyle.NONE, size: 0 }
-                    },
-                    children: leftChildren
-                  }),
-                  new docx.TableCell({
-                    width: { size: 4500, type: docx.WidthType.DXA },
-                    borders: {
-                      top: { style: docx.BorderStyle.NONE, size: 0 },
-                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                      left: { style: docx.BorderStyle.NONE, size: 0 },
-                      right: { style: docx.BorderStyle.NONE, size: 0 }
-                    },
-                    children: rightChildren
-                  })
-                ]
+            headerChildren.push(
+              new docx.Table({
+                width: { size: 9000, type: docx.WidthType.DXA },
+                columnWidths: Array(numOpts).fill(colWidth),
+                borders: {
+                  top: { style: docx.BorderStyle.NONE, size: 0 },
+                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                  left: { style: docx.BorderStyle.NONE, size: 0 },
+                  right: { style: docx.BorderStyle.NONE, size: 0 },
+                  insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
+                  insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+                },
+                rows: [new docx.TableRow({ children: cells })]
+              })
+            );
+          } else {
+            const optRows = [];
+            for (let i = 0; i < q.options.length; i += 2) {
+              const leftLetter = String.fromCharCode(65 + i);
+              const leftText = q.options[i] || '';
+              const rightLetter = i + 1 < q.options.length ? String.fromCharCode(65 + i + 1) : '';
+              const rightText = i + 1 < q.options.length ? (q.options[i + 1] || '') : '';
+
+              const leftChildren = createOptionParagraphs(leftLetter, leftText);
+              const rightChildren = rightLetter ? createOptionParagraphs(rightLetter, rightText) : [new docx.Paragraph({ children: [] })];
+
+              optRows.push(
+                new docx.TableRow({
+                  children: [
+                    new docx.TableCell({
+                      width: { size: 4500, type: docx.WidthType.DXA },
+                      borders: {
+                        top: { style: docx.BorderStyle.NONE, size: 0 },
+                        bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                        left: { style: docx.BorderStyle.NONE, size: 0 },
+                        right: { style: docx.BorderStyle.NONE, size: 0 }
+                      },
+                      children: leftChildren
+                    }),
+                    new docx.TableCell({
+                      width: { size: 4500, type: docx.WidthType.DXA },
+                      borders: {
+                        top: { style: docx.BorderStyle.NONE, size: 0 },
+                        bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                        left: { style: docx.BorderStyle.NONE, size: 0 },
+                        right: { style: docx.BorderStyle.NONE, size: 0 }
+                      },
+                      children: rightChildren
+                    })
+                  ]
+                })
+              );
+            }
+
+            headerChildren.push(
+              new docx.Table({
+                width: { size: 9000, type: docx.WidthType.DXA },
+                columnWidths: [4500, 4500],
+                borders: {
+                  top: { style: docx.BorderStyle.NONE, size: 0 },
+                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                  left: { style: docx.BorderStyle.NONE, size: 0 },
+                  right: { style: docx.BorderStyle.NONE, size: 0 },
+                  insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
+                  insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+                },
+                rows: optRows
               })
             );
           }
-
-          headerChildren.push(
-            new docx.Table({
-              width: { size: 9000, type: docx.WidthType.DXA },
-              columnWidths: [4500, 4500],
-              borders: {
-                top: { style: docx.BorderStyle.NONE, size: 0 },
-                bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                left: { style: docx.BorderStyle.NONE, size: 0 },
-                right: { style: docx.BorderStyle.NONE, size: 0 },
-                insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
-                insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
-              },
-              rows: optRows
-            })
-          );
         }
 
         else if (sec.type === 'essay') {
@@ -3708,7 +3752,7 @@ export default function App() {
 
                                   {/* MCQ Options */}
                                   {sec.type === 'mcq' && q.options && (
-                                    <div className="paper-mcq-options">
+                                    <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
                                       {q.options.map((opt, oIdx) => (
                                         <div key={oIdx} className="paper-mcq-option">
                                           <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>

@@ -700,6 +700,13 @@ button:disabled,
   padding-left: 4px;
 }
 
+.paper-mcq-options.single-line {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 36px;
+}
+
 .paper-mcq-option {
   display: flex;
   gap: 8px;
