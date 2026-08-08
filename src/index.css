@@ -861,6 +861,7 @@ textarea.mcq-option-textarea {
   .warning-badge,
   .warning-badge-container,
   .app-footer-fixed,
+  .floating-formula-btn,
   .print-hide {
     display: none !important;
   }

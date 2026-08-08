@@ -1689,17 +1689,17 @@ export default function App() {
       headerChildren.push(...schoolDetailsParagraphs);
     }
 
-    // Divider line
+    // Divider line (Double bottom border matching PDF)
     headerChildren.push(
       new docx.Paragraph({
-        alignment: docx.AlignmentType.CENTER,
-        children: [
-          new docx.TextRun({
-            text: '_________________________________________________________________________________',
-            bold: true,
-            color: '000000'
-          })
-        ],
+        border: {
+          bottom: {
+            style: docx.BorderStyle.DOUBLE,
+            size: 18,
+            color: '000000',
+            space: 6
+          }
+        },
         spacing: { after: 200 }
       })
     );
@@ -1723,22 +1723,22 @@ export default function App() {
 
     headerChildren.push(createMetaParagraph('Examination: ', metadata.title));
     headerChildren.push(createMetaParagraph('Subject: ', metadata.subject));
-    headerChildren.push(createMetaParagraph('Class & Div: ', metadata.classDiv));
+    headerChildren.push(createMetaParagraph('Class: ', metadata.classDiv));
     headerChildren.push(createMetaParagraph('Max Marks: ', formatMarks(metadata.maxMarks)));
-    headerChildren.push(createMetaParagraph('Time Allowed: ', metadata.duration));
+    headerChildren.push(createMetaParagraph('Duration: ', metadata.duration));
 
     // Bottom border for metadata
     headerChildren.push(
       new docx.Paragraph({
-        alignment: docx.AlignmentType.CENTER,
-        children: [
-          new docx.TextRun({
-            text: '_________________________________________________________________________________',
-            bold: true,
-            color: '000000'
-          })
-        ],
-        spacing: { after: 300 }
+        border: {
+          bottom: {
+            style: docx.BorderStyle.SINGLE,
+            size: 8,
+            color: '000000',
+            space: 6
+          }
+        },
+        spacing: { after: 240 }
       })
     );
 
@@ -1746,9 +1746,23 @@ export default function App() {
     let absoluteQuestionCount = 1;
 
     for (const sec of sections) {
-      // Section header
+      // Section header with bottom border line matching PDF
       headerChildren.push(
         new docx.Paragraph({
+          border: {
+            bottom: {
+              style: docx.BorderStyle.SINGLE,
+              size: 8,
+              color: '000000',
+              space: 4
+            }
+          },
+          tabStops: [
+            {
+              type: docx.TabStopType.RIGHT,
+              position: docx.TabStopPosition.MAX
+            }
+          ],
           spacing: { before: 240, after: 80 },
           children: [
             new docx.TextRun({
@@ -1758,7 +1772,7 @@ export default function App() {
               font: getFontFamily()
             }),
             new docx.TextRun({
-              text: `\t(Total: ${formatMarks(sec.marks)} Marks)`,
+              text: `\t[${formatMarks(sec.marks)} Marks]`,
               bold: true,
               size: 22,
               font: getFontFamily()
@@ -1786,10 +1800,10 @@ export default function App() {
 
       // Add each question
       for (const q of sec.questions) {
-        const qNum = `${absoluteQuestionCount}.`;
+        const qNum = `Q${absoluteQuestionCount}.`;
         absoluteQuestionCount++;
 
-        // Add question text
+        // Add question text matching PDF (Q1. and (1 M))
         headerChildren.push(
           new docx.Paragraph({
             alignment: hasFormula(q.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
@@ -1808,8 +1822,8 @@ export default function App() {
               }),
               ...docxTextRunsWithMath(q.text || ''),
               new docx.TextRun({
-                text: `\t[${formatMarks(getQuestionMarks(q))} Marks]`,
-                bold: true,
+                text: `\t(${formatMarks(getQuestionMarks(q))} M)`,
+                italic: true,
                 size: 20
               })
             ]
@@ -1926,8 +1940,8 @@ export default function App() {
                     }),
                     ...docxTextRunsWithMath(sq.text || ''),
                     new docx.TextRun({
-                      text: `\t[${formatMarks(sq.marks)} Marks]`,
-                      bold: true,
+                      text: `\t(${formatMarks(sq.marks)} M)`,
+                      italic: true,
                       size: 20
                     })
                   ]
@@ -1940,31 +1954,37 @@ export default function App() {
                   headerChildren.push(
                     new docx.Paragraph({
                       indent: { left: 360 },
-                      spacing: { after: 120 },
-                      children: [
-                        new docx.TextRun({
-                          text: '____________________________________________________________________________',
-                          color: 'E0E0E0'
-                        })
-                      ]
+                      border: {
+                        bottom: {
+                          style: docx.BorderStyle.DOTTED,
+                          size: 6,
+                          color: 'CCCCCC',
+                          space: 2
+                        }
+                      },
+                      spacing: { before: 40, after: 80 },
+                      children: [new docx.TextRun({ text: '' })]
                     })
                   );
                 }
               }
             });
           } else if (!metadata.separateAnswerSheet) {
-            // Renders specified blank lines
+            // Renders specified dotted blank lines
             const linesCount = (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5;
             for (let i = 0; i < linesCount; i++) {
               headerChildren.push(
                 new docx.Paragraph({
-                  spacing: { after: 120 },
-                  children: [
-                    new docx.TextRun({
-                      text: '____________________________________________________________________________',
-                      color: 'E0E0E0'
-                    })
-                  ]
+                  border: {
+                    bottom: {
+                      style: docx.BorderStyle.DOTTED,
+                      size: 6,
+                      color: 'CCCCCC',
+                      space: 2
+                    }
+                  },
+                  spacing: { before: 40, after: 80 },
+                  children: [new docx.TextRun({ text: '' })]
                 })
               );
             }
@@ -3995,7 +4015,7 @@ export default function App() {
       {activeInputInfo && (
         <button
           type="button"
-          className="floating-formula-btn"
+          className="floating-formula-btn print-hide"
           onClick={handleFloatingFormulaClick}
           title="Insert formula into selected inputbox"
         >
