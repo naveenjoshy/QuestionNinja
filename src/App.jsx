@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import pageLogo from './assets/logo.png';
+import schoolLogo from './assets/school_logo.png';
 import {
   Plus,
   Trash2,
@@ -203,9 +204,9 @@ const FORMULA_BUTTONS = [
 ];
 
 const DEFAULT_BRANDING = {
-  logo: '',
-  logoWidth: 100,
-  logoHeight: 100,
+  logo: schoolLogo,
+  logoWidth: 65,
+  logoHeight: 65,
   logoPos: { x: 0, y: 0 },
   schoolName: 'Girijyothi CMI Public School',
   schoolAddress: 'Vazhathope, Idukki',
@@ -328,7 +329,7 @@ export default function App() {
   // App states
   const [branding, setBranding] = useState(DEFAULT_BRANDING);
   const [metadata, setMetadata] = useState(DEFAULT_METADATA);
-  const [sections, setSections] = useState(DEFAULT_SECTIONS);
+  const [sections, setSections] = useState([]);
   const [activeTab, setActiveTab] = useState('branding'); // branding, metadata, sections
   const [collapsedSections, setCollapsedSections] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -993,29 +994,8 @@ export default function App() {
   };
 
   const resetAll = () => {
-    if (window.confirm('Are you sure you want to clear the entire draft?')) {
-      setBranding({
-        logo: '',
-        logoWidth: 100,
-        logoHeight: 100,
-        logoPos: { x: 0, y: 0 },
-        schoolName: '',
-        schoolAddress: '',
-        fontFamily: 'Inter',
-        headerLogoOnly: false,
-        hideSchoolLogo: false
-      });
-      setMetadata({
-        title: '',
-        subject: '',
-        classDiv: '',
-        maxMarks: 100,
-        duration: '',
-        separateAnswerSheet: false,
-        language: 'english'
-      });
+    if (window.confirm('Are you sure you want to clear all questions in the draft?')) {
       setSections([]);
-      localStorage.removeItem('question_ninja_draft');
     }
   };
 
@@ -2017,9 +1997,33 @@ export default function App() {
                     style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
                   />
                   {branding.logo && (
-                    <button className="btn btn-sm btn-danger" onClick={removeLogo} style={{ marginTop: '8px' }}>
-                      Remove Logo
-                    </button>
+                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '14px', background: 'var(--bg-card, #f8fafc)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                      <div style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        padding: '4px',
+                        background: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }}>
+                        <img
+                          src={branding.logo}
+                          alt="Logo Preview"
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Logo Active</span>
+                        <button className="btn btn-sm btn-danger" onClick={removeLogo} style={{ alignSelf: 'flex-start' }}>
+                          Remove Logo
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
 
