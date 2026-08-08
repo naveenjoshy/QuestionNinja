@@ -1099,7 +1099,12 @@ export default function App() {
 
             let matchPairsStr = '';
             if (sec.type === 'match_following' && q.matchPairs) {
-              matchPairsStr = q.matchPairs.map(p => `${p.premise}=${p.response}`).join(';');
+              const hasImages = q.matchPairs.some(p => typeof p === 'object' && (p.premiseImage || p.responseImage));
+              if (hasImages) {
+                matchPairsStr = JSON.stringify(q.matchPairs);
+              } else {
+                matchPairsStr = q.matchPairs.map(p => `${typeof p === 'string' ? p : (p.premise || '')}=${typeof p === 'string' ? p : (p.response || '')}`).join(';');
+              }
             }
 
             let subQsStr = '';
@@ -1354,12 +1359,32 @@ export default function App() {
             } else if (qType === 'essay') {
               q.blankLines = (blankLinesVal !== '' && !isNaN(blankLinesVal)) ? Math.max(0, parseInt(blankLinesVal, 10)) : 5;
             } else if (qType === 'match_following') {
-              q.matchPairs = matchPairsStr
-                ? matchPairsStr.split(';').map(pair => {
-                  const parts = pair.split('=');
-                  return { premise: parts[0] || '', response: parts[1] || '' };
-                })
-                : [];
+              if (matchPairsStr) {
+                const trimmed = matchPairsStr.trim();
+                if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+                  try {
+                    const parsed = JSON.parse(trimmed);
+                    q.matchPairs = Array.isArray(parsed) ? parsed.map(p => ({
+                      premise: typeof p === 'string' ? p : (p.premise || ''),
+                      premiseImage: typeof p === 'object' ? (p.premiseImage || '') : '',
+                      response: typeof p === 'string' ? p : (p.response || ''),
+                      responseImage: typeof p === 'object' ? (p.responseImage || '') : ''
+                    })) : [];
+                  } catch (e) {
+                    q.matchPairs = matchPairsStr.split(';').map(pair => {
+                      const parts = pair.split('=');
+                      return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
+                    });
+                  }
+                } else {
+                  q.matchPairs = matchPairsStr.split(';').map(pair => {
+                    const parts = pair.split('=');
+                    return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
+                  });
+                }
+              } else {
+                q.matchPairs = [];
+              }
             } else if (qType === 'image') {
               q.image = imageData || '';
               q.imageWidth = Number(imageWidthVal) || 300;
@@ -1451,7 +1476,8 @@ export default function App() {
   const imageToUint8Array = async (src) => {
     if (!src) return null;
     if (src.startsWith('data:')) {
-      return dataURLToUint8Array(src);
+      const uint8 = dataURLToUint8Array(src);
+      if (uint8) return uint8;
     }
     try {
       const response = await fetch(src);
@@ -1635,7 +1661,7 @@ export default function App() {
     // Now populate sections and questions
     let absoluteQuestionCount = 1;
 
-    sections.forEach((sec) => {
+    for (const sec of sections) {
       // Section header
       headerChildren.push(
         new docx.Paragraph({
@@ -1675,7 +1701,7 @@ export default function App() {
       }
 
       // Add each question
-      sec.questions.forEach((q) => {
+      for (const q of sec.questions) {
         const qNum = `${absoluteQuestionCount}.`;
         absoluteQuestionCount++;
 
@@ -1878,74 +1904,163 @@ export default function App() {
         }
 
         else if (sec.type === 'match_following' && q.matchPairs) {
-          // Column Headers
-          headerChildren.push(
-            new docx.Paragraph({
-              indent: { left: 720 },
-              spacing: { after: 100 },
+          const columnA = q.matchPairs.map(p => ({ text: p.premise, image: p.premiseImage }));
+          const shuffledList = getShuffledList(q);
+          const columnB = q.matchPairs.map((pair, pIdx) => {
+            const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
+            return {
+              text: typeof itemB === 'string' ? itemB : (itemB.response || ''),
+              image: typeof itemB === 'object' ? (itemB.responseImage || '') : ''
+            };
+          });
+
+          const tableRows = [];
+
+          // Header row
+          tableRows.push(
+            new docx.TableRow({
               children: [
-                new docx.TextRun({ text: 'Column A', bold: true, size: 22 }),
-                new docx.TextRun({ text: '\t\t\t\t\t\tColumn B', bold: true, size: 22 })
+                new docx.TableCell({
+                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
+                    left: { style: docx.BorderStyle.NONE, size: 0 },
+                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                  },
+                  children: [
+                    new docx.Paragraph({
+                      spacing: { before: 60, after: 60 },
+                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 22 })]
+                    })
+                  ]
+                }),
+                new docx.TableCell({
+                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                  borders: {
+                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
+                    left: { style: docx.BorderStyle.NONE, size: 0 },
+                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                  },
+                  children: [
+                    new docx.Paragraph({
+                      spacing: { before: 60, after: 60 },
+                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 22 })]
+                    })
+                  ]
+                })
               ]
             })
           );
 
-          // Build match list
-          const columnA = q.matchPairs.map(p => ({ text: p.premise, image: p.premiseImage }));
-          let columnB = q.matchPairs.map(p => ({
-            text: typeof p === 'string' ? p : (p.response || ''),
-            image: p.responseImage || ''
-          }));
-          if (q.shuffleB) {
-            columnB = [...columnB].sort(() => Math.random() - 0.5);
-          }
+          const romanNum = (idx) => {
+            const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+            return r[idx] || (idx + 1).toString();
+          };
 
-          // Renders a side-by-side matches listing
           for (let index = 0; index < columnA.length; index++) {
-            const romanNum = (idx) => {
-              const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
-              return r[idx] || (idx + 1).toString();
-            };
-
             const itemA = columnA[index];
             const itemB = columnB[index];
 
-            const runsA = [
-              new docx.TextRun({ text: `${index + 1}. `, size: 22 }),
-              ...docxTextRunsWithMath(itemA.text || '')
+            const cellAChildren = [
+              new docx.Paragraph({
+                spacing: { before: 40, after: 40 },
+                children: [
+                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 22 }),
+                  ...docxTextRunsWithMath(itemA.text || '')
+                ]
+              })
             ];
             if (itemA.image) {
-              const imgBytes = dataURLToUint8Array(itemA.image);
+              const imgBytes = await imageToUint8Array(itemA.image);
               if (imgBytes) {
-                runsA.push(new docx.TextRun({ break: 1 }));
-                runsA.push(new docx.ImageRun({ data: imgBytes, transformation: { width: 120, height: 80 } }));
+                cellAChildren.push(
+                  new docx.Paragraph({
+                    spacing: { before: 20, after: 40 },
+                    children: [
+                      new docx.ImageRun({
+                        data: imgBytes,
+                        transformation: { width: 120, height: 80 }
+                      })
+                    ]
+                  })
+                );
               }
             }
 
-            const runsB = [
-              new docx.TextRun({ text: `\t\t\t\t\t\t${romanNum(index)}. `, size: 22 }),
-              ...docxTextRunsWithMath(itemB.text || '')
+            const cellBChildren = [
+              new docx.Paragraph({
+                spacing: { before: 40, after: 40 },
+                children: [
+                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 22 }),
+                  ...docxTextRunsWithMath(itemB.text || '')
+                ]
+              })
             ];
             if (itemB.image) {
-              const imgBytes = dataURLToUint8Array(itemB.image);
+              const imgBytes = await imageToUint8Array(itemB.image);
               if (imgBytes) {
-                runsB.push(new docx.TextRun({ break: 1 }));
-                runsB.push(new docx.ImageRun({ data: imgBytes, transformation: { width: 120, height: 80 } }));
+                cellBChildren.push(
+                  new docx.Paragraph({
+                    spacing: { before: 20, after: 40 },
+                    children: [
+                      new docx.ImageRun({
+                        data: imgBytes,
+                        transformation: { width: 120, height: 80 }
+                      })
+                    ]
+                  })
+                );
               }
             }
 
-            headerChildren.push(
-              new docx.Paragraph({
-                indent: { left: 720 },
-                spacing: { after: 60 },
-                children: [...runsA, ...runsB]
+            tableRows.push(
+              new docx.TableRow({
+                children: [
+                  new docx.TableCell({
+                    width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                    borders: {
+                      top: { style: docx.BorderStyle.NONE, size: 0 },
+                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                      left: { style: docx.BorderStyle.NONE, size: 0 },
+                      right: { style: docx.BorderStyle.NONE, size: 0 }
+                    },
+                    children: cellAChildren
+                  }),
+                  new docx.TableCell({
+                    width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                    borders: {
+                      top: { style: docx.BorderStyle.NONE, size: 0 },
+                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                      left: { style: docx.BorderStyle.NONE, size: 0 },
+                      right: { style: docx.BorderStyle.NONE, size: 0 }
+                    },
+                    children: cellBChildren
+                  })
+                ]
               })
             );
           }
+
+          headerChildren.push(
+            new docx.Table({
+              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              borders: {
+                top: { style: docx.BorderStyle.NONE, size: 0 },
+                bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                left: { style: docx.BorderStyle.NONE, size: 0 },
+                right: { style: docx.BorderStyle.NONE, size: 0 },
+                insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
+                insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+              },
+              rows: tableRows
+            })
+          );
         }
 
-        else if (sec.type === 'image' && q.image) {
-          const imageBytes = dataURLToUint8Array(q.image);
+        else if ((sec.type === 'image' || q.image) && sec.type !== 'match_following' && q.image) {
+          const imageBytes = await imageToUint8Array(q.image);
           if (imageBytes) {
             headerChildren.push(
               new docx.Paragraph({
@@ -2006,8 +2121,8 @@ export default function App() {
             })
           );
         }
-      });
-    });
+      }
+    }
 
     const doc = new docx.Document({
       features: {

@@ -1014,8 +1014,11 @@ textarea.mcq-option-textarea {
 
 /* Print and PDF adjustments for images */
 @media print {
-  .paper-image-container img {
+  .paper-image-container img,
+  .paper-match-table tr,
+  .paper-match-table img {
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 }
 
