@@ -685,6 +685,10 @@ export default function App() {
     }));
   };
 
+  const hasQuestions = () => {
+    return sections.some(s => s.questions && s.questions.length > 0);
+  };
+
 
   // State update helpers for Sections & Questions
   const addSection = () => {
@@ -1027,6 +1031,10 @@ export default function App() {
 
   // CSV Export & Import Features
   const exportToCSV = () => {
+    if (!hasQuestions()) {
+      alert("No questions added to export.");
+      return;
+    }
     const headers = [
       'School Logo',
       'School Logo Width',
@@ -1469,6 +1477,10 @@ export default function App() {
   };
 
   const triggerPdfExport = async () => {
+    if (!hasQuestions()) {
+      alert("No questions added to export.");
+      return;
+    }
     if (hasBlankQuestions()) {
       if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
         return;
@@ -2272,6 +2284,10 @@ export default function App() {
   };
 
   const triggerDocxExport = async () => {
+    if (!hasQuestions()) {
+      alert("No questions added to export.");
+      return;
+    }
     if (hasBlankQuestions()) {
       if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
         return;
@@ -3844,7 +3860,8 @@ export default function App() {
             <div className="modal-footer" style={{ gap: '10px' }}>
               <button
                 className="btn btn-primary"
-                disabled={isPdfExporting}
+                disabled={isPdfExporting || !hasQuestions()}
+                title={hasQuestions() ? "Download PDF" : "Add at least one question to download"}
                 onClick={triggerPdfExport}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
@@ -3854,6 +3871,8 @@ export default function App() {
 
               <button
                 className="btn btn-docx"
+                disabled={!hasQuestions()}
+                title={hasQuestions() ? "Download Word (DOCX)" : "Add at least one question to download"}
                 onClick={triggerDocxExport}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >

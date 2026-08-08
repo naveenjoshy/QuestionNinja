@@ -312,6 +312,14 @@ textarea {
   border: none;
 }
 
+button:disabled,
+.btn:disabled {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 .btn-primary {
   background-color: var(--accent);
   color: #ffffff;
