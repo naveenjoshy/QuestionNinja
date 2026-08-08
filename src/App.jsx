@@ -1819,6 +1819,7 @@ export default function App() {
         headerChildren.push(
           new docx.Paragraph({
             alignment: hasFormula(q.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
+            indent: { left: 540, hanging: 540 },
             spacing: { before: 120, after: 80 },
             tabStops: [
               {
@@ -1828,7 +1829,7 @@ export default function App() {
             ],
             children: [
               new docx.TextRun({
-                text: `${qNum}  `,
+                text: `${qNum}\t`,
                 bold: true,
                 size: 22
               }),
@@ -1863,10 +1864,10 @@ export default function App() {
                 },
                 children: [
                   new docx.Paragraph({
-                    indent: { left: 360 },
+                    indent: { left: 540, hanging: 480 },
                     spacing: { after: 40 },
                     children: [
-                      new docx.TextRun({ text: `(${leftLetter})  `, size: 22 }),
+                      new docx.TextRun({ text: `(${leftLetter})\t`, size: 22 }),
                       ...docxTextRunsWithMath(leftText)
                     ]
                   })
@@ -1886,9 +1887,10 @@ export default function App() {
                   },
                   children: [
                     new docx.Paragraph({
+                      indent: { left: 540, hanging: 480 },
                       spacing: { after: 40 },
                       children: [
-                        new docx.TextRun({ text: `(${rightLetter})  `, size: 22 }),
+                        new docx.TextRun({ text: `(${rightLetter})\t`, size: 22 }),
                         ...docxTextRunsWithMath(rightText)
                       ]
                     })
@@ -1936,7 +1938,7 @@ export default function App() {
               headerChildren.push(
                 new docx.Paragraph({
                   alignment: hasFormula(sq.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
-                  indent: { left: 360 },
+                  indent: { left: 720, hanging: 480 },
                   spacing: { before: 80, after: 60 },
                   tabStops: [
                     {
@@ -1946,7 +1948,7 @@ export default function App() {
                   ],
                   children: [
                     new docx.TextRun({
-                      text: `${sqLabel}  `,
+                      text: `${sqLabel}\t`,
                       bold: true,
                       size: 22
                     }),
