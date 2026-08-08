@@ -2098,7 +2098,7 @@ export default function App() {
             new docx.TableRow({
               children: [
                 new docx.TableCell({
-                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                  width: { size: 4500, type: docx.WidthType.DXA },
                   borders: {
                     top: { style: docx.BorderStyle.NONE, size: 0 },
                     bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
@@ -2113,7 +2113,7 @@ export default function App() {
                   ]
                 }),
                 new docx.TableCell({
-                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                  width: { size: 4500, type: docx.WidthType.DXA },
                   borders: {
                     top: { style: docx.BorderStyle.NONE, size: 0 },
                     bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
@@ -2196,7 +2196,7 @@ export default function App() {
               new docx.TableRow({
                 children: [
                   new docx.TableCell({
-                    width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                    width: { size: 4500, type: docx.WidthType.DXA },
                     borders: {
                       top: { style: docx.BorderStyle.NONE, size: 0 },
                       bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2206,7 +2206,7 @@ export default function App() {
                     children: cellAChildren
                   }),
                   new docx.TableCell({
-                    width: { size: 50, type: docx.WidthType.PERCENTAGE },
+                    width: { size: 4500, type: docx.WidthType.DXA },
                     borders: {
                       top: { style: docx.BorderStyle.NONE, size: 0 },
                       bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2222,7 +2222,8 @@ export default function App() {
 
           headerChildren.push(
             new docx.Table({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              width: { size: 9000, type: docx.WidthType.DXA },
+              columnWidths: [4500, 4500],
               borders: {
                 top: { style: docx.BorderStyle.NONE, size: 0 },
                 bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2292,7 +2293,7 @@ export default function App() {
 
           headerChildren.push(
             new docx.Table({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              width: { size: 9000, type: docx.WidthType.DXA },
               indent: { size: 360, type: docx.WidthType.DXA },
               rows: tblRows
             })
@@ -2302,9 +2303,6 @@ export default function App() {
     }
 
     const doc = new docx.Document({
-      features: {
-        updateFields: true
-      },
       styles: {
         default: {
           document: {
