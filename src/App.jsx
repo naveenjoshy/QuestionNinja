@@ -1652,27 +1652,28 @@ export default function App() {
           })
         );
       } else {
-        // Construct side-by-side layout using borderless table
+        // Construct side-by-side layout using borderless table with explicit DXA widths (prevents Mobile Google Docs 1-letter column collapse)
         const headerTable = new docx.Table({
-          width: { size: 100, type: docx.WidthType.PERCENTAGE },
+          width: { size: 9000, type: docx.WidthType.DXA },
+          columnWidths: [1800, 7200],
           borders: {
-            top: { style: docx.BorderStyle.NONE },
-            bottom: { style: docx.BorderStyle.NONE },
-            left: { style: docx.BorderStyle.NONE },
-            right: { style: docx.BorderStyle.NONE },
-            insideHorizontal: { style: docx.BorderStyle.NONE },
-            insideVertical: { style: docx.BorderStyle.NONE }
+            top: { style: docx.BorderStyle.NONE, size: 0 },
+            bottom: { style: docx.BorderStyle.NONE, size: 0 },
+            left: { style: docx.BorderStyle.NONE, size: 0 },
+            right: { style: docx.BorderStyle.NONE, size: 0 },
+            insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
+            insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
           },
           rows: [
             new docx.TableRow({
               children: [
                 new docx.TableCell({
-                  width: { size: 20, type: docx.WidthType.PERCENTAGE },
+                  width: { size: 1800, type: docx.WidthType.DXA },
                   borders: {
-                    top: { style: docx.BorderStyle.NONE },
-                    bottom: { style: docx.BorderStyle.NONE },
-                    left: { style: docx.BorderStyle.NONE },
-                    right: { style: docx.BorderStyle.NONE }
+                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                    left: { style: docx.BorderStyle.NONE, size: 0 },
+                    right: { style: docx.BorderStyle.NONE, size: 0 }
                   },
                   children: [
                     new docx.Paragraph({
@@ -1682,12 +1683,12 @@ export default function App() {
                   ]
                 }),
                 new docx.TableCell({
-                  width: { size: 80, type: docx.WidthType.PERCENTAGE },
+                  width: { size: 7200, type: docx.WidthType.DXA },
                   borders: {
-                    top: { style: docx.BorderStyle.NONE },
-                    bottom: { style: docx.BorderStyle.NONE },
-                    left: { style: docx.BorderStyle.NONE },
-                    right: { style: docx.BorderStyle.NONE }
+                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                    left: { style: docx.BorderStyle.NONE, size: 0 },
+                    right: { style: docx.BorderStyle.NONE, size: 0 }
                   },
                   children: schoolDetailsParagraphs
                 })
@@ -1816,11 +1817,11 @@ export default function App() {
         absoluteQuestionCount++;
 
         // Add question text matching PDF (Q1. and (1 M))
+        const qLines = (q.text || '').split('\n');
         headerChildren.push(
           new docx.Paragraph({
             alignment: hasFormula(q.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
-            indent: { left: 540, hanging: 540 },
-            spacing: { before: 120, after: 80 },
+            spacing: { before: 120, after: 40 },
             tabStops: [
               {
                 type: docx.TabStopType.RIGHT,
@@ -1829,11 +1830,11 @@ export default function App() {
             ],
             children: [
               new docx.TextRun({
-                text: `${qNum}\t`,
+                text: `${qNum}  `,
                 bold: true,
                 size: 22
               }),
-              ...docxTextRunsWithMath(q.text || ''),
+              ...docxTextRunsWithMath(qLines[0] || ''),
               new docx.TextRun({
                 text: `\t(${formatMarks(getQuestionMarks(q))} M)`,
                 italic: true,
@@ -1843,9 +1844,43 @@ export default function App() {
           })
         );
 
+        for (let lIdx = 1; lIdx < qLines.length; lIdx++) {
+          headerChildren.push(
+            new docx.Paragraph({
+              indent: { left: 450 },
+              spacing: { after: 40 },
+              children: docxTextRunsWithMath(qLines[lIdx])
+            })
+          );
+        }
+
         // Formatting specific question types
         if (sec.type === 'mcq' && q.options) {
-          // Render MCQ choices in a 2-column table (two options per row)
+          const createOptionParagraphs = (letter, text) => {
+            if (!text) return [new docx.Paragraph({ children: [] })];
+            const lines = text.split('\n');
+            const paragraphs = [];
+            paragraphs.push(
+              new docx.Paragraph({
+                spacing: { after: 40 },
+                children: [
+                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 22 }),
+                  ...docxTextRunsWithMath(lines[0] || '')
+                ]
+              })
+            );
+            for (let i = 1; i < lines.length; i++) {
+              paragraphs.push(
+                new docx.Paragraph({
+                  indent: { left: 450 },
+                  spacing: { after: 40 },
+                  children: docxTextRunsWithMath(lines[i])
+                })
+              );
+            }
+            return paragraphs;
+          };
+
           const optRows = [];
           for (let i = 0; i < q.options.length; i += 2) {
             const leftLetter = String.fromCharCode(65 + i);
@@ -1853,71 +1888,41 @@ export default function App() {
             const rightLetter = i + 1 < q.options.length ? String.fromCharCode(65 + i + 1) : '';
             const rightText = i + 1 < q.options.length ? (q.options[i + 1] || '') : '';
 
-            const cells = [
-              new docx.TableCell({
-                width: { size: 50, type: docx.WidthType.PERCENTAGE },
-                borders: {
-                  top: { style: docx.BorderStyle.NONE, size: 0 },
-                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                  left: { style: docx.BorderStyle.NONE, size: 0 },
-                  right: { style: docx.BorderStyle.NONE, size: 0 }
-                },
+            const leftChildren = createOptionParagraphs(leftLetter, leftText);
+            const rightChildren = rightLetter ? createOptionParagraphs(rightLetter, rightText) : [new docx.Paragraph({ children: [] })];
+
+            optRows.push(
+              new docx.TableRow({
                 children: [
-                  new docx.Paragraph({
-                    indent: { left: 540, hanging: 480 },
-                    spacing: { after: 40 },
-                    children: [
-                      new docx.TextRun({ text: `(${leftLetter})\t`, size: 22 }),
-                      ...docxTextRunsWithMath(leftText)
-                    ]
+                  new docx.TableCell({
+                    width: { size: 4500, type: docx.WidthType.DXA },
+                    borders: {
+                      top: { style: docx.BorderStyle.NONE, size: 0 },
+                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                      left: { style: docx.BorderStyle.NONE, size: 0 },
+                      right: { style: docx.BorderStyle.NONE, size: 0 }
+                    },
+                    children: leftChildren
+                  }),
+                  new docx.TableCell({
+                    width: { size: 4500, type: docx.WidthType.DXA },
+                    borders: {
+                      top: { style: docx.BorderStyle.NONE, size: 0 },
+                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
+                      left: { style: docx.BorderStyle.NONE, size: 0 },
+                      right: { style: docx.BorderStyle.NONE, size: 0 }
+                    },
+                    children: rightChildren
                   })
                 ]
               })
-            ];
-
-            if (rightText || rightLetter) {
-              cells.push(
-                new docx.TableCell({
-                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
-                  borders: {
-                    top: { style: docx.BorderStyle.NONE, size: 0 },
-                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                    left: { style: docx.BorderStyle.NONE, size: 0 },
-                    right: { style: docx.BorderStyle.NONE, size: 0 }
-                  },
-                  children: [
-                    new docx.Paragraph({
-                      indent: { left: 540, hanging: 480 },
-                      spacing: { after: 40 },
-                      children: [
-                        new docx.TextRun({ text: `(${rightLetter})\t`, size: 22 }),
-                        ...docxTextRunsWithMath(rightText)
-                      ]
-                    })
-                  ]
-                })
-              );
-            } else {
-              cells.push(
-                new docx.TableCell({
-                  width: { size: 50, type: docx.WidthType.PERCENTAGE },
-                  borders: {
-                    top: { style: docx.BorderStyle.NONE, size: 0 },
-                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                    left: { style: docx.BorderStyle.NONE, size: 0 },
-                    right: { style: docx.BorderStyle.NONE, size: 0 }
-                  },
-                  children: [new docx.Paragraph({ children: [] })]
-                })
-              );
-            }
-
-            optRows.push(new docx.TableRow({ children: cells }));
+            );
           }
 
           headerChildren.push(
             new docx.Table({
-              width: { size: 100, type: docx.WidthType.PERCENTAGE },
+              width: { size: 9000, type: docx.WidthType.DXA },
+              columnWidths: [4500, 4500],
               borders: {
                 top: { style: docx.BorderStyle.NONE, size: 0 },
                 bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -1935,11 +1940,12 @@ export default function App() {
           if (q.subQuestions && q.subQuestions.length > 0) {
             q.subQuestions.forEach((sq, sqIdx) => {
               const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
+              const sqLines = (sq.text || '').split('\n');
               headerChildren.push(
                 new docx.Paragraph({
                   alignment: hasFormula(sq.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
-                  indent: { left: 720, hanging: 480 },
-                  spacing: { before: 80, after: 60 },
+                  indent: { left: 360 },
+                  spacing: { before: 80, after: 40 },
                   tabStops: [
                     {
                       type: docx.TabStopType.RIGHT,
@@ -1948,11 +1954,11 @@ export default function App() {
                   ],
                   children: [
                     new docx.TextRun({
-                      text: `${sqLabel}\t`,
+                      text: `${sqLabel}  `,
                       bold: true,
                       size: 22
                     }),
-                    ...docxTextRunsWithMath(sq.text || ''),
+                    ...docxTextRunsWithMath(sqLines[0] || ''),
                     new docx.TextRun({
                       text: `\t(${formatMarks(sq.marks)} M)`,
                       italic: true,
@@ -1961,6 +1967,15 @@ export default function App() {
                   ]
                 })
               );
+              for (let lIdx = 1; lIdx < sqLines.length; lIdx++) {
+                headerChildren.push(
+                  new docx.Paragraph({
+                    indent: { left: 720 },
+                    spacing: { after: 40 },
+                    children: docxTextRunsWithMath(sqLines[lIdx])
+                  })
+                );
+              }
 
               if (!metadata.separateAnswerSheet) {
                 const sqLines = (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4;
