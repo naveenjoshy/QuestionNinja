@@ -527,8 +527,14 @@ export default function App() {
     if (savedDraft) {
       try {
         const parsed = JSON.parse(savedDraft);
-        if (parsed.branding) setBranding(parsed.branding);
-        if (parsed.metadata) setMetadata(parsed.metadata);
+        if (parsed.branding) {
+          setBranding(prev => ({
+            ...DEFAULT_BRANDING,
+            ...parsed.branding,
+            logo: parsed.branding.logo === null ? null : (parsed.branding.logo || schoolLogo)
+          }));
+        }
+        if (parsed.metadata) setMetadata(prev => ({ ...DEFAULT_METADATA, ...parsed.metadata }));
         if (parsed.sections) setSections(parsed.sections);
       } catch (e) {
         console.error('Error loading saved draft from localStorage', e);
@@ -566,7 +572,7 @@ export default function App() {
   };
 
   const removeLogo = () => {
-    setBranding(prev => ({ ...prev, logo: '' }));
+    setBranding(prev => ({ ...prev, logo: null }));
   };
 
   // Logo pointer events (Custom Drag / Resize logic)
