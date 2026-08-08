@@ -238,7 +238,7 @@ const DEFAULT_METADATA = {
   classDiv: 'Class X - Division A & B',
   maxMarks: 50,
   duration: '90 Minutes',
-  separateAnswerSheet: false,
+  separateAnswerSheet: true,
   language: 'english'
 };
 
@@ -3609,7 +3609,7 @@ export default function App() {
                 <input
                   type="checkbox"
                   id="preview-separateAnswerSheet"
-                  checked={metadata.separateAnswerSheet || false}
+                  checked={metadata.separateAnswerSheet ?? true}
                   onChange={(e) => setMetadata({ ...metadata, separateAnswerSheet: e.target.checked })}
                   style={{ width: 'auto', cursor: 'pointer', margin: 0 }}
                 />
