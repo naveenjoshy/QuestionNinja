@@ -33,6 +33,8 @@ import {
   Check
 } from 'lucide-react';
 import * as docx from 'docx';
+import html2canvas from 'html2canvas-pro';
+import { jsPDF } from 'jspdf';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -357,6 +359,8 @@ export default function App() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [activeInputInfo, setActiveInputInfo] = useState(null);
   const [csvImportModal, setCsvImportModal] = useState({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: true, importExam: true, importQuestions: true });
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
+  const paperSheetRef = useRef(null);
   const formulaInputRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -1465,14 +1469,83 @@ export default function App() {
     window.print();
   };
 
-  const triggerPdfExport = () => {
+  const triggerPdfExport = async () => {
     if (hasBlankQuestions()) {
       if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
         return;
       }
     }
-    alert("To save as a PDF file, please select 'Save as PDF' under the 'Destination' selection in the browser print window.");
-    window.print();
+    const el = paperSheetRef.current;
+    if (!el) {
+      alert('Please open the preview first.');
+      return;
+    }
+    setIsPdfExporting(true);
+    try {
+      // Hide the paper-footer so we can add page numbers via jsPDF
+      const footer = el.querySelector('.paper-footer');
+      if (footer) footer.style.display = 'none';
+
+      const scale = 2;
+      const canvas = await html2canvas(el, {
+        scale,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: el.scrollWidth,
+        windowHeight: el.scrollHeight
+      });
+
+      if (footer) footer.style.display = '';
+
+      // A4 dimensions in mm
+      const pageW = 210;
+      const pageH = 297;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      // Calculate how many pages we need
+      const imgW = pageW;
+      const imgH = (canvas.height * pageW) / canvas.width;
+      const totalPages = Math.ceil(imgH / pageH);
+
+      for (let i = 0; i < totalPages; i++) {
+        if (i > 0) pdf.addPage();
+
+        // Source crop from the canvas
+        const srcY = i * (canvas.width * pageH / pageW);
+        const srcH = Math.min(canvas.width * pageH / pageW, canvas.height - srcY);
+
+        // Create a page-sized canvas slice
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = srcH;
+        const ctx = pageCanvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+
+        const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const destH = (srcH * pageW) / canvas.width;
+        pdf.addImage(pageImgData, 'JPEG', 0, 0, pageW, destH);
+
+        // Add page number footer
+        pdf.setFontSize(10);
+        pdf.setTextColor(120, 120, 120);
+        pdf.text(`Page ${i + 1} of ${totalPages}`, pageW - 15, pageH - 8, { align: 'right' });
+      }
+
+      const subjectName = (metadata.subject || 'question_paper').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+      const now = new Date();
+      const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
+      pdf.save(`${subjectName}_${dateStr}_${timeStr}.pdf`);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('PDF export failed. Please try again or use Print instead.');
+    } finally {
+      setIsPdfExporting(false);
+    }
   };
 
   // Helper to convert Data URL to Uint8Array for docx ImageRun
@@ -3505,7 +3578,7 @@ export default function App() {
 
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
-              <div className={`paper-sheet lang-${metadata.language || 'english'}`}>
+              <div ref={paperSheetRef} className={`paper-sheet lang-${metadata.language || 'english'}`}>
 
                 {/* Header Layout */}
                 <div className={`paper-header font-${branding.fontFamily}`}>
@@ -3780,8 +3853,9 @@ export default function App() {
                 </button>
                 {isDownloadOpen && (
                   <div className="dropdown-menu">
-                    <button className="dropdown-item" onClick={() => { setIsDownloadOpen(false); triggerPdfExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <FileText size={16} className="text-accent" /> Download PDF
+                    <button className="dropdown-item" disabled={isPdfExporting} onClick={() => { setIsDownloadOpen(false); triggerPdfExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {isPdfExporting ? <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent)' }} /> : <FileText size={16} className="text-accent" />}
+                      {isPdfExporting ? 'Generating PDF...' : 'Download PDF'}
                     </button>
                     <button className="dropdown-item" onClick={() => { setIsDownloadOpen(false); triggerDocxExport(); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <FileText size={16} style={{ color: '#2b579a' }} /> Download Word (DOCX)
