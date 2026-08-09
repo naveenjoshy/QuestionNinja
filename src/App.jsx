@@ -751,7 +751,7 @@ export default function App() {
         const updatedQuestions = sec.questions.map(q => {
           const updatedQ = { ...q };
           if (newType === 'mcq' && !updatedQ.options) {
-            updatedQ.options = ['Option A', 'Option B', 'Option C', 'Option D'];
+            updatedQ.options = ['', '', '', ''];
           }
           if (newType === 'match_following' && !updatedQ.matchPairs) {
             updatedQ.matchPairs = [
@@ -804,7 +804,7 @@ export default function App() {
         };
 
         if (type === 'mcq') {
-          defaultQuestion.options = ['Option A', 'Option B', 'Option C', 'Option D'];
+          defaultQuestion.options = ['', '', '', ''];
         } else if (type === 'essay') {
           defaultQuestion.blankLines = 5;
         } else if (type === 'match_following') {
@@ -2910,8 +2910,7 @@ export default function App() {
                                       className="btn-secondary"
                                       style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
                                       onClick={() => {
-                                        const nextChar = String.fromCharCode(65 + q.options.length);
-                                        const newOpts = [...q.options, `Option ${nextChar}`];
+                                        const newOpts = [...q.options, ''];
                                         updateQuestion(sec.id, q.id, { options: newOpts });
                                       }}
                                     >
