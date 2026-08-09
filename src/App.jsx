@@ -378,7 +378,7 @@ export default function App() {
   const [formulaModal, setFormulaModal] = useState({ isOpen: false, latex: '', onSave: null });
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [activeInputInfo, setActiveInputInfo] = useState(null);
-  const [csvImportModal, setCsvImportModal] = useState({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: true, importExam: true, importQuestions: true });
+  const [csvImportModal, setCsvImportModal] = useState({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: false, importExam: true, importQuestions: true });
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const paperSheetRef = useRef(null);
   const formulaInputRef = useRef(null);
@@ -1478,7 +1478,7 @@ export default function App() {
             branding: hasBranding ? importedBranding : null,
             metadata: hasMeta ? importedMetadata : null,
             sections: hasSections ? importedSections : [],
-            importSchool: hasBranding,
+            importSchool: false,
             importExam: hasMeta,
             importQuestions: hasSections
           });
@@ -1513,7 +1513,7 @@ export default function App() {
     if (importExam && iMetadata && Object.keys(iMetadata).length > 0) {
       setMetadata(prev => ({ ...prev, ...iMetadata }));
     }
-    setCsvImportModal({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: true, importExam: true, importQuestions: true });
+    setCsvImportModal({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: false, importExam: true, importQuestions: true });
   };
 
   // Print PDF Trigger
