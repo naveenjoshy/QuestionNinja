@@ -2999,13 +2999,15 @@ export default function App() {
                                       <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
                                         Sub-Questions {q.subQuestions && q.subQuestions.length > 0 ? `(${q.subQuestions.length})` : ''}
                                       </span>
-                                      <button
-                                        className="btn btn-secondary btn-sm"
-                                        style={{ padding: '3px 8px', fontSize: '11px' }}
-                                        onClick={() => addSubQuestion(sec.id, q.id)}
-                                      >
-                                        + Add Sub-Question
-                                      </button>
+                                      {(!q.subQuestions || q.subQuestions.length === 0) && (
+                                        <button
+                                          className="btn btn-secondary btn-sm"
+                                          style={{ padding: '3px 8px', fontSize: '11px' }}
+                                          onClick={() => addSubQuestion(sec.id, q.id)}
+                                        >
+                                          + Add Sub-Question
+                                        </button>
+                                      )}
                                     </div>
 
                                     {q.subQuestions && q.subQuestions.map((sq, sqIdx) => (
@@ -3123,6 +3125,15 @@ export default function App() {
                                         </div>
                                       </div>
                                     ))}
+                                    {q.subQuestions && q.subQuestions.length > 0 && (
+                                      <button
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ alignSelf: 'flex-end', padding: '4px 10px', fontSize: '11px' }}
+                                        onClick={() => addSubQuestion(sec.id, q.id)}
+                                      >
+                                        + Add Sub-Question
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -3531,7 +3542,27 @@ export default function App() {
                             </div>
                           ))}
 
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              fontSize: '12px',
+                              fontWeight: 'bold'
+                            }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                Current Section Total:
+                              </span>
+                              <span style={{
+                                padding: '4px 10px',
+                                backgroundColor: 'rgba(0,0,0,0.2)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '13px',
+                                color: isOverProvisioned ? 'var(--warning)' : isUnderProvisioned ? 'var(--danger)' : 'var(--success)'
+                              }}>
+                                {formatMarks(secTotal)} / {formatMarks(sec.marks)} Marks
+                              </span>
+                            </div>
                             <button
                               className="btn btn-secondary btn-sm"
                               onClick={() => addQuestion(sec.id)}
