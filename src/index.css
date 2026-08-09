@@ -630,6 +630,12 @@ button:disabled,
   border-bottom: 1.5px solid var(--text-paper);
   padding-bottom: 6px;
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.paper-section-title-row {
+  display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 12px;
@@ -656,7 +662,7 @@ button:disabled,
 .paper-section-instructions {
   font-size: 12px;
   font-style: italic;
-  margin-top: -4px;
+  margin-top: 0;
   text-align: justify;
   text-align-last: left;
   word-break: break-word;

@@ -1811,11 +1811,12 @@ export default function App() {
     let absoluteQuestionCount = 1;
 
     for (const sec of sections) {
-      // Section header with bottom border line matching PDF
+      const hasInstructions = !!sec.instructions;
+      // Section header with bottom border line matching PDF (below instructions if present)
       headerChildren.push(
         new docx.Paragraph({
           alignment: docx.AlignmentType.JUSTIFY,
-          border: {
+          border: hasInstructions ? undefined : {
             bottom: {
               style: docx.BorderStyle.SINGLE,
               size: 8,
@@ -1829,7 +1830,7 @@ export default function App() {
               position: docx.TabStopPosition.MAX
             }
           ],
-          spacing: { before: 240, after: 80 },
+          spacing: { before: 240, after: hasInstructions ? 40 : 80 },
           children: [
             new docx.TextRun({
               text: (sec.title || '').toUpperCase(),
@@ -1852,7 +1853,15 @@ export default function App() {
         headerChildren.push(
           new docx.Paragraph({
             alignment: docx.AlignmentType.JUSTIFY,
-            spacing: { after: 180 },
+            border: {
+              bottom: {
+                style: docx.BorderStyle.SINGLE,
+                size: 8,
+                color: '000000',
+                space: 4
+              }
+            },
+            spacing: { before: 40, after: 80 },
             children: [
               new docx.TextRun({
                 text: sec.instructions || '',
@@ -3783,12 +3792,14 @@ export default function App() {
                     sections.map((sec, sIdx) => (
                       <div key={sec.id} className="paper-section">
                         <div className="paper-section-header">
-                          <h2 className="paper-section-title">{sec.title}</h2>
-                          <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
+                          <div className="paper-section-title-row">
+                            <h2 className="paper-section-title">{sec.title}</h2>
+                            <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
+                          </div>
+                          {sec.instructions && (
+                            <p className="paper-section-instructions">{sec.instructions}</p>
+                          )}
                         </div>
-                        {sec.instructions && (
-                          <p className="paper-section-instructions">{sec.instructions}</p>
-                        )}
 
                         <div className="paper-questions-list">
                           {sec.questions.map((q, qIdx) => {
