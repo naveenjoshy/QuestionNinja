@@ -232,6 +232,27 @@ const DEFAULT_BRANDING = {
   hideSchoolLogo: false
 };
 
+const normalizeLogo = (val) => {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed === '' || trimmed === 'null' || trimmed === 'none' || trimmed === 'undefined' || trimmed === 'false') {
+      return null;
+    }
+    const lower = trimmed.toLowerCase();
+    if (
+      lower === 'default' ||
+      lower === 'schoollogo' ||
+      lower.includes('school_logo') ||
+      lower.includes('school-logo')
+    ) {
+      return schoolLogo;
+    }
+    return trimmed;
+  }
+  return val;
+};
+
 const DEFAULT_METADATA = {
   title: 'FIRST TERM SUMMATIVE ASSESSMENT',
   subject: 'Computer Science & Programming',
@@ -551,7 +572,7 @@ export default function App() {
           setBranding(prev => ({
             ...DEFAULT_BRANDING,
             ...parsed.branding,
-            logo: parsed.branding.logo === null ? null : (parsed.branding.logo || schoolLogo)
+            logo: parsed.branding.logo === null ? null : (normalizeLogo(parsed.branding.logo) || schoolLogo)
           }));
         }
         if (parsed.metadata) setMetadata(prev => ({ ...DEFAULT_METADATA, ...parsed.metadata }));
@@ -694,7 +715,7 @@ export default function App() {
     if (options.some(opt => typeof opt === 'string' && opt.includes('\n'))) return false;
     const totalChars = options.reduce((acc, opt) => acc + (opt ? String(opt).length : 0), 0);
     const maxOptLen = Math.max(...options.map(opt => (opt ? String(opt).length : 0)));
-    return options.length <= 4 && totalChars <= 55 && maxOptLen <= 20;
+    return options.length <= 4 && totalChars <= 36 && maxOptLen <= 12;
   };
 
 
@@ -1037,6 +1058,31 @@ export default function App() {
     }
   };
 
+  // Helper to format export filename as 'Class Name - Subject Name - Export Date - Time'
+  const generateExportFilename = (ext) => {
+    const className = (metadata.classDiv || 'Class').trim();
+    const subjectName = (metadata.subject || 'Subject').trim();
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const timeStr = `${hours}-${minutes}-${seconds}`;
+
+    const sanitize = (str) => str.replace(/[\/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+
+    const cleanClass = sanitize(className) || 'Class';
+    const cleanSubject = sanitize(subjectName) || 'Subject';
+
+    const baseName = `${cleanClass} - ${cleanSubject} - ${dateStr} - ${timeStr}`;
+    return ext ? `${baseName}.${ext.replace(/^\./, '')}` : baseName;
+  };
+
   // CSV Export & Import Features
   const exportToCSV = () => {
     if (!hasQuestions()) {
@@ -1075,7 +1121,7 @@ export default function App() {
     ];
 
     const getBrandingMetaCols = () => [
-      branding.logo || '',
+      branding.logo === schoolLogo ? 'school_logo.png' : (branding.logo || ''),
       branding.logoWidth !== undefined && branding.logoWidth !== null ? branding.logoWidth : '',
       branding.logoHeight !== undefined && branding.logoHeight !== null ? branding.logoHeight : '',
       branding.hideSchoolLogo ? 'true' : 'false',
@@ -1172,15 +1218,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    const now = new Date();
-    const dateStr = now.getFullYear() + '-' +
-      String(now.getMonth() + 1).padStart(2, '0') + '-' +
-      String(now.getDate()).padStart(2, '0');
-    const timeStr = String(now.getHours()).padStart(2, '0') + '-' +
-      String(now.getMinutes()).padStart(2, '0') + '-' +
-      String(now.getSeconds()).padStart(2, '0');
-    const subjectName = (metadata.subject || 'question_paper').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
-    link.setAttribute('download', `${subjectName}_${dateStr}_${timeStr}.csv`);
+    link.setAttribute('download', generateExportFilename('csv'));
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -1296,7 +1334,7 @@ export default function App() {
               logoWidthVal !== undefined || fontFamilyVal !== undefined
             ) {
               importedBranding = {};
-              if (logoVal !== undefined && logoVal !== '') importedBranding.logo = logoVal;
+              if (logoVal !== undefined && logoVal !== '') importedBranding.logo = normalizeLogo(logoVal);
               if (logoWidthVal !== undefined && logoWidthVal !== '' && !isNaN(logoWidthVal)) importedBranding.logoWidth = Number(logoWidthVal);
               if (logoHeightVal !== undefined && logoHeightVal !== '' && !isNaN(logoHeightVal)) importedBranding.logoHeight = Number(logoHeightVal);
               if (hideLogoVal !== undefined && hideLogoVal !== '') importedBranding.hideSchoolLogo = hideLogoVal === 'true';
@@ -1466,7 +1504,11 @@ export default function App() {
       setSections(iSections);
     }
     if (importSchool && iBranding && Object.keys(iBranding).length > 0) {
-      setBranding(prev => ({ ...prev, ...iBranding }));
+      setBranding(prev => ({
+        ...prev,
+        ...iBranding,
+        logo: iBranding.logo !== undefined ? normalizeLogo(iBranding.logo) : prev.logo
+      }));
     }
     if (importExam && iMetadata && Object.keys(iMetadata).length > 0) {
       setMetadata(prev => ({ ...prev, ...iMetadata }));
@@ -1505,24 +1547,21 @@ export default function App() {
       const footer = el.querySelector('.paper-footer');
       if (footer) footer.style.display = 'none';
 
-      const subjectName = (metadata.subject || 'question_paper').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
-      const now = new Date();
-      const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-      const timeStr = String(now.getHours()).padStart(2, '0') + '-' + String(now.getMinutes()).padStart(2, '0') + '-' + String(now.getSeconds()).padStart(2, '0');
-      const filename = `${subjectName}_${dateStr}_${timeStr}.pdf`;
+      const filename = generateExportFilename('pdf');
 
       const opt = {
         margin: [10, 0, 18, 0], // top: 10mm, left/right: 0mm (preserves 210mm paper width), bottom: 18mm (reserved for footer)
         filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { type: 'png', quality: 1.0 },
         html2canvas: {
-          scale: 2,
+          scale: 3,
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
+          letterRendering: true,
           logging: false
         },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
         pagebreak: {
           mode: ['css', 'legacy'],
           avoid: ['.paper-question-item', '.paper-section-header', '.paper-header', '.paper-subquestion-item', '.paper-mcq-options', '.paper-match-table', '.paper-table-question']
@@ -1579,17 +1618,22 @@ export default function App() {
 
   const imageToUint8Array = async (src) => {
     if (!src) return null;
-    if (src.startsWith('data:')) {
-      const uint8 = dataURLToUint8Array(src);
+    const resolvedSrc = normalizeLogo(src);
+    if (!resolvedSrc) return null;
+    if (resolvedSrc.startsWith('data:')) {
+      const uint8 = dataURLToUint8Array(resolvedSrc);
       if (uint8) return uint8;
     }
     try {
-      const response = await fetch(src);
+      const response = await fetch(resolvedSrc);
       const blob = await response.blob();
       const arrayBuffer = await blob.arrayBuffer();
       return new Uint8Array(arrayBuffer);
     } catch (e) {
       console.error("Failed to fetch image from URL for docx export", e);
+      if (resolvedSrc !== schoolLogo) {
+        return imageToUint8Array(schoolLogo);
+      }
       return null;
     }
   };
@@ -1770,6 +1814,7 @@ export default function App() {
       // Section header with bottom border line matching PDF
       headerChildren.push(
         new docx.Paragraph({
+          alignment: docx.AlignmentType.JUSTIFY,
           border: {
             bottom: {
               style: docx.BorderStyle.SINGLE,
@@ -1806,6 +1851,7 @@ export default function App() {
       if (sec.instructions) {
         headerChildren.push(
           new docx.Paragraph({
+            alignment: docx.AlignmentType.JUSTIFY,
             spacing: { after: 180 },
             children: [
               new docx.TextRun({
@@ -1828,7 +1874,7 @@ export default function App() {
         const qLines = (q.text || '').split('\n');
         headerChildren.push(
           new docx.Paragraph({
-            alignment: hasFormula(q.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
+            alignment: docx.AlignmentType.JUSTIFY,
             spacing: { before: 120, after: 40 },
             tabStops: [
               {
@@ -1987,7 +2033,7 @@ export default function App() {
               const sqLines = (sq.text || '').split('\n');
               headerChildren.push(
                 new docx.Paragraph({
-                  alignment: hasFormula(sq.text) ? docx.AlignmentType.LEFT : docx.AlignmentType.JUSTIFY,
+                  alignment: docx.AlignmentType.JUSTIFY,
                   indent: { left: 360 },
                   spacing: { before: 80, after: 40 },
                   tabStops: [
@@ -2357,8 +2403,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const safeName = (metadata.title || 'QuestionPaper').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      a.download = `${safeName}.docx`;
+      a.download = generateExportFilename('docx');
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -2376,10 +2421,8 @@ export default function App() {
     setDocsError('');
     try {
       const blob = await generateDocxBlob();
-      const safeName = (metadata.title || 'QuestionPaper').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      
       const formData = new FormData();
-      formData.append('file', blob, `${safeName}.docx`);
+      formData.append('file', blob, generateExportFilename('docx'));
 
       const response = await fetch('https://tmpfiles.org/api/v1/upload', {
         method: 'POST',
@@ -2507,6 +2550,12 @@ export default function App() {
                         <img
                           src={branding.logo}
                           alt="Logo Preview"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            if (branding.logo !== schoolLogo) {
+                              setBranding(prev => ({ ...prev, logo: schoolLogo }));
+                            }
+                          }}
                           style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                         />
                       </div>
@@ -3678,8 +3727,17 @@ export default function App() {
                       onPointerUp={branding.headerLogoOnly ? undefined : handleLogoPointerUp}
                     >
                       {!branding.headerLogoOnly && <div className="drag-indicator">Drag to move</div>}
-                      <img src={branding.logo} className="brand-logo-img" alt="School Logo" />
-                      {!branding.headerLogoOnly && <div className="resize-handle"></div>}
+                      <img
+                        src={branding.logo}
+                        className="brand-logo-img"
+                        alt="School Logo"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          if (branding.logo !== schoolLogo) {
+                            setBranding(prev => ({ ...prev, logo: schoolLogo }));
+                          }
+                        }}
+                      />
                     </div>
                   )}
 
@@ -3746,7 +3804,7 @@ export default function App() {
                               <div key={q.id} className="paper-question-item">
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500', textAlign: hasFormula(q.text) ? 'left' : 'justify' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+                                  <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
                                   {/* MCQ Options */}
                                   {sec.type === 'mcq' && q.options && (
@@ -3754,7 +3812,7 @@ export default function App() {
                                       {q.options.map((opt, oIdx) => (
                                         <div key={oIdx} className="paper-mcq-option">
                                           <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
-                                          <span style={{ flex: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(opt) }} />
+                                          <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(opt) }} />
                                         </div>
                                       ))}
                                     </div>
@@ -3770,7 +3828,7 @@ export default function App() {
                                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                                                 <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
                                                   <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
-                                                  <span style={{ flex: 1, textAlign: hasFormula(sq.text) ? 'left' : 'justify' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                  <span style={{ flex: 1, textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
                                                 </div>
                                                 <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '12px' }}>({formatMarks(sq.marks)} M)</span>
                                               </div>
@@ -4073,7 +4131,7 @@ export default function App() {
         </div>
       )}
       {/* Floating Formula FAB */}
-      {activeInputInfo && (
+      {!isPreviewOpen && activeInputInfo && (
         <button
           type="button"
           className="floating-formula-btn print-hide"

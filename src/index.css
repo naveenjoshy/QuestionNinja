@@ -552,17 +552,9 @@ button:disabled,
   object-fit: fill;
 }
 
-/* Resize handle styling */
+/* Resize handle styling (hidden to remove blue dot) */
 .resize-handle {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  background-color: var(--accent);
-  border-radius: 50%;
-  right: -4px;
-  bottom: -4px;
-  cursor: se-resize;
-  pointer-events: auto;
+  display: none !important;
 }
 
 .school-details {
@@ -640,23 +632,34 @@ button:disabled,
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  gap: 12px;
 }
 
 .paper-section-title {
   font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
+  text-align: justify;
+  text-align-last: left;
+  word-break: break-word;
+  flex: 1;
 }
 
 .paper-section-marks {
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  margin-left: 12px;
 }
 
 .paper-section-instructions {
   font-size: 12px;
   font-style: italic;
   margin-top: -4px;
+  text-align: justify;
+  text-align-last: left;
+  word-break: break-word;
 }
 
 .paper-questions-list {
@@ -683,6 +686,9 @@ button:disabled,
   display: flex;
   flex-direction: column;
   gap: 8px;
+  text-align: justify;
+  text-align-last: left;
+  word-break: break-word;
 }
 
 .paper-question-marks {
@@ -690,6 +696,8 @@ button:disabled,
   text-align: right;
   min-width: 50px;
   font-size: 13px;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
 }
 
 /* MCQ Options Render */
@@ -703,16 +711,32 @@ button:disabled,
 .paper-mcq-options.single-line {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   justify-content: flex-start;
-  gap: 36px;
+  gap: 10px 24px;
 }
 
 .paper-mcq-option {
   display: flex;
   gap: 8px;
   align-items: flex-start;
+}
+
+.paper-mcq-option-text {
+  flex: 1;
   white-space: pre-wrap;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.paper-mcq-options.single-line .paper-mcq-option {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.paper-mcq-options.single-line .paper-mcq-option-text {
+  white-space: nowrap;
+  word-break: normal;
 }
 
 textarea.mcq-option-textarea {
