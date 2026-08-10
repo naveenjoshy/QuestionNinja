@@ -2008,6 +2008,28 @@ export default function App() {
           );
         }
 
+        // Question Image (positioned directly below Question Text)
+        if (q.image && sec.type !== 'match_following') {
+          const imageBytes = await imageToUint8Array(q.image);
+          if (imageBytes) {
+            headerChildren.push(
+              new docx.Paragraph({
+                indent: { left: 450 },
+                spacing: { before: 80, after: 120 },
+                children: [
+                  new docx.ImageRun({
+                    data: imageBytes,
+                    transformation: {
+                      width: q.imageWidth || 300,
+                      height: q.imageHeight || 200
+                    }
+                  })
+                ]
+              })
+            );
+          }
+        }
+
         // Formatting specific question types
         if (sec.type === 'mcq' && q.options) {
           const createOptionParagraphs = (letter, opt) => {
@@ -2426,28 +2448,7 @@ export default function App() {
           );
         }
 
-        else if (q.image && sec.type !== 'match_following') {
-          const imageBytes = await imageToUint8Array(q.image);
-          if (imageBytes) {
-            headerChildren.push(
-              new docx.Paragraph({
-                indent: { left: 720 },
-                spacing: { before: 120, after: 120 },
-                children: [
-                  new docx.ImageRun({
-                    data: imageBytes,
-                    transformation: {
-                      width: q.imageWidth || 300,
-                      height: q.imageHeight || 200
-                    }
-                  })
-                ]
-              })
-            );
-          }
-        }
-
-        else if (sec.type === 'table' && q.tableData) {
+        if (sec.type === 'table' && q.tableData) {
           // Build a bordered table in DOCX with bold headers and regular body
           const tblRows = [];
 
