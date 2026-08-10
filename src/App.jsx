@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import pageLogo from './assets/logo.png';
 import schoolLogo from './assets/school_logo.png';
 import developerPhoto from './assets/developer_photo.jpeg';
+import qrCode from './assets/qrcode.jpeg';
 import {
   Plus,
   Trash2,
@@ -4909,6 +4910,16 @@ export default function App() {
                     <a href="https://x.com/naveenjoshy64" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '500' }}>x.com/naveenjoshy64</a>
                   </div>
                 </div>
+              </div>
+
+              {/* Buy Me a Coffee */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>☕</span>
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '0.3px' }}>Buy Me a Coffee</span>
+                </div>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>Scan to support this project!</p>
+                <img src={qrCode} alt="Buy Me a Coffee QR Code" style={{ width: '160px', height: '160px', objectFit: 'contain', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '6px', backgroundColor: '#fff' }} />
               </div>
             </div>
             <div className="modal-footer">
