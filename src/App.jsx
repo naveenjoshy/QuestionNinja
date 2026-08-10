@@ -1181,7 +1181,9 @@ export default function App() {
       'Image Data',
       'Image Width',
       'Image Height',
-      'Sub Questions'
+      'Sub Questions',
+      'Shuffle Column B',
+      'Table Data'
     ];
 
     const getBrandingMetaCols = () => [
@@ -1206,7 +1208,7 @@ export default function App() {
     if (sections.length === 0) {
       rows.push([
         ...getBrandingMetaCols(),
-        '', '', '', '', '', '', '', '', '', '', '', '', ''
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
       ]);
     } else {
       sections.forEach((sec) => {
@@ -1225,14 +1227,16 @@ export default function App() {
             '',
             '',
             '',
+            '',
+            '',
             ''
           ]);
         } else {
           sec.questions.forEach((q) => {
             let optionsStr = '';
             if (sec.type === 'mcq' && q.options) {
-              const hasImages = q.options.some(opt => typeof opt === 'object' && opt !== null && opt.image);
-              if (hasImages) {
+              const hasImagesOrObjects = q.options.some(opt => typeof opt === 'object' && opt !== null);
+              if (hasImagesOrObjects) {
                 optionsStr = JSON.stringify(q.options);
               } else {
                 optionsStr = q.options.map(opt => getOptionText(opt)).join(';');
@@ -1241,8 +1245,8 @@ export default function App() {
 
             let matchPairsStr = '';
             if (sec.type === 'match_following' && q.matchPairs) {
-              const hasImages = q.matchPairs.some(p => typeof p === 'object' && (p.premiseImage || p.responseImage));
-              if (hasImages) {
+              const hasImagesOrObjects = q.matchPairs.some(p => typeof p === 'object' && p !== null);
+              if (hasImagesOrObjects) {
                 matchPairsStr = JSON.stringify(q.matchPairs);
               } else {
                 matchPairsStr = q.matchPairs.map(p => `${typeof p === 'string' ? p : (p.premise || '')}=${typeof p === 'string' ? p : (p.response || '')}`).join(';');
@@ -1252,6 +1256,11 @@ export default function App() {
             let subQsStr = '';
             if (q.subQuestions && q.subQuestions.length > 0) {
               subQsStr = JSON.stringify(q.subQuestions);
+            }
+
+            let tableDataStr = '';
+            if (sec.type === 'table' && q.tableData) {
+              tableDataStr = JSON.stringify(q.tableData);
             }
 
             rows.push([
@@ -1268,7 +1277,9 @@ export default function App() {
               q.image || '',
               q.imageWidth || '',
               q.imageHeight || '',
-              subQsStr
+              subQsStr,
+              q.shuffleColumnB ? 'true' : 'false',
+              tableDataStr
             ]);
           });
         }
@@ -1377,6 +1388,8 @@ export default function App() {
         const imageWidthIdx = getColIdx('Image Width') !== -1 ? getColIdx('Image Width') : 10;
         const imageHeightIdx = getColIdx('Image Height') !== -1 ? getColIdx('Image Height') : 11;
         const subQsIdx = getColIdx('Sub Questions') !== -1 ? getColIdx('Sub Questions') : 12;
+        const shuffleColBIdx = getColIdx('Shuffle Column B');
+        const tableDataIdx = getColIdx('Table Data');
 
         const importedSections = [];
         let importedBranding = null;
@@ -1452,6 +1465,8 @@ export default function App() {
           const imageWidthVal = row[imageWidthIdx] || '';
           const imageHeightVal = row[imageHeightIdx] || '';
           const subQsStr = row[subQsIdx] || '';
+          const shuffleColBVal = shuffleColBIdx !== -1 ? row[shuffleColBIdx] : '';
+          const tableDataStr = tableDataIdx !== -1 ? row[tableDataIdx] : '';
 
           if (!secTitle && !qText) continue;
 
@@ -1493,6 +1508,25 @@ export default function App() {
                 q.marks = q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
               } catch (e) {
                 console.warn('Failed to parse subQuestions from CSV', e);
+              }
+            }
+
+            if (shuffleColBVal !== '') {
+              q.shuffleColumnB = shuffleColBVal === 'true';
+            }
+
+            if (tableDataStr) {
+              try {
+                const parsedTbl = JSON.parse(tableDataStr);
+                if (parsedTbl) {
+                  q.tableData = parsedTbl;
+                  if (parsedTbl.rows) {
+                    q.tableRows = parsedTbl.rows.length + 1;
+                    q.tableCols = parsedTbl.headers ? parsedTbl.headers.length : 3;
+                  }
+                }
+              } catch (e) {
+                console.warn('Failed to parse tableData from CSV', e);
               }
             }
 
