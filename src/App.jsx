@@ -2890,6 +2890,116 @@ export default function App() {
                                     <AlertTriangle size={12} /> Please enter the question text.
                                   </span>
                                 )}
+
+                                {/* Question Image Fields - positioned directly below Question Text */}
+                                {sec.type !== 'match_following' && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image (Optional)</label>
+                                    {q.image ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <div 
+                                          className="editor-image-preview-container"
+                                          onDragOver={handleDragOver}
+                                          onDragLeave={handleDragLeave}
+                                          onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                        >
+                                          <img
+                                            src={q.image}
+                                            alt="Question"
+                                            style={{
+                                              maxWidth: '100%',
+                                              maxHeight: '150px',
+                                              objectFit: 'contain',
+                                              borderRadius: 'var(--radius-sm)',
+                                              border: '1px solid var(--border-color)',
+                                              padding: '2px'
+                                            }}
+                                          />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                          <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
+                                            Change Image
+                                            <input
+                                              type="file"
+                                              accept="image/*"
+                                              style={{ display: 'none' }}
+                                              onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                  const reader = new FileReader();
+                                                  reader.onload = (uploadEvent) => {
+                                                    updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                                  };
+                                                  reader.readAsDataURL(file);
+                                                }
+                                              }}
+                                            />
+                                          </label>
+                                          <button
+                                            className="btn btn-danger btn-sm"
+                                            style={{ padding: '2px 6px', fontSize: '10px' }}
+                                            onClick={() => updateQuestion(sec.id, q.id, { image: '' })}
+                                          >
+                                            Remove Image
+                                          </button>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                          <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '9px' }}>Width (px)</label>
+                                            <input
+                                              type="number"
+                                              value={q.imageWidth || 300}
+                                              style={{ padding: '2px 6px', fontSize: '11px' }}
+                                              onChange={(e) => updateQuestion(sec.id, q.id, { imageWidth: Number(e.target.value) || 0 })}
+                                            />
+                                          </div>
+                                          <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '9px' }}>Height (px)</label>
+                                            <input
+                                              type="number"
+                                              value={q.imageHeight || 200}
+                                              style={{ padding: '2px 6px', fontSize: '11px' }}
+                                              onChange={(e) => updateQuestion(sec.id, q.id, { imageHeight: Number(e.target.value) || 0 })}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <label 
+                                        className="image-upload-dashed-zone"
+                                        style={{ padding: '8px 12px', gap: '4px' }}
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                      >
+                                        <ImageIcon size={14} className="text-secondary" />
+                                        <span style={{ fontSize: '10px' }}>Upload Question Image (click, drag, or Ctrl+V)</span>
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          style={{ display: 'none' }}
+                                          onChange={(e) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                              const reader = new FileReader();
+                                              reader.onload = (uploadEvent) => {
+                                                updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                              };
+                                              reader.readAsDataURL(file);
+                                            }
+                                          }}
+                                        />
+                                      </label>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Match the Following Specific Fields */}
+                                {sec.type === 'match_following' && q.matchPairs && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                                    {/* ... rest of logic */}
+                                  </div>
+                                )}
                                 {(sec.type === 'essay') && (
                                   <button
                                     className="btn btn-secondary btn-sm"
