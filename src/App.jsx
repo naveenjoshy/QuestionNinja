@@ -33,7 +33,7 @@ import {
   Check
 } from 'lucide-react';
 import * as docx from 'docx';
-import html2pdf from 'html2pdf.js';
+import { jsPDF } from 'jspdf';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -1542,50 +1542,52 @@ export default function App() {
       return;
     }
     setIsPdfExporting(true);
+    let footer = null;
     try {
       // Hide the paper-footer element during capture so we can stamp custom page numbers
-      const footer = el.querySelector('.paper-footer');
+      footer = el.querySelector('.paper-footer');
       if (footer) footer.style.display = 'none';
 
       const filename = generateExportFilename('pdf');
 
-      const opt = {
-        margin: [10, 0, 18, 0], // top: 10mm, left/right: 0mm (preserves 210mm paper width), bottom: 18mm (reserved for footer)
-        filename: filename,
-        image: { type: 'png', quality: 1.0 },
+      const pdf = new jsPDF({
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+        compress: true
+      });
+
+      const elementWidth = el.offsetWidth || el.clientWidth || 794;
+
+      await pdf.html(el, {
+        x: 0,
+        y: 0,
+        width: 210, // A4 width in mm
+        windowWidth: elementWidth,
+        margin: [10, 0, 18, 0], // top, right, bottom, left in mm
+        autoPaging: 'text',
         html2canvas: {
-          scale: 3,
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
-          letterRendering: true,
           logging: false
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-        pagebreak: {
-          mode: ['css', 'legacy'],
-          avoid: ['.paper-question-item', '.paper-section-header', '.paper-header', '.paper-subquestion-item', '.paper-mcq-options', '.paper-match-table', '.paper-table-question']
         }
-      };
+      });
 
-      // Generate PDF object
-      const pdf = await html2pdf().set(opt).from(el).toPdf().get('pdf');
-      
-      // Stamp page number footer in the reserved 18mm bottom margin (y = 287mm)
       const totalPages = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
-        pdf.setFontSize(9);
+        pdf.setFontSize(13);
         pdf.setTextColor(120, 120, 120);
         pdf.text(`Page ${i} of ${totalPages}`, 198, 287, { align: 'right' });
       }
 
       pdf.save(filename);
-      if (footer) footer.style.display = '';
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('PDF export failed. Please try again or use Print instead.');
     } finally {
+      if (footer) footer.style.display = '';
       setIsPdfExporting(false);
     }
   };
@@ -2084,9 +2086,9 @@ export default function App() {
                       indent: { left: 360 },
                       border: {
                         bottom: {
-                          style: docx.BorderStyle.DOTTED,
-                          size: 6,
-                          color: 'CCCCCC',
+                          style: docx.BorderStyle.SINGLE,
+                          size: 8,
+                          color: '333333',
                           space: 2
                         }
                       },
@@ -2098,16 +2100,16 @@ export default function App() {
               }
             });
           } else if (!metadata.separateAnswerSheet) {
-            // Renders specified dotted blank lines
+            // Renders specified blank lines
             const linesCount = (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5;
             for (let i = 0; i < linesCount; i++) {
               headerChildren.push(
                 new docx.Paragraph({
                   border: {
                     bottom: {
-                      style: docx.BorderStyle.DOTTED,
-                      size: 6,
-                      color: 'CCCCCC',
+                      style: docx.BorderStyle.SINGLE,
+                      size: 8,
+                      color: '333333',
                       space: 2
                     }
                   },
@@ -3876,7 +3878,7 @@ export default function App() {
                                               {!metadata.separateAnswerSheet && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', paddingLeft: '20px' }}>
                                                   {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4 }).map((_, lineIdx) => (
-                                                    <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
+                                                    <div key={lineIdx} className="paper-answer-line"></div>
                                                   ))}
                                                 </div>
                                               )}
@@ -3887,7 +3889,7 @@ export default function App() {
                                         !metadata.separateAnswerSheet && (
                                           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
                                             {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5 }).map((_, lineIdx) => (
-                                              <div key={lineIdx} style={{ borderBottom: '1px dotted #ccc', height: '14px' }}></div>
+                                              <div key={lineIdx} className="paper-answer-line"></div>
                                             ))}
                                           </div>
                                         )

@@ -161,7 +161,7 @@ body {
 }
 
 .editor-header h1 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 700;
   background: linear-gradient(to right, #ffffff, #a5b4fc);
   -webkit-background-clip: text;
@@ -173,7 +173,7 @@ body {
 }
 
 .editor-header p {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-secondary);
   margin-top: 4px;
 }
@@ -197,7 +197,7 @@ body {
 }
 
 .form-group label {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   text-transform: uppercase;
@@ -219,7 +219,7 @@ textarea {
   border-radius: var(--radius-sm);
   color: var(--text-primary);
   padding: 10px 14px;
-  font-size: 14px;
+  font-size: 16px;
   font-family: inherit;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
@@ -289,7 +289,7 @@ textarea {
 }
 
 .editor-card-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
   display: flex;
@@ -305,7 +305,7 @@ textarea {
   gap: 8px;
   padding: 10px 16px;
   border-radius: var(--radius-sm);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -361,7 +361,7 @@ button:disabled,
 
 .btn-sm {
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .btn-icon-only {
@@ -454,7 +454,7 @@ button:disabled,
 }
 
 .modal-header h3 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -566,13 +566,13 @@ button:disabled,
 }
 
 .school-name-render {
-  font-size: 22px;
+  font-size: 26px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .school-address-render {
-  font-size: 13px;
+  font-size: 17px;
   white-space: pre-line;
 }
 
@@ -584,7 +584,7 @@ button:disabled,
   column-gap: 30px;
   padding: 10px 0;
   border-bottom: 1px solid var(--text-paper);
-  font-size: 14px;
+  font-size: 18px;
   font-weight: bold;
   font-family: 'Montserrat', sans-serif;
 }
@@ -642,7 +642,7 @@ button:disabled,
 }
 
 .paper-section-title {
-  font-size: 15px;
+  font-size: 19px;
   font-weight: 700;
   text-transform: uppercase;
   text-align: justify;
@@ -652,7 +652,7 @@ button:disabled,
 }
 
 .paper-section-marks {
-  font-size: 13px;
+  font-size: 17px;
   font-weight: 600;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
@@ -660,7 +660,7 @@ button:disabled,
 }
 
 .paper-section-instructions {
-  font-size: 12px;
+  font-size: 16px;
   font-style: italic;
   margin-top: 0;
   text-align: justify;
@@ -678,7 +678,7 @@ button:disabled,
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 10px;
-  font-size: 14px;
+  font-size: 18px;
   align-items: start;
   page-break-inside: avoid;
 }
@@ -701,7 +701,7 @@ button:disabled,
   font-weight: 600;
   text-align: right;
   min-width: 50px;
-  font-size: 13px;
+  font-size: 17px;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
 }
@@ -754,7 +754,7 @@ textarea.mcq-option-textarea {
   display: flex;
   gap: 24px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 17px;
   margin-top: 4px;
 }
 
@@ -770,7 +770,7 @@ textarea.mcq-option-textarea {
   width: 50%;
   text-align: left;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 17px;
   border-bottom: 1px solid var(--text-primary, #000);
 }
 
@@ -785,7 +785,7 @@ textarea.mcq-option-textarea {
   width: 100%;
   border-collapse: collapse;
   margin-top: 8px;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .paper-table-question th,
@@ -811,7 +811,7 @@ textarea.mcq-option-textarea {
   border: 1px solid rgba(245, 158, 11, 0.3);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -823,7 +823,7 @@ textarea.mcq-option-textarea {
   border: 1px solid rgba(239, 68, 68, 0.3);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -845,7 +845,7 @@ textarea.mcq-option-textarea {
   transform: translateX(-50%);
   background-color: var(--accent);
   color: #fff;
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
@@ -946,13 +946,19 @@ textarea.mcq-option-textarea {
 }
 
 /* Running Footer / Page Numbers */
+.paper-answer-line {
+  border-bottom: 1.5px dashed #444;
+  height: 16px;
+  width: 100%;
+}
+
 .paper-footer {
   position: absolute;
   bottom: 12px;
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 11px;
+  font-size: 15px;
   font-family: inherit;
   color: #999999;
 }
@@ -962,6 +968,11 @@ textarea.mcq-option-textarea {
 }
 
 @media print {
+  .paper-answer-line {
+    border-bottom: 1.5px solid #111 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .paper-footer {
     display: block !important;
     position: fixed;
@@ -969,7 +980,7 @@ textarea.mcq-option-textarea {
     left: 0;
     right: 0;
     text-align: center;
-    font-size: 10px;
+    font-size: 14px;
     font-family: inherit;
     color: #777777;
     background: transparent !important;
@@ -1011,7 +1022,7 @@ textarea.mcq-option-textarea {
   gap: 10px;
   padding: 10px 14px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   border-radius: 6px;
   background: none;
@@ -1064,7 +1075,7 @@ textarea.mcq-option-textarea {
 }
 
 .image-upload-dashed-zone span {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -1125,7 +1136,7 @@ textarea.mcq-option-textarea {
   border: 1px solid var(--accent) !important;
   color: var(--accent) !important;
   padding: 2px 6px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1171,7 +1182,7 @@ textarea.mcq-option-textarea {
 }
 
 .formula-toolbar-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1190,7 +1201,7 @@ textarea.mcq-option-textarea {
   min-width: 34px;
   height: 30px;
   padding: 2px 6px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   border: 1px solid var(--border-color);
   background: var(--bg-editor);
@@ -1230,7 +1241,7 @@ textarea.mcq-option-textarea {
   align-items: center;
   justify-content: center;
   color: #111;
-  font-size: 18px;
+  font-size: 20px;
   overflow-x: auto;
 }
 
@@ -1277,7 +1288,7 @@ textarea.mcq-option-textarea {
   padding: 10px 18px;
   border-radius: 50px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1318,7 +1329,7 @@ textarea.mcq-option-textarea {
   background-color: var(--bg-sidebar);
   border-top: 1px solid var(--border-color);
   text-align: center;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-secondary);
   display: flex;
   justify-content: space-between;
