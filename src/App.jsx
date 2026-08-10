@@ -4853,7 +4853,7 @@ export default function App() {
                   </svg>
                   <div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone</div>
-                    <a href="tel:+919400489149" style={{ color: 'var(--text-main)', textDecoration: 'none', fontWeight: '500' }}>+91 9400489149</a>
+                    <a href="tel:+919400489149" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: '500' }}>+91 9400489149</a>
                   </div>
                 </div>
 
