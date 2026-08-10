@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import pageLogo from './assets/logo.png';
 import schoolLogo from './assets/school_logo.png';
+import developerPhoto from './assets/developer_photo.jpeg';
 import {
   Plus,
   Trash2,
@@ -4826,9 +4827,7 @@ export default function App() {
             </div>
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
-                <div style={{ width: '52px', height: '52px', borderRadius: '50%', backgroundColor: 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--accent)', color: 'var(--accent)', fontWeight: 'bold', fontSize: '20px' }}>
-                  NJ
-                </div>
+                <img src={developerPhoto} alt="Naveen Joshy" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', border: '2px solid var(--accent)', flexShrink: 0 }} />
                 <div>
                   <h4 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>Naveen Joshy</h4>
                   <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>QuestionNinja Creator & Developer</span>
