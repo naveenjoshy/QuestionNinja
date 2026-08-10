@@ -4919,7 +4919,7 @@ export default function App() {
                   <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '0.3px' }}>Buy Me a Coffee</span>
                 </div>
                 <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>Scan to support this project!</p>
-                <img src={qrCode} alt="Buy Me a Coffee QR Code" style={{ width: '160px', height: '160px', objectFit: 'contain', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '6px', backgroundColor: '#fff' }} />
+                <img src={qrCode} alt="Buy Me a Coffee QR Code" style={{ display: 'block', margin: '0 auto', width: '160px', height: '160px', objectFit: 'contain', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '6px', backgroundColor: '#fff' }} />
               </div>
             </div>
             <div className="modal-footer">
