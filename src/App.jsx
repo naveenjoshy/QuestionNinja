@@ -4184,6 +4184,22 @@ export default function App() {
                                 <div className="paper-question-body">
                                   <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
+                                  {/* Question Image render - positioned directly below Question Text */}
+                                  {q.image && sec.type !== 'match_following' && (
+                                    <div className="paper-image-container" style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-start' }}>
+                                      <img
+                                        src={q.image}
+                                        alt={`Question ${globalNum}`}
+                                        style={{
+                                          width: `${q.imageWidth || 300}px`,
+                                          height: `${q.imageHeight || 200}px`,
+                                          objectFit: 'contain',
+                                          maxWidth: '100%'
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+
                                   {/* MCQ Options */}
                                   {sec.type === 'mcq' && q.options && (
                                     <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
@@ -4229,6 +4245,20 @@ export default function App() {
                                                 </div>
                                                 <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '12px' }}>({formatMarks(sq.marks)} M)</span>
                                               </div>
+                                              {sq.image && (
+                                                <div className="paper-subquestion-image-container" style={{ marginTop: '4px', paddingLeft: '18px' }}>
+                                                  <img
+                                                    src={sq.image}
+                                                    alt={`Sub-question ${sq.label || sqIdx + 1}`}
+                                                    style={{
+                                                      width: `${sq.imageWidth || 300}px`,
+                                                      height: `${sq.imageHeight || 200}px`,
+                                                      objectFit: 'contain',
+                                                      maxWidth: '100%'
+                                                    }}
+                                                  />
+                                                </div>
+                                              )}
                                               {!metadata.separateAnswerSheet && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', paddingLeft: '20px' }}>
                                                   {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4 }).map((_, lineIdx) => (
@@ -4316,22 +4346,6 @@ export default function App() {
                                         })}
                                       </tbody>
                                     </table>
-                                  )}
-
-                                  {/* Question Image render */}
-                                  {q.image && sec.type !== 'match_following' && (
-                                    <div className="paper-image-container" style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-start' }}>
-                                      <img
-                                        src={q.image}
-                                        alt={`Question ${globalNum}`}
-                                        style={{
-                                          width: `${q.imageWidth || 300}px`,
-                                          height: `${q.imageHeight || 200}px`,
-                                          objectFit: 'contain',
-                                          maxWidth: '100%'
-                                        }}
-                                      />
-                                    </div>
                                   )}
 
                                   {/* Table question render */}
