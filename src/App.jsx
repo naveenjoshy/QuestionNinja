@@ -21,7 +21,6 @@ import {
   Moon,
   ArrowLeft,
   ArrowRight,
-  Printer,
   Loader2,
   ExternalLink,
   Cloud,
@@ -87,7 +86,7 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
         text: plainMath,
         italics: true,
         font: 'Cambria Math',
-        size: defaultOptions.size || 22,
+        size: defaultOptions.size || 36,
         ...defaultOptions
       }));
     } else {
@@ -96,7 +95,7 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
       lines.forEach((line, lIdx) => {
         const runProps = {
           text: line,
-          size: defaultOptions.size || 22,
+          size: defaultOptions.size || 36,
           ...defaultOptions
         };
         if (lIdx > 0) {
@@ -1139,7 +1138,7 @@ export default function App() {
     const seconds = String(now.getSeconds()).padStart(2, '0');
     const timeStr = `${hours}-${minutes}-${seconds}`;
 
-    const sanitize = (str) => str.replace(/[\/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    const sanitize = (str) => str.replace(/[/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 
     const cleanClass = sanitize(className) || 'Class';
     const cleanSubject = sanitize(subjectName) || 'Subject';
@@ -1750,7 +1749,7 @@ export default function App() {
             new docx.TextRun({
               text: (branding.schoolName || '').toUpperCase(),
               bold: true,
-              size: 28,
+              size: 52,
               font: getFontFamily()
             })
           ],
@@ -1768,7 +1767,7 @@ export default function App() {
             children: [
               new docx.TextRun({
                 text: line || '',
-                size: 20,
+                size: 34,
                 font: getFontFamily()
               })
             ],
@@ -1871,8 +1870,8 @@ export default function App() {
           }
         ],
         children: [
-          new docx.TextRun({ text: label, bold: true, size: 22 }),
-          new docx.TextRun({ text: `\t${value || ''}`, size: 22 })
+          new docx.TextRun({ text: label, bold: true, size: 36 }),
+          new docx.TextRun({ text: `\t${value || ''}`, size: 36 })
         ],
         spacing: { after: 120 }
       });
@@ -1927,13 +1926,13 @@ export default function App() {
             new docx.TextRun({
               text: (sec.title || '').toUpperCase(),
               bold: true,
-              size: 24,
+              size: 38,
               font: getFontFamily()
             }),
             new docx.TextRun({
               text: `\t[${formatMarks(sec.marks)} Marks]`,
               bold: true,
-              size: 22,
+              size: 34,
               font: getFontFamily()
             })
           ]
@@ -1958,7 +1957,7 @@ export default function App() {
               new docx.TextRun({
                 text: sec.instructions || '',
                 italic: true,
-                size: 20,
+                size: 32,
                 font: getFontFamily()
               })
             ]
@@ -1987,13 +1986,13 @@ export default function App() {
               new docx.TextRun({
                 text: `${qNum}  `,
                 bold: true,
-                size: 22
+                size: 36
               }),
               ...docxTextRunsWithMath(qLines[0] || ''),
               new docx.TextRun({
                 text: `\t(${formatMarks(getQuestionMarks(q))} M)`,
                 italic: true,
-                size: 20
+                size: 36
               })
             ]
           })
@@ -2023,7 +2022,7 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { after: 40 },
                 children: [
-                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 22 }),
+                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 36 }),
                   ...docxTextRunsWithMath(lines[0] || '')
                 ]
               })
@@ -2169,13 +2168,13 @@ export default function App() {
                     new docx.TextRun({
                       text: `${sqLabel}  `,
                       bold: true,
-                      size: 22
+                      size: 36
                     }),
                     ...docxTextRunsWithMath(sqLines[0] || ''),
                     new docx.TextRun({
                       text: `\t(${formatMarks(sq.marks)} M)`,
                       italic: true,
-                      size: 20
+                      size: 36
                     })
                   ]
                 })
@@ -2263,7 +2262,7 @@ export default function App() {
                 new docx.TextRun({
                   text: '[    ] True        [    ] False',
                   bold: true,
-                  size: 20
+                  size: 36
                 })
               ]
             })
@@ -2298,7 +2297,7 @@ export default function App() {
                   children: [
                     new docx.Paragraph({
                       spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 22 })]
+                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 36 })]
                     })
                   ]
                 }),
@@ -2313,7 +2312,7 @@ export default function App() {
                   children: [
                     new docx.Paragraph({
                       spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 22 })]
+                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 36 })]
                     })
                   ]
                 })
@@ -2334,7 +2333,7 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 22 }),
+                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 36 }),
                   ...docxTextRunsWithMath(itemA.text || '')
                 ]
               })
@@ -2360,7 +2359,7 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 22 }),
+                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 36 }),
                   ...docxTextRunsWithMath(itemB.text || '')
                 ]
               })
