@@ -763,11 +763,6 @@ export default function App() {
           if (newType === 'essay' && updatedQ.blankLines === undefined) {
             updatedQ.blankLines = 5;
           }
-          if (newType === 'image') {
-            if (updatedQ.image === undefined) updatedQ.image = '';
-            if (updatedQ.imageWidth === undefined) updatedQ.imageWidth = 300;
-            if (updatedQ.imageHeight === undefined) updatedQ.imageHeight = 200;
-          }
           if (newType === 'table') {
             if (!updatedQ.tableData) {
               updatedQ.tableRows = 3;
@@ -813,10 +808,6 @@ export default function App() {
             { premise: 'Item B', response: 'Match B' }
           ];
           defaultQuestion.shuffleB = true;
-        } else if (type === 'image') {
-          defaultQuestion.image = '';
-          defaultQuestion.imageWidth = 300;
-          defaultQuestion.imageHeight = 200;
         } else if (type === 'table') {
           defaultQuestion.tableRows = 3;
           defaultQuestion.tableCols = 3;
@@ -882,7 +873,10 @@ export default function App() {
             label: defaultLabel,
             text: '',
             marks: 1,
-            blankLines: 4
+            blankLines: 4,
+            image: '',
+            imageWidth: 300,
+            imageHeight: 200
           };
           const updatedSubQs = [...subQs, newSubQ];
           const newTotalMarks = updatedSubQs.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
@@ -961,9 +955,9 @@ export default function App() {
     }));
   };
 
-  const handlePasteImage = (e, secId, qId) => {
+  const handlePasteImage = (e, secId, qId, sqId = null) => {
     const section = sections.find(s => s.id === secId);
-    if (!section || section.type !== 'image') return;
+    if (!section) return;
 
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -976,7 +970,11 @@ export default function App() {
           e.preventDefault();
           const reader = new FileReader();
           reader.onload = (uploadEvent) => {
-            updateQuestion(secId, qId, { image: uploadEvent.target.result });
+            if (sqId) {
+              updateSubQuestion(secId, qId, sqId, { image: uploadEvent.target.result });
+            } else {
+              updateQuestion(secId, qId, { image: uploadEvent.target.result });
+            }
           };
           reader.readAsDataURL(file);
           break;
@@ -994,7 +992,7 @@ export default function App() {
     e.currentTarget.classList.remove('drag-over');
   };
 
-  const handleDropImage = (e, secId, qId) => {
+  const handleDropImage = (e, secId, qId, sqId = null) => {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     const files = e.dataTransfer?.files;
@@ -1003,7 +1001,11 @@ export default function App() {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (uploadEvent) => {
-          updateQuestion(secId, qId, { image: uploadEvent.target.result });
+          if (sqId) {
+            updateSubQuestion(secId, qId, sqId, { image: uploadEvent.target.result });
+          } else {
+            updateQuestion(secId, qId, { image: uploadEvent.target.result });
+          }
         };
         reader.readAsDataURL(file);
       }
@@ -1458,10 +1460,16 @@ export default function App() {
               } else {
                 q.matchPairs = [];
               }
-            } else if (qType === 'image') {
-              q.image = imageData || '';
+            }
+
+            if (imageData) {
+              q.image = imageData;
               q.imageWidth = Number(imageWidthVal) || 300;
               q.imageHeight = Number(imageHeightVal) || 200;
+            }
+
+            if (q.type === 'image') {
+              q.type = 'essay';
             }
 
             currentSection.questions.push(q);
@@ -2039,7 +2047,8 @@ export default function App() {
 
         else if (sec.type === 'essay') {
           if (q.subQuestions && q.subQuestions.length > 0) {
-            q.subQuestions.forEach((sq, sqIdx) => {
+            for (let sqIdx = 0; sqIdx < q.subQuestions.length; sqIdx++) {
+              const sq = q.subQuestions[sqIdx];
               const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
               const sqLines = (sq.text || '').split('\n');
               headerChildren.push(
@@ -2078,6 +2087,27 @@ export default function App() {
                 );
               }
 
+              if (sq.image) {
+                const sqImageBytes = await imageToUint8Array(sq.image);
+                if (sqImageBytes) {
+                  headerChildren.push(
+                    new docx.Paragraph({
+                      indent: { left: 720 },
+                      spacing: { before: 80, after: 80 },
+                      children: [
+                        new docx.ImageRun({
+                          data: sqImageBytes,
+                          transformation: {
+                            width: sq.imageWidth || 300,
+                            height: sq.imageHeight || 200
+                          }
+                        })
+                      ]
+                    })
+                  );
+                }
+              }
+
               if (!metadata.separateAnswerSheet) {
                 const sqLines = (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4;
                 for (let i = 0; i < sqLines; i++) {
@@ -2098,7 +2128,7 @@ export default function App() {
                   );
                 }
               }
-            });
+            }
           } else if (!metadata.separateAnswerSheet) {
             // Renders specified blank lines
             const linesCount = (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5;
@@ -2294,7 +2324,7 @@ export default function App() {
           );
         }
 
-        else if ((sec.type === 'image' || q.image) && sec.type !== 'match_following' && q.image) {
+        else if (q.image && sec.type !== 'match_following') {
           const imageBytes = await imageToUint8Array(q.image);
           if (imageBytes) {
             headerChildren.push(
@@ -2801,7 +2831,6 @@ export default function App() {
                             <option value="mcq">Multiple Choice (MCQ)</option>
                             <option value="true_false">True / False</option>
                             <option value="match_following">Match the Following</option>
-                            <option value="image">Image Question</option>
                             <option value="table">Table Question</option>
                           </select>
                         </div>
@@ -3124,6 +3153,107 @@ export default function App() {
                                             />
                                           </div>
                                         </div>
+
+                                        {/* Sub-Question Image Controls */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                                          <label style={{ fontSize: '9px', fontWeight: 'bold' }}>Sub-Question Image (Optional)</label>
+                                          {sq.image ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                              <div 
+                                                className="editor-image-preview-container"
+                                                onDragOver={handleDragOver}
+                                                onDragLeave={handleDragLeave}
+                                                onDrop={(e) => handleDropImage(e, sec.id, q.id, sq.id)}
+                                              >
+                                                <img
+                                                  src={sq.image}
+                                                  alt="Sub-question diagram"
+                                                  style={{
+                                                    maxWidth: '100%',
+                                                    maxHeight: '120px',
+                                                    objectFit: 'contain',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border-color)',
+                                                    padding: '2px'
+                                                  }}
+                                                />
+                                              </div>
+                                              <div style={{ display: 'flex', gap: '6px' }}>
+                                                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
+                                                  Change Image
+                                                  <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    style={{ display: 'none' }}
+                                                    onChange={(e) => {
+                                                      const file = e.target.files[0];
+                                                      if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (uploadEvent) => {
+                                                          updateSubQuestion(sec.id, q.id, sq.id, { image: uploadEvent.target.result });
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                      }
+                                                    }}
+                                                  />
+                                                </label>
+                                                <button
+                                                  className="btn btn-danger btn-sm"
+                                                  style={{ padding: '2px 6px', fontSize: '10px' }}
+                                                  onClick={() => updateSubQuestion(sec.id, q.id, sq.id, { image: '' })}
+                                                >
+                                                  Remove Image
+                                                </button>
+                                              </div>
+                                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                <div className="form-group" style={{ margin: 0 }}>
+                                                  <label style={{ fontSize: '9px' }}>Width (px)</label>
+                                                  <input
+                                                    type="number"
+                                                    value={sq.imageWidth || 300}
+                                                    style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                    onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { imageWidth: Number(e.target.value) || 0 })}
+                                                  />
+                                                </div>
+                                                <div className="form-group" style={{ margin: 0 }}>
+                                                  <label style={{ fontSize: '9px' }}>Height (px)</label>
+                                                  <input
+                                                    type="number"
+                                                    value={sq.imageHeight || 200}
+                                                    style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                    onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { imageHeight: Number(e.target.value) || 0 })}
+                                                  />
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <label 
+                                              className="image-upload-dashed-zone"
+                                              style={{ padding: '8px 12px', gap: '4px' }}
+                                              onDragOver={handleDragOver}
+                                              onDragLeave={handleDragLeave}
+                                              onDrop={(e) => handleDropImage(e, sec.id, q.id, sq.id)}
+                                            >
+                                              <ImageIcon size={14} className="text-secondary" />
+                                              <span style={{ fontSize: '10px' }}>Upload Sub-Question Image (click, drag, or Ctrl+V)</span>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                style={{ display: 'none' }}
+                                                onChange={(e) => {
+                                                  const file = e.target.files[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (uploadEvent) => {
+                                                      updateSubQuestion(sec.id, q.id, sq.id, { image: uploadEvent.target.result });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                              />
+                                            </label>
+                                          )}
+                                        </div>
                                       </div>
                                     ))}
                                     {q.subQuestions && q.subQuestions.length > 0 && (
@@ -3136,6 +3266,109 @@ export default function App() {
                                       </button>
                                     )}
                                   </div>
+                                </div>
+                              )}
+
+                              {/* Question Image Fields */}
+                              {sec.type !== 'match_following' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image (Optional)</label>
+                                  {q.image ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                      <div 
+                                        className="editor-image-preview-container"
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                      >
+                                        <img
+                                          src={q.image}
+                                          alt="Question"
+                                          style={{
+                                            maxWidth: '100%',
+                                            maxHeight: '150px',
+                                            objectFit: 'contain',
+                                            borderRadius: 'var(--radius-sm)',
+                                            border: '1px solid var(--border-color)',
+                                            padding: '2px'
+                                          }}
+                                        />
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '6px' }}>
+                                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
+                                          Change Image
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                            onChange={(e) => {
+                                              const file = e.target.files[0];
+                                              if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (uploadEvent) => {
+                                                  updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        <button
+                                          className="btn btn-danger btn-sm"
+                                          style={{ padding: '2px 6px', fontSize: '10px' }}
+                                          onClick={() => updateQuestion(sec.id, q.id, { image: '' })}
+                                        >
+                                          Remove Image
+                                        </button>
+                                      </div>
+                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                          <label style={{ fontSize: '9px' }}>Width (px)</label>
+                                          <input
+                                            type="number"
+                                            value={q.imageWidth || 300}
+                                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                                            onChange={(e) => updateQuestion(sec.id, q.id, { imageWidth: Number(e.target.value) || 0 })}
+                                          />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                          <label style={{ fontSize: '9px' }}>Height (px)</label>
+                                          <input
+                                            type="number"
+                                            value={q.imageHeight || 200}
+                                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                                            onChange={(e) => updateQuestion(sec.id, q.id, { imageHeight: Number(e.target.value) || 0 })}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <label 
+                                      className="image-upload-dashed-zone"
+                                      style={{ padding: '8px 12px', gap: '4px' }}
+                                      onDragOver={handleDragOver}
+                                      onDragLeave={handleDragLeave}
+                                      onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                    >
+                                      <ImageIcon size={14} className="text-secondary" />
+                                      <span style={{ fontSize: '10px' }}>Upload Question Image (click, drag, or Ctrl+V)</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => {
+                                          const file = e.target.files[0];
+                                          if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (uploadEvent) => {
+                                              updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                            };
+                                            reader.readAsDataURL(file);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                  )}
                                 </div>
                               )}
 
@@ -3965,7 +4198,7 @@ export default function App() {
                                   )}
 
                                   {/* Question Image render */}
-                                  {(sec.type === 'image' || (q.image && sec.type !== 'match_following')) && q.image && (
+                                  {q.image && sec.type !== 'match_following' && (
                                     <div className="paper-image-container" style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-start' }}>
                                       <img
                                         src={q.image}
