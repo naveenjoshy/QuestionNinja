@@ -710,11 +710,70 @@ export default function App() {
     return sections.some(s => s.questions && s.questions.length > 0);
   };
 
+  const getOptionText = (opt) => {
+    if (typeof opt === 'object' && opt !== null) return opt.text || '';
+    return opt || '';
+  };
+
+  const getOptionImage = (opt) => {
+    if (typeof opt === 'object' && opt !== null) return opt.image || '';
+    return '';
+  };
+
+  const getOptionImageWidth = (opt) => {
+    if (typeof opt === 'object' && opt !== null) return opt.imageWidth || 150;
+    return 150;
+  };
+
+  const getOptionImageHeight = (opt) => {
+    if (typeof opt === 'object' && opt !== null) return opt.imageHeight || 100;
+    return 100;
+  };
+
+  const updateOptionText = (secId, qId, oIdx, text) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec;
+      return {
+        ...sec,
+        questions: sec.questions.map(q => {
+          if (q.id !== qId) return q;
+          const newOpts = [...(q.options || [])];
+          const cur = newOpts[oIdx];
+          if (typeof cur === 'object' && cur !== null) {
+            newOpts[oIdx] = { ...cur, text };
+          } else {
+            newOpts[oIdx] = text;
+          }
+          return { ...q, options: newOpts };
+        })
+      };
+    }));
+  };
+
+  const updateOptionImage = (secId, qId, oIdx, imageProps) => {
+    setSections(prev => prev.map(sec => {
+      if (sec.id !== secId) return sec;
+      return {
+        ...sec,
+        questions: sec.questions.map(q => {
+          if (q.id !== qId) return q;
+          const newOpts = [...(q.options || [])];
+          const cur = newOpts[oIdx];
+          const text = typeof cur === 'object' && cur !== null ? cur.text : (cur || '');
+          const existingObj = typeof cur === 'object' && cur !== null ? cur : { text };
+          newOpts[oIdx] = { ...existingObj, ...imageProps };
+          return { ...q, options: newOpts };
+        })
+      };
+    }));
+  };
+
   const canFitSingleLine = (options) => {
     if (!options || options.length === 0) return false;
-    if (options.some(opt => typeof opt === 'string' && opt.includes('\n'))) return false;
-    const totalChars = options.reduce((acc, opt) => acc + (opt ? String(opt).length : 0), 0);
-    const maxOptLen = Math.max(...options.map(opt => (opt ? String(opt).length : 0)));
+    if (options.some(opt => getOptionImage(opt))) return false;
+    if (options.some(opt => getOptionText(opt).includes('\n'))) return false;
+    const totalChars = options.reduce((acc, opt) => acc + getOptionText(opt).length, 0);
+    const maxOptLen = Math.max(...options.map(opt => getOptionText(opt).length));
     return options.length <= 4 && totalChars <= 36 && maxOptLen <= 12;
   };
 
@@ -955,7 +1014,7 @@ export default function App() {
     }));
   };
 
-  const handlePasteImage = (e, secId, qId, sqId = null) => {
+  const handlePasteImage = (e, secId, qId, sqId = null, oIdx = null) => {
     const section = sections.find(s => s.id === secId);
     if (!section) return;
 
@@ -970,7 +1029,9 @@ export default function App() {
           e.preventDefault();
           const reader = new FileReader();
           reader.onload = (uploadEvent) => {
-            if (sqId) {
+            if (oIdx !== null && oIdx !== undefined) {
+              updateOptionImage(secId, qId, oIdx, { image: uploadEvent.target.result });
+            } else if (sqId) {
               updateSubQuestion(secId, qId, sqId, { image: uploadEvent.target.result });
             } else {
               updateQuestion(secId, qId, { image: uploadEvent.target.result });
@@ -992,7 +1053,7 @@ export default function App() {
     e.currentTarget.classList.remove('drag-over');
   };
 
-  const handleDropImage = (e, secId, qId, sqId = null) => {
+  const handleDropImage = (e, secId, qId, sqId = null, oIdx = null) => {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     const files = e.dataTransfer?.files;
@@ -1001,7 +1062,9 @@ export default function App() {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (uploadEvent) => {
-          if (sqId) {
+          if (oIdx !== null && oIdx !== undefined) {
+            updateOptionImage(secId, qId, oIdx, { image: uploadEvent.target.result });
+          } else if (sqId) {
             updateSubQuestion(secId, qId, sqId, { image: uploadEvent.target.result });
           } else {
             updateQuestion(secId, qId, { image: uploadEvent.target.result });
@@ -1169,7 +1232,12 @@ export default function App() {
           sec.questions.forEach((q) => {
             let optionsStr = '';
             if (sec.type === 'mcq' && q.options) {
-              optionsStr = q.options.join(';');
+              const hasImages = q.options.some(opt => typeof opt === 'object' && opt !== null && opt.image);
+              if (hasImages) {
+                optionsStr = JSON.stringify(q.options);
+              } else {
+                optionsStr = q.options.map(opt => getOptionText(opt)).join(';');
+              }
             }
 
             let matchPairsStr = '';
@@ -1430,7 +1498,21 @@ export default function App() {
             }
 
             if (qType === 'mcq') {
-              q.options = optionsStr ? optionsStr.split(';') : ['', '', '', ''];
+              if (optionsStr) {
+                const trimmedOpt = optionsStr.trim();
+                if (trimmedOpt.startsWith('[') || trimmedOpt.startsWith('{')) {
+                  try {
+                    const parsedOpts = JSON.parse(trimmedOpt);
+                    q.options = Array.isArray(parsedOpts) ? parsedOpts : ['', '', '', ''];
+                  } catch (_e) {
+                    q.options = optionsStr.split(';');
+                  }
+                } else {
+                  q.options = optionsStr.split(';');
+                }
+              } else {
+                q.options = ['', '', '', ''];
+              }
             } else if (qType === 'essay') {
               q.blankLines = (blankLinesVal !== '' && !isNaN(blankLinesVal)) ? Math.max(0, parseInt(blankLinesVal, 10)) : 5;
             } else if (qType === 'match_following') {
@@ -1929,10 +2011,14 @@ export default function App() {
 
         // Formatting specific question types
         if (sec.type === 'mcq' && q.options) {
-          const createOptionParagraphs = (letter, text) => {
-            if (!text) return [new docx.Paragraph({ children: [] })];
-            const lines = text.split('\n');
+          const createOptionParagraphs = (letter, opt) => {
+            const text = getOptionText(opt);
+            const imgData = getOptionImage(opt);
+            const imgW = getOptionImageWidth(opt) || 150;
+            const imgH = getOptionImageHeight(opt) || 100;
+
             const paragraphs = [];
+            const lines = text ? text.split('\n') : [''];
             paragraphs.push(
               new docx.Paragraph({
                 spacing: { after: 40 },
@@ -1950,6 +2036,23 @@ export default function App() {
                   children: docxTextRunsWithMath(lines[i])
                 })
               );
+            }
+            if (imgData) {
+              const imgBytes = dataURLToUint8Array(imgData);
+              if (imgBytes) {
+                paragraphs.push(
+                  new docx.Paragraph({
+                    indent: { left: 450 },
+                    spacing: { before: 60, after: 100 },
+                    children: [
+                      new docx.ImageRun({
+                        data: imgBytes,
+                        transformation: { width: imgW, height: imgH }
+                      })
+                    ]
+                  })
+                );
+              }
             }
             return paragraphs;
           };
@@ -1992,12 +2095,12 @@ export default function App() {
             const optRows = [];
             for (let i = 0; i < q.options.length; i += 2) {
               const leftLetter = String.fromCharCode(65 + i);
-              const leftText = q.options[i] || '';
+              const leftOpt = q.options[i];
               const rightLetter = i + 1 < q.options.length ? String.fromCharCode(65 + i + 1) : '';
-              const rightText = i + 1 < q.options.length ? (q.options[i + 1] || '') : '';
+              const rightOpt = i + 1 < q.options.length ? q.options[i + 1] : null;
 
-              const leftChildren = createOptionParagraphs(leftLetter, leftText);
-              const rightChildren = rightLetter ? createOptionParagraphs(rightLetter, rightText) : [new docx.Paragraph({ children: [] })];
+              const leftChildren = createOptionParagraphs(leftLetter, leftOpt);
+              const rightChildren = rightLetter ? createOptionParagraphs(rightLetter, rightOpt) : [new docx.Paragraph({ children: [] })];
 
               optRows.push(
                 new docx.TableRow({
@@ -3059,50 +3162,149 @@ export default function App() {
                                     </button>
                                   </div>
                                   {q.options.map((opt, oIdx) => (
-                                    <div key={oIdx} style={{ display: 'flex', gap: '6px', width: '100%', alignItems: 'flex-start' }}>
-                                      <span style={{ fontSize: '13px', fontWeight: 'bold', paddingTop: '6px', minWidth: '18px' }}>
-                                        {String.fromCharCode(65 + oIdx)}.
-                                      </span>
-                                      <textarea
-                                        id={`q__opt__${sec.id}__${q.id}__${oIdx}`}
-                                        value={opt}
-                                        rows={opt && opt.includes('\n') ? Math.max(2, opt.split('\n').length) : 1}
-                                        placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
-                                        className="mcq-option-textarea"
-                                        style={{
-                                          padding: '6px 8px',
-                                          fontSize: '12px',
-                                          flex: 1,
-                                          minHeight: '34px',
-                                          resize: 'vertical',
-                                          fontFamily: 'inherit'
-                                        }}
-                                        onChange={(e) => {
-                                          const newOpts = [...q.options];
-                                          newOpts[oIdx] = e.target.value;
-                                          updateQuestion(sec.id, q.id, { options: newOpts });
-                                        }}
-                                      />
-                                      {q.options.length > 2 && (
-                                        <button
-                                          type="button"
-                                          title="Remove Option"
+                                    <div key={oIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                                      <div style={{ display: 'flex', gap: '6px', width: '100%', alignItems: 'flex-start' }}>
+                                        <span style={{ fontSize: '13px', fontWeight: 'bold', paddingTop: '6px', minWidth: '18px' }}>
+                                          {String.fromCharCode(65 + oIdx)}.
+                                        </span>
+                                        <textarea
+                                          id={`q__opt__${sec.id}__${q.id}__${oIdx}`}
+                                          value={getOptionText(opt)}
+                                          rows={getOptionText(opt) && getOptionText(opt).includes('\n') ? Math.max(2, getOptionText(opt).split('\n').length) : 1}
+                                          placeholder={`Option ${String.fromCharCode(65 + oIdx)} text...`}
+                                          className="mcq-option-textarea"
                                           style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            color: 'var(--danger, #ef4444)',
-                                            cursor: 'pointer',
-                                            fontSize: '14px',
-                                            padding: '6px 4px',
-                                            lineHeight: 1
+                                            padding: '6px 8px',
+                                            fontSize: '12px',
+                                            flex: 1,
+                                            minHeight: '34px',
+                                            resize: 'vertical',
+                                            fontFamily: 'inherit'
                                           }}
-                                          onClick={() => {
-                                            const newOpts = q.options.filter((_, idx) => idx !== oIdx);
-                                            updateQuestion(sec.id, q.id, { options: newOpts });
-                                          }}
-                                        >
-                                          ✕
-                                        </button>
+                                          onChange={(e) => updateOptionText(sec.id, q.id, oIdx, e.target.value)}
+                                        />
+                                        {q.options.length > 2 && (
+                                          <button
+                                            type="button"
+                                            title="Remove Option"
+                                            style={{
+                                              background: 'none',
+                                              border: 'none',
+                                              color: 'var(--danger, #ef4444)',
+                                              cursor: 'pointer',
+                                              fontSize: '14px',
+                                              padding: '6px 4px',
+                                              lineHeight: 1
+                                            }}
+                                            onClick={() => {
+                                              const newOpts = q.options.filter((_, idx) => idx !== oIdx);
+                                              updateQuestion(sec.id, q.id, { options: newOpts });
+                                            }}
+                                          >
+                                            ✕
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {/* Option Image Controls */}
+                                      {getOptionImage(opt) ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '24px', marginTop: '2px' }}>
+                                          <div 
+                                            className="editor-image-preview-container"
+                                            onDragOver={handleDragOver}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDropImage(e, sec.id, q.id, null, oIdx)}
+                                          >
+                                            <img
+                                              src={getOptionImage(opt)}
+                                              alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                              style={{
+                                                maxWidth: '100%',
+                                                maxHeight: '100px',
+                                                objectFit: 'contain',
+                                                borderRadius: 'var(--radius-sm)',
+                                                border: '1px solid var(--border-color)',
+                                                padding: '2px'
+                                              }}
+                                            />
+                                          </div>
+                                          <div style={{ display: 'flex', gap: '6px' }}>
+                                            <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
+                                              Change Image
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                style={{ display: 'none' }}
+                                                onChange={(e) => {
+                                                  const file = e.target.files[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (uploadEvent) => {
+                                                      updateOptionImage(sec.id, q.id, oIdx, { image: uploadEvent.target.result });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                              />
+                                            </label>
+                                            <button
+                                              type="button"
+                                              className="btn btn-danger btn-sm"
+                                              style={{ padding: '2px 6px', fontSize: '10px' }}
+                                              onClick={() => updateOptionImage(sec.id, q.id, oIdx, { image: '' })}
+                                            >
+                                              Remove Image
+                                            </button>
+                                          </div>
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                              <label style={{ fontSize: '9px' }}>Width (px)</label>
+                                              <input
+                                                type="number"
+                                                value={getOptionImageWidth(opt)}
+                                                style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                onChange={(e) => updateOptionImage(sec.id, q.id, oIdx, { imageWidth: Number(e.target.value) || 0 })}
+                                              />
+                                            </div>
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                              <label style={{ fontSize: '9px' }}>Height (px)</label>
+                                              <input
+                                                type="number"
+                                                value={getOptionImageHeight(opt)}
+                                                style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                onChange={(e) => updateOptionImage(sec.id, q.id, oIdx, { imageHeight: Number(e.target.value) || 0 })}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div style={{ marginLeft: '24px' }}>
+                                          <label 
+                                            className="image-upload-dashed-zone"
+                                            style={{ padding: '4px 8px', gap: '4px', fontSize: '10px' }}
+                                            onDragOver={handleDragOver}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDropImage(e, sec.id, q.id, null, oIdx)}
+                                          >
+                                            <ImageIcon size={12} className="text-secondary" />
+                                            <span>Upload Option Image (click, drag, or Ctrl+V)</span>
+                                            <input
+                                              type="file"
+                                              accept="image/*"
+                                              style={{ display: 'none' }}
+                                              onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                  const reader = new FileReader();
+                                                  reader.onload = (uploadEvent) => {
+                                                    updateOptionImage(sec.id, q.id, oIdx, { image: uploadEvent.target.result });
+                                                  };
+                                                  reader.readAsDataURL(file);
+                                                }
+                                              }}
+                                            />
+                                          </label>
+                                        </div>
                                       )}
                                     </div>
                                   ))}
@@ -3376,109 +3578,6 @@ export default function App() {
                                       </button>
                                     )}
                                   </div>
-                                </div>
-                              )}
-
-                              {/* Question Image Fields */}
-                              {sec.type !== 'match_following' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image (Optional)</label>
-                                  {q.image ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                      <div 
-                                        className="editor-image-preview-container"
-                                        onDragOver={handleDragOver}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDropImage(e, sec.id, q.id)}
-                                      >
-                                        <img
-                                          src={q.image}
-                                          alt="Question"
-                                          style={{
-                                            maxWidth: '100%',
-                                            maxHeight: '150px',
-                                            objectFit: 'contain',
-                                            borderRadius: 'var(--radius-sm)',
-                                            border: '1px solid var(--border-color)',
-                                            padding: '2px'
-                                          }}
-                                        />
-                                      </div>
-                                      <div style={{ display: 'flex', gap: '6px' }}>
-                                        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
-                                          Change Image
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            style={{ display: 'none' }}
-                                            onChange={(e) => {
-                                              const file = e.target.files[0];
-                                              if (file) {
-                                                const reader = new FileReader();
-                                                reader.onload = (uploadEvent) => {
-                                                  updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
-                                                };
-                                                reader.readAsDataURL(file);
-                                              }
-                                            }}
-                                          />
-                                        </label>
-                                        <button
-                                          className="btn btn-danger btn-sm"
-                                          style={{ padding: '2px 6px', fontSize: '10px' }}
-                                          onClick={() => updateQuestion(sec.id, q.id, { image: '' })}
-                                        >
-                                          Remove Image
-                                        </button>
-                                      </div>
-                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                        <div className="form-group" style={{ margin: 0 }}>
-                                          <label style={{ fontSize: '9px' }}>Width (px)</label>
-                                          <input
-                                            type="number"
-                                            value={q.imageWidth || 300}
-                                            style={{ padding: '2px 6px', fontSize: '11px' }}
-                                            onChange={(e) => updateQuestion(sec.id, q.id, { imageWidth: Number(e.target.value) || 0 })}
-                                          />
-                                        </div>
-                                        <div className="form-group" style={{ margin: 0 }}>
-                                          <label style={{ fontSize: '9px' }}>Height (px)</label>
-                                          <input
-                                            type="number"
-                                            value={q.imageHeight || 200}
-                                            style={{ padding: '2px 6px', fontSize: '11px' }}
-                                            onChange={(e) => updateQuestion(sec.id, q.id, { imageHeight: Number(e.target.value) || 0 })}
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <label 
-                                      className="image-upload-dashed-zone"
-                                      style={{ padding: '8px 12px', gap: '4px' }}
-                                      onDragOver={handleDragOver}
-                                      onDragLeave={handleDragLeave}
-                                      onDrop={(e) => handleDropImage(e, sec.id, q.id)}
-                                    >
-                                      <ImageIcon size={14} className="text-secondary" />
-                                      <span style={{ fontSize: '10px' }}>Upload Question Image (click, drag, or Ctrl+V)</span>
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        style={{ display: 'none' }}
-                                        onChange={(e) => {
-                                          const file = e.target.files[0];
-                                          if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (uploadEvent) => {
-                                              updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
-                                            };
-                                            reader.readAsDataURL(file);
-                                          }
-                                        }}
-                                      />
-                                    </label>
-                                  )}
                                 </div>
                               )}
 
@@ -4196,9 +4295,28 @@ export default function App() {
                                   {sec.type === 'mcq' && q.options && (
                                     <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
                                       {q.options.map((opt, oIdx) => (
-                                        <div key={oIdx} className="paper-mcq-option">
-                                          <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
-                                          <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(opt) }} />
+                                        <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                            <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
+                                            {getOptionText(opt) && (
+                                              <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
+                                            )}
+                                          </div>
+                                          {getOptionImage(opt) && (
+                                            <div style={{ marginTop: '4px', marginLeft: '22px' }}>
+                                              <img
+                                                src={getOptionImage(opt)}
+                                                alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                style={{
+                                                  width: getOptionImageWidth(opt) ? `${getOptionImageWidth(opt)}px` : 'auto',
+                                                  height: getOptionImageHeight(opt) ? `${getOptionImageHeight(opt)}px` : 'auto',
+                                                  maxWidth: '100%',
+                                                  maxHeight: '180px',
+                                                  objectFit: 'contain'
+                                                }}
+                                              />
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
