@@ -34,7 +34,7 @@ import {
   Check
 } from 'lucide-react';
 import * as docx from 'docx';
-import { jsPDF } from 'jspdf';
+import html2pdf from 'html2pdf.js';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -1725,42 +1725,70 @@ export default function App() {
       return;
     }
     setIsPdfExporting(true);
-    let footer = null;
-    try {
-      // Hide the paper-footer element during capture so we can stamp custom page numbers
-      footer = el.querySelector('.paper-footer');
-      if (footer) footer.style.display = 'none';
 
+    let tempContainer = null;
+    try {
       const filename = generateExportFilename('pdf');
 
-      const pdf = new jsPDF({
-        unit: 'mm',
-        format: 'a4',
-        orientation: 'portrait',
-        compress: true
-      });
+      // Create an un-clipped clone container in document.body so html2canvas can capture full height without container scroll clipping
+      tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '0px';
+      tempContainer.style.width = '210mm';
+      tempContainer.style.background = '#ffffff';
+      tempContainer.style.color = '#000000';
+      tempContainer.style.zIndex = '-9999';
 
-      const elementWidth = el.offsetWidth || el.clientWidth || 794;
+      const clone = el.cloneNode(true);
 
-      await pdf.html(el, {
-        x: 0,
-        y: 0,
-        width: 210, // A4 width in mm
-        windowWidth: elementWidth,
-        margin: [10, 0, 18, 0], // top, right, bottom, left in mm
-        autoPaging: 'text',
+      // Hide footer in clone if present
+      const cloneFooter = clone.querySelector('.paper-footer');
+      if (cloneFooter) cloneFooter.style.display = 'none';
+
+      // Hide print-hide elements in clone
+      const printHideElements = clone.querySelectorAll('.print-hide');
+      printHideElements.forEach(item => item.style.display = 'none');
+
+      tempContainer.appendChild(clone);
+      document.body.appendChild(tempContainer);
+
+      const opt = {
+        margin: [12, 0, 18, 0], // top, right, bottom, left in mm
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
+          scale: 2,
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
-          logging: false
+          logging: false,
+          scrollY: 0,
+          scrollX: 0,
+          windowWidth: 794
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+        pagebreak: {
+          mode: ['css', 'legacy'],
+          avoid: [
+            '.paper-section-header',
+            '.paper-question-item',
+            '.paper-subquestion-item',
+            '.paper-header',
+            '.exam-meta-grid',
+            '.paper-image-container',
+            '.paper-mcq-options'
+          ]
         }
-      });
+      };
+
+      const worker = html2pdf().set(opt).from(clone);
+      const pdf = await worker.toPdf().get('pdf');
 
       const totalPages = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
-        pdf.setFontSize(12);
+        pdf.setFontSize(10);
         pdf.setTextColor(120, 120, 120);
         pdf.text(`Page ${i} of ${totalPages}`, 198, 287, { align: 'right' });
       }
@@ -1770,7 +1798,9 @@ export default function App() {
       console.error('PDF export failed:', err);
       alert('PDF export failed. Please try again or use Print instead.');
     } finally {
-      if (footer) footer.style.display = '';
+      if (tempContainer && tempContainer.parentNode) {
+        tempContainer.parentNode.removeChild(tempContainer);
+      }
       setIsPdfExporting(false);
     }
   };

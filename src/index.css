@@ -632,6 +632,10 @@ button:disabled,
   display: flex;
   flex-direction: column;
   gap: 4px;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+  break-after: avoid !important;
+  page-break-after: avoid !important;
 }
 
 .paper-section-title-row {
@@ -939,9 +943,21 @@ textarea.mcq-option-textarea {
   }
 
   /* Force page break behavior */
-  .page-break-avoid {
+  .page-break-avoid,
+  .paper-section-header,
+  .paper-question-item,
+  .paper-subquestion-item,
+  .paper-image-container,
+  .paper-mcq-options,
+  .paper-header,
+  .exam-meta-grid {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+  }
+
+  .paper-section-header {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
   }
 }
 
