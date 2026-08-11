@@ -72,7 +72,7 @@ const renderTextWithMath = (text) => {
   if (!text) return '';
   let result = text;
 
-  // 1. Process raw \sqrt{...} or √ expressions first into crisp square root HTML
+  // 1. Process raw \sqrt{...} or √ expressions first into vector SVG square root HTML
   result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
   result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
@@ -82,11 +82,16 @@ const renderTextWithMath = (text) => {
   // 2. Process explicit $...$ math blocks using KaTeX
   result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
-      return katex.renderToString(mathContent, {
+      let katexHTML = katex.renderToString(mathContent, {
         throwOnError: false,
         displayMode: false,
         output: 'html'
       });
+      // Replace KaTeX's Unicode minus \u2212 with ASCII '-' so html2canvas never turns minus into double quotes (")
+      katexHTML = katexHTML.replace(/\u2212/g, '-');
+      // Replace any residual KaTeX Unicode sqrt \u221A with vector SVG
+      katexHTML = katexHTML.replace(/\u221A/g, renderSquareRootHTML(''));
+      return katexHTML;
     } catch {
       return `<span style="color:red;">${match}</span>`;
     }
@@ -97,6 +102,10 @@ const renderTextWithMath = (text) => {
   result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `∛{${inner}}`);
   result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `∛${inner}`);
   result = result.replace(/∛/g, '<span style="font-family: \'Cambria Math\', \'Segoe UI Symbol\', \'Arial Unicode MS\', sans-serif; font-style: normal; font-weight: bold;">∛</span>');
+
+  // 4. Global sanitize for any remaining Unicode minus \u2212 or Unicode sqrt \u221A
+  result = result.replace(/\u2212/g, '-');
+  result = result.replace(/\u221A/g, renderSquareRootHTML(''));
 
   result = result.replace(/\n/g, '<br>');
   return result;
@@ -152,10 +161,18 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
 const latexToPlainText = (latex) => {
   if (!latex) return '';
   let text = latex;
-  // Fractions
-  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1)/($2)');
+  // Fractions (keep clean separation for numerator / denominator)
+  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, (_, num, den) => {
+    return `(${num}) / (${den})`;
+  });
   // Square root
-  text = text.replace(/\\sqrt\{([^}]*)\}/g, '√($1)');
+  text = text.replace(/\\sqrt\{([^}]*)\}/g, (_, arg) => {
+    const trimmed = arg ? arg.trim() : '';
+    if (/^[0-9a-zA-Z]+$/.test(trimmed)) {
+      return `√${trimmed}`;
+    }
+    return `√(${trimmed})`;
+  });
   // Superscript
   text = text.replace(/\^\{([^}]*)\}/g, (_, p) => {
     const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','+':'⁺','-':'⁻' };
