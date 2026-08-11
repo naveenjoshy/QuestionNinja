@@ -57,14 +57,14 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Helper: render square root symbol without top overbar line
+// Helper: render square root symbol using vector SVG so html2canvas and PDF export never turn √ into quotes
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
-  const rootSymbol = `<span style="font-family: 'Cambria Math', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; font-style: normal; font-weight: bold; font-size: 1.05em; display: inline-block; margin-right: 1px;">√</span>`;
+  const rootSVG = `<svg width="12" height="15" viewBox="0 0 14 18" style="display: inline-block; vertical-align: -2px; margin-right: 2px; flex-shrink: 0;" aria-hidden="true"><path d="M1 10 L4.5 15 L12 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   if (!trimmed) {
-    return rootSymbol;
+    return rootSVG;
   }
-  return `${rootSymbol}${trimmed}`;
+  return `<span style="display: inline-block; white-space: nowrap;">${rootSVG}${trimmed}</span>`;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
