@@ -566,13 +566,13 @@ button:disabled,
 }
 
 .school-name-render {
-  font-size: 26px;
+  font-size: 25px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .school-address-render {
-  font-size: 17px;
+  font-size: 16px;
   white-space: pre-line;
 }
 
@@ -584,7 +584,7 @@ button:disabled,
   column-gap: 30px;
   padding: 10px 0;
   border-bottom: 1px solid var(--text-paper);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: bold;
   font-family: 'Montserrat', sans-serif;
 }
@@ -642,7 +642,7 @@ button:disabled,
 }
 
 .paper-section-title {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 700;
   text-transform: uppercase;
   text-align: justify;
@@ -652,7 +652,7 @@ button:disabled,
 }
 
 .paper-section-marks {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
@@ -660,7 +660,7 @@ button:disabled,
 }
 
 .paper-section-instructions {
-  font-size: 16px;
+  font-size: 15px;
   font-style: italic;
   margin-top: 0;
   text-align: justify;
@@ -678,7 +678,7 @@ button:disabled,
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 10px;
-  font-size: 18px;
+  font-size: 17px;
   align-items: start;
   page-break-inside: avoid;
 }
@@ -701,7 +701,7 @@ button:disabled,
   font-weight: 600;
   text-align: right;
   min-width: 50px;
-  font-size: 17px;
+  font-size: 16px;
   white-space: nowrap !important;
   flex-shrink: 0 !important;
 }
@@ -754,7 +754,7 @@ textarea.mcq-option-textarea {
   display: flex;
   gap: 24px;
   font-weight: 600;
-  font-size: 17px;
+  font-size: 16px;
   margin-top: 4px;
 }
 
@@ -770,7 +770,7 @@ textarea.mcq-option-textarea {
   width: 50%;
   text-align: left;
   font-weight: 700;
-  font-size: 17px;
+  font-size: 16px;
   border-bottom: 1px solid var(--text-primary, #000);
 }
 
@@ -785,7 +785,7 @@ textarea.mcq-option-textarea {
   width: 100%;
   border-collapse: collapse;
   margin-top: 8px;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .paper-table-question th,
@@ -958,7 +958,7 @@ textarea.mcq-option-textarea {
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 15px;
+  font-size: 14px;
   font-family: inherit;
   color: #999999;
 }
@@ -980,7 +980,7 @@ textarea.mcq-option-textarea {
     left: 0;
     right: 0;
     text-align: center;
-    font-size: 14px;
+    font-size: 13px;
     font-family: inherit;
     color: #777777;
     background: transparent !important;
