@@ -57,17 +57,17 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Radical symbol rendered as a styled Unicode character with math-capable font stack
-// Using a <span> instead of <img> or <svg> because html2canvas handles styled text natively
-const RADICAL_SYMBOL = `<span style="font-family:'Cambria Math','DejaVu Sans','Segoe UI Symbol','Arial Unicode MS',sans-serif;font-style:normal;font-weight:normal;font-size:inherit;">&#x221A;</span>`;
+// Pure HTML/CSS radical checkmark shape that html2canvas renders natively on canvas
+// Uses CSS borders and transforms so it NEVER turns into quotes, NEVER drops out in PDF, and has NO top line
+const RADICAL_HTML = `<span style="display:inline-block;vertical-align:-1px;margin-right:2px;line-height:1;" aria-label="sqrt"><span style="display:inline-block;width:3px;height:5px;border-bottom:2px solid currentColor;border-right:2px solid currentColor;transform:rotate(35deg);margin-right:1px;vertical-align:0px;"></span><span style="display:inline-block;width:0px;height:11px;border-right:2px solid currentColor;transform:rotate(-18deg);vertical-align:-1px;"></span></span>`;
 
-// Helper: render square root using styled Unicode radical character (html2canvas compatible)
+// Helper: render square root without top overbar line (html2canvas compatible pure CSS shape)
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
   if (!trimmed) {
-    return RADICAL_SYMBOL;
+    return RADICAL_HTML;
   }
-  return `<span style="display:inline;white-space:nowrap;">${RADICAL_SYMBOL}<span style="text-decoration:overline;">${trimmed}</span></span>`;
+  return `<span style="display:inline;white-space:nowrap;">${RADICAL_HTML}<span>${trimmed}</span></span>`;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
@@ -75,31 +75,40 @@ const renderTextWithMath = (text) => {
   if (!text) return '';
   let result = text;
 
-  // 1. Convert raw \sqrt{...} and Unicode √ into base64 PNG radical + content
-  result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
-  result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√/g, RADICAL_SYMBOL);
-
-  // 2. Render explicit $...$ math blocks using KaTeX — do NOT modify KaTeX output
+  // 1. Process explicit $...$ math blocks FIRST to isolate and protect KaTeX rendered math
+  const mathBlocks = [];
   result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
-      return katex.renderToString(mathContent, {
+      const katexHTML = katex.renderToString(mathContent, {
         throwOnError: false,
         displayMode: false,
         output: 'html'
       });
+      const placeholder = `___MATH_BLOCK_${mathBlocks.length}___`;
+      mathBlocks.push(katexHTML);
+      return placeholder;
     } catch {
       return `<span style="color:red;">${match}</span>`;
     }
   });
+
+  // 2. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into pure CSS radical + content
+  result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
+  result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
+  result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
+  result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
+  result = result.replace(/√/g, RADICAL_HTML);
 
   // 3. Convert Unicode cube root ∛ to styled span
   result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `∛(${inner})`);
   result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `∛{${inner}}`);
   result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `∛${inner}`);
   result = result.replace(/∛/g, '<span style="font-family: \'Cambria Math\', \'Segoe UI Symbol\', \'Arial Unicode MS\', sans-serif; font-style: normal; font-weight: bold;">∛</span>');
+
+  // 4. Restore rendered $...$ math blocks
+  mathBlocks.forEach((html, i) => {
+    result = result.replace(`___MATH_BLOCK_${i}___`, html);
+  });
 
   result = result.replace(/\n/g, '<br>');
   return result;
