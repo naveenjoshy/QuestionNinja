@@ -57,10 +57,13 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Helper: render text that contains $...$ math blocks using KaTeX
+// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt) using KaTeX
 const renderTextWithMath = (text) => {
   if (!text) return '';
-  let result = text.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
+  let result = text;
+
+  // 1. Process explicit $...$ math blocks first
+  result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
       return katex.renderToString(mathContent, {
         throwOnError: false,
@@ -71,14 +74,78 @@ const renderTextWithMath = (text) => {
       return `<span style="color:red;">${match}</span>`;
     }
   });
+
+  // 2. Process raw \sqrt{...} or \frac{...} outside of $...$
+  result = result.replace(/\\(sqrt|frac)\{([^}]*)\}(\{([^}]*)\})?/g, (match) => {
+    try {
+      return katex.renderToString(match, {
+        throwOnError: false,
+        displayMode: false,
+        output: 'html'
+      });
+    } catch {
+      return match;
+    }
+  });
+
+  // 3. Process Unicode square root √ symbol outside of $...$
+  result = result.replace(/√\(([^)]+)\)/g, (_, inner) => {
+    try {
+      return katex.renderToString(`\\sqrt{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return `√(${inner})`; }
+  });
+  result = result.replace(/√\{([^}]+)\}/g, (_, inner) => {
+    try {
+      return katex.renderToString(`\\sqrt{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return `√{${inner}}`; }
+  });
+  result = result.replace(/√([0-9a-zA-Z]+)/g, (_, inner) => {
+    try {
+      return katex.renderToString(`\\sqrt{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return `√${inner}`; }
+  });
+  result = result.replace(/√/g, () => {
+    try {
+      return katex.renderToString('\\sqrt{}', { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return '√'; }
+  });
+
+  // 4. Process Unicode cube root ∛ symbol outside of $...$
+  result = result.replace(/∛\(([^)]+)\)/g, (_, inner) => {
+    try {
+      return katex.renderToString(`\\sqrt[3]{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return `∛(${inner})`; }
+  });
+  result = result.replace(/∛([0-9a-zA-Z]+)/g, (_, inner) => {
+    try {
+      return katex.renderToString(`\\sqrt[3]{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return `∛${inner}`; }
+  });
+  result = result.replace(/∛/g, () => {
+    try {
+      return katex.renderToString('\\sqrt[3]{}', { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return '∛'; }
+  });
+
   result = result.replace(/\n/g, '<br>');
   return result;
 };
 
-// Helper: convert text with $...$ math into an array of docx.TextRun objects
+// Helper: convert text with $...$ math or raw √ symbols into an array of docx.TextRun objects
 const docxTextRunsWithMath = (text, defaultOptions = {}) => {
   if (!text) return [];
-  const parts = text.split('$');
+  let processedText = text;
+
+  // Convert raw √ or \sqrt outside of $...$ into $...$ blocks for DOCX math rendering
+  if (!processedText.includes('$') && (processedText.includes('√') || processedText.includes('\\sqrt'))) {
+    processedText = processedText.replace(/\\sqrt\{([^}]*)\}/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√\(([^)]+)\)/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√\{([^}]+)\}/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√([0-9a-zA-Z]+)/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√/g, '$\\sqrt{}$');
+  }
+
+  const parts = processedText.split('$');
   const runs = [];
   parts.forEach((part, index) => {
     if (index % 2 === 1) {

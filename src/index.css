@@ -830,12 +830,12 @@ textarea.mcq-option-textarea {
 }
 
 /* Typography Overrides */
-.font-Inter { font-family: 'Inter', sans-serif; }
-.font-Playfair { font-family: 'Playfair Display', serif; }
-.font-Montserrat { font-family: 'Montserrat', sans-serif; }
-.font-Courier { font-family: 'Courier Prime', monospace; }
-.font-Merriweather { font-family: 'Merriweather', serif; }
-.font-Cinzel { font-family: 'Cinzel', serif; }
+.font-Inter { font-family: 'Inter', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', sans-serif; }
+.font-Playfair { font-family: 'Playfair Display', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
+.font-Montserrat { font-family: 'Montserrat', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', sans-serif; }
+.font-Courier { font-family: 'Courier Prime', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', monospace; }
+.font-Merriweather { font-family: 'Merriweather', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
+.font-Cinzel { font-family: 'Cinzel', 'Inter', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
 
 /* Drag Overlay helper */
 .drag-indicator {
