@@ -57,13 +57,14 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Helper: render square root HTML structure with crisp radical symbol and overbar
+// Helper: render square root symbol without top overbar line
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
+  const rootSymbol = `<span style="font-family: 'Cambria Math', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; font-style: normal; font-weight: bold; font-size: 1.05em; display: inline-block; margin-right: 1px;">√</span>`;
   if (!trimmed) {
-    return `<span style="font-family: 'Cambria Math', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; font-style: normal; font-weight: bold; font-size: 1.05em; display: inline-block;">√</span>`;
+    return rootSymbol;
   }
-  return `<span style="display: inline-block; font-style: normal; white-space: nowrap; margin: 0 1px;"><span style="font-family: 'Cambria Math', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; font-weight: bold; font-size: 1.08em; padding-right: 1px; vertical-align: baseline;">√</span><span style="border-top: 1.5px solid currentColor; padding-top: 1px; display: inline-block; vertical-align: baseline;">${trimmed}</span></span>`;
+  return `${rootSymbol}${trimmed}`;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
