@@ -1744,13 +1744,7 @@ export default function App() {
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
-          logging: false,
-          scale: 2,
-          letterRendering: true,
-          onclone: (clonedDoc) => {
-            // Ensure all fonts (including KaTeX @font-face) are loaded in the cloned document
-            return clonedDoc.fonts?.ready || Promise.resolve();
-          }
+          logging: false
         }
       });
 
