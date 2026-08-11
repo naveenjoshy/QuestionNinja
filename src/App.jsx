@@ -2011,7 +2011,7 @@ export default function App() {
         headerChildren.push(
           new docx.Paragraph({
             alignment: docx.AlignmentType.JUSTIFY,
-            spacing: { before: 120, after: 40 },
+            spacing: { before: 60, after: 20 },
             tabStops: [
               {
                 type: docx.TabStopType.RIGHT,
@@ -2038,7 +2038,7 @@ export default function App() {
           headerChildren.push(
             new docx.Paragraph({
               indent: { left: 450 },
-              spacing: { after: 40 },
+              spacing: { after: 20 },
               children: docxTextRunsWithMath(qLines[lIdx])
             })
           );
@@ -2215,7 +2215,7 @@ export default function App() {
                 new docx.Paragraph({
                   alignment: docx.AlignmentType.JUSTIFY,
                   indent: { left: 360 },
-                  spacing: { before: 80, after: 40 },
+                  spacing: { before: 40, after: 20 },
                   tabStops: [
                     {
                       type: docx.TabStopType.RIGHT,
@@ -2241,7 +2241,7 @@ export default function App() {
                 headerChildren.push(
                   new docx.Paragraph({
                     indent: { left: 720 },
-                    spacing: { after: 40 },
+                    spacing: { after: 20 },
                     children: docxTextRunsWithMath(sqLines[lIdx])
                   })
                 );
@@ -4271,7 +4271,7 @@ export default function App() {
                                   {sec.type === 'essay' && (
                                     <>
                                       {q.subQuestions && q.subQuestions.length > 0 ? (
-                                        <div className="paper-subquestions-list" style={{ marginTop: '8px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                           {q.subQuestions.map((sq, sqIdx) => (
                                             <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>

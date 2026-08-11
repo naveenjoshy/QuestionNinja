@@ -612,7 +612,7 @@ button:disabled,
 .paper-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .paper-header,
@@ -671,7 +671,7 @@ button:disabled,
 .paper-questions-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .paper-question-item {
@@ -691,7 +691,7 @@ button:disabled,
 .paper-question-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   text-align: justify;
   text-align-last: left;
   word-break: break-word;
