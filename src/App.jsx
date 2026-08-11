@@ -88,44 +88,42 @@ const renderTextWithMath = (text) => {
     }
   });
 
-  // 3. Process Unicode square root √ symbol outside of $...$
-  result = result.replace(/√\(([^)]+)\)/g, (_, inner) => {
+  // 3. Process Unicode square root √ symbol (supporting optional spaces like √ 5, √5, √(x+1), etc.)
+  result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => {
     try {
-      return katex.renderToString(`\\sqrt{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+      return katex.renderToString(`\\sqrt{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
     } catch { return `√(${inner})`; }
   });
-  result = result.replace(/√\{([^}]+)\}/g, (_, inner) => {
+  result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => {
     try {
-      return katex.renderToString(`\\sqrt{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+      return katex.renderToString(`\\sqrt{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
     } catch { return `√{${inner}}`; }
   });
-  result = result.replace(/√([0-9a-zA-Z]+)/g, (_, inner) => {
+  result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => {
     try {
-      return katex.renderToString(`\\sqrt{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+      return katex.renderToString(`\\sqrt{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
     } catch { return `√${inner}`; }
   });
-  result = result.replace(/√/g, () => {
-    try {
-      return katex.renderToString('\\sqrt{}', { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return '√'; }
-  });
+  // Standalone √ fallback: render in system math font so paper fonts like Cinzel don't hide or corrupt it
+  result = result.replace(/√/g, '<span style="font-family: \'Inter\', -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; font-style: normal;">√</span>');
 
-  // 4. Process Unicode cube root ∛ symbol outside of $...$
-  result = result.replace(/∛\(([^)]+)\)/g, (_, inner) => {
+  // 4. Process Unicode cube root ∛ symbol (supporting optional spaces)
+  result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => {
     try {
-      return katex.renderToString(`\\sqrt[3]{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+      return katex.renderToString(`\\sqrt[3]{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
     } catch { return `∛(${inner})`; }
   });
-  result = result.replace(/∛([0-9a-zA-Z]+)/g, (_, inner) => {
+  result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => {
     try {
-      return katex.renderToString(`\\sqrt[3]{${inner}}`, { throwOnError: false, displayMode: false, output: 'html' });
+      return katex.renderToString(`\\sqrt[3]{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
+    } catch { return `∛{${inner}}`; }
+  });
+  result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => {
+    try {
+      return katex.renderToString(`\\sqrt[3]{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
     } catch { return `∛${inner}`; }
   });
-  result = result.replace(/∛/g, () => {
-    try {
-      return katex.renderToString('\\sqrt[3]{}', { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return '∛'; }
-  });
+  result = result.replace(/∛/g, '<span style="font-family: \'Inter\', -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; font-style: normal;">∛</span>');
 
   result = result.replace(/\n/g, '<br>');
   return result;
@@ -139,10 +137,10 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
   // Convert raw √ or \sqrt outside of $...$ into $...$ blocks for DOCX math rendering
   if (!processedText.includes('$') && (processedText.includes('√') || processedText.includes('\\sqrt'))) {
     processedText = processedText.replace(/\\sqrt\{([^}]*)\}/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√\(([^)]+)\)/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√\{([^}]+)\}/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√([0-9a-zA-Z]+)/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√/g, '$\\sqrt{}$');
+    processedText = processedText.replace(/√\s*\(([^)]+)\)/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√\s*\{([^}]+)\}/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√\s*([0-9a-zA-Z]+)/g, '$\\sqrt{$1}$');
+    processedText = processedText.replace(/√/g, '$√$');
   }
 
   const parts = processedText.split('$');
