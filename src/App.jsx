@@ -57,17 +57,17 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Pure HTML/CSS radical checkmark shape that html2canvas renders natively on canvas
-// Uses CSS borders and transforms so it NEVER turns into quotes, NEVER drops out in PDF, and has NO top line
-const RADICAL_HTML = `<span style="display:inline-block;vertical-align:-1px;margin-right:2px;line-height:1;" aria-label="sqrt"><span style="display:inline-block;width:3px;height:5px;border-bottom:2px solid currentColor;border-right:2px solid currentColor;transform:rotate(35deg);margin-right:1px;vertical-align:0px;"></span><span style="display:inline-block;width:0px;height:11px;border-right:2px solid currentColor;transform:rotate(-18deg);vertical-align:-1px;"></span></span>`;
+// Clean vector SVG radical checkmark path with precise mathematical square root geometry
+// Renders a perfect radical symbol √ in both Live Preview and PDF Export without font corruption or distortion
+const RADICAL_SVG = `<svg width="10" height="14" viewBox="0 0 10 14" style="display:inline-block;vertical-align:-1px;margin-right:1px;flex-shrink:0;" aria-hidden="true"><path d="M1 8 L3.5 12 L9 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-// Helper: render square root without top overbar line (html2canvas compatible pure CSS shape)
+// Helper: render square root without top overbar line
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
   if (!trimmed) {
-    return RADICAL_HTML;
+    return RADICAL_SVG;
   }
-  return `<span style="display:inline;white-space:nowrap;">${RADICAL_HTML}<span>${trimmed}</span></span>`;
+  return `<span style="display:inline;white-space:nowrap;">${RADICAL_SVG}<span>${trimmed}</span></span>`;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
@@ -92,12 +92,12 @@ const renderTextWithMath = (text) => {
     }
   });
 
-  // 2. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into pure CSS radical + content
+  // 2. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into vector SVG radical + content
   result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
   result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√/g, RADICAL_HTML);
+  result = result.replace(/√/g, RADICAL_SVG);
 
   // 3. Convert Unicode cube root ∛ to styled span
   result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `∛(${inner})`);
