@@ -57,14 +57,17 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Helper: render square root symbol using vector SVG so html2canvas and PDF export never turn √ into quotes
+// Base64-encoded tiny radical symbol PNG (8x10px, black stroke on transparent background)
+// This is used instead of SVG because html2canvas skips inline SVGs but renders <img> tags perfectly
+const RADICAL_IMG = `<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAQCAYAAAAiYZ4HAAAAAXNSR0IArs4c6QAAAERlWElmTUkqAogAAAACADEBAgAHAAAAJgAAAGmHBAABAAAALgAAAAAAAABHb29nbGUAAAMAAJAHAAQAAAAwMjIwAAAAAJfpPx4AAABbSURBVCgVY/j//z8DEwMFgGFoCOI9d+7cP4QKBgYGJiCBbCITVD0TkGBE0cOIJA+SQ9eD4AIkOQYkMRQ7GB49esTA8P//fwYGB4f/DGFhYQxAmGQEJAiGAAB5fyAWCz8EoAAAAABJRU5ErkJggg==" alt="√" style="display:inline-block;width:10px;height:13px;vertical-align:-1px;margin-right:1px;" />`;
+
+// Helper: render square root using a base64 PNG image (html2canvas compatible)
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
-  const rootSVG = `<svg width="12" height="15" viewBox="0 0 14 18" style="display: inline-block; vertical-align: -2px; margin-right: 2px; flex-shrink: 0;" aria-hidden="true"><path d="M1 10 L4.5 15 L12 2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   if (!trimmed) {
-    return rootSVG;
+    return RADICAL_IMG;
   }
-  return `<span style="display: inline-block; white-space: nowrap;">${rootSVG}${trimmed}</span>`;
+  return `<span style="display:inline;white-space:nowrap;">${RADICAL_IMG}${trimmed}</span>`;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
@@ -72,40 +75,31 @@ const renderTextWithMath = (text) => {
   if (!text) return '';
   let result = text;
 
-  // 1. Process raw \sqrt{...} or √ expressions first into vector SVG square root HTML
+  // 1. Convert raw \sqrt{...} and Unicode √ into base64 PNG radical + content
   result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
   result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√/g, renderSquareRootHTML(''));
+  result = result.replace(/√/g, RADICAL_IMG);
 
-  // 2. Process explicit $...$ math blocks using KaTeX
+  // 2. Render explicit $...$ math blocks using KaTeX — do NOT modify KaTeX output
   result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
-      let katexHTML = katex.renderToString(mathContent, {
+      return katex.renderToString(mathContent, {
         throwOnError: false,
         displayMode: false,
         output: 'html'
       });
-      // Replace KaTeX's Unicode minus \u2212 with ASCII '-' so html2canvas never turns minus into double quotes (")
-      katexHTML = katexHTML.replace(/\u2212/g, '-');
-      // Replace any residual KaTeX Unicode sqrt \u221A with vector SVG
-      katexHTML = katexHTML.replace(/\u221A/g, renderSquareRootHTML(''));
-      return katexHTML;
     } catch {
       return `<span style="color:red;">${match}</span>`;
     }
   });
 
-  // 3. Process Unicode cube root ∛ symbol (supporting optional spaces)
+  // 3. Convert Unicode cube root ∛ to styled span
   result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `∛(${inner})`);
   result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `∛{${inner}}`);
   result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `∛${inner}`);
   result = result.replace(/∛/g, '<span style="font-family: \'Cambria Math\', \'Segoe UI Symbol\', \'Arial Unicode MS\', sans-serif; font-style: normal; font-weight: bold;">∛</span>');
-
-  // 4. Global sanitize for any remaining Unicode minus \u2212 or Unicode sqrt \u221A
-  result = result.replace(/\u2212/g, '-');
-  result = result.replace(/\u221A/g, renderSquareRootHTML(''));
 
   result = result.replace(/\n/g, '<br>');
   return result;
@@ -1750,7 +1744,13 @@ export default function App() {
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
-          logging: false
+          logging: false,
+          scale: 2,
+          letterRendering: true,
+          onclone: (clonedDoc) => {
+            // Ensure all fonts (including KaTeX @font-face) are loaded in the cloned document
+            return clonedDoc.fonts?.ready || Promise.resolve();
+          }
         }
       });
 
