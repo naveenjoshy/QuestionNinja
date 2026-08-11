@@ -57,17 +57,17 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Base64-encoded tiny radical symbol PNG (8x10px, black stroke on transparent background)
-// This is used instead of SVG because html2canvas skips inline SVGs but renders <img> tags perfectly
-const RADICAL_IMG = `<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAQCAYAAAAiYZ4HAAAAAXNSR0IArs4c6QAAAERlWElmTUkqAogAAAACADEBAgAHAAAAJgAAAGmHBAABAAAALgAAAAAAAABHb29nbGUAAAMAAJAHAAQAAAAwMjIwAAAAAJfpPx4AAABbSURBVCgVY/j//z8DEwMFgGFoCOI9d+7cP4QKBgYGJiCBbCITVD0TkGBE0cOIJA+SQ9eD4AIkOQYkMRQ7GB49esTA8P//fwYGB4f/DGFhYQxAmGQEJAiGAAB5fyAWCz8EoAAAAABJRU5ErkJggg==" alt="√" style="display:inline-block;width:10px;height:13px;vertical-align:-1px;margin-right:1px;" />`;
+// Radical symbol rendered as a styled Unicode character with math-capable font stack
+// Using a <span> instead of <img> or <svg> because html2canvas handles styled text natively
+const RADICAL_SYMBOL = `<span style="font-family:'Cambria Math','DejaVu Sans','Segoe UI Symbol','Arial Unicode MS',sans-serif;font-style:normal;font-weight:normal;font-size:inherit;">&#x221A;</span>`;
 
-// Helper: render square root using a base64 PNG image (html2canvas compatible)
+// Helper: render square root using styled Unicode radical character (html2canvas compatible)
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
   if (!trimmed) {
-    return RADICAL_IMG;
+    return RADICAL_SYMBOL;
   }
-  return `<span style="display:inline;white-space:nowrap;">${RADICAL_IMG}${trimmed}</span>`;
+  return `<span style="display:inline;white-space:nowrap;">${RADICAL_SYMBOL}<span style="text-decoration:overline;">${trimmed}</span></span>`;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
@@ -80,7 +80,7 @@ const renderTextWithMath = (text) => {
   result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
   result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√/g, RADICAL_IMG);
+  result = result.replace(/√/g, RADICAL_SYMBOL);
 
   // 2. Render explicit $...$ math blocks using KaTeX — do NOT modify KaTeX output
   result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
