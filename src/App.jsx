@@ -57,12 +57,28 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt) using KaTeX
+// Helper: render square root HTML structure with crisp radical symbol and overbar
+const renderSquareRootHTML = (content) => {
+  const trimmed = content ? content.trim() : '';
+  if (!trimmed) {
+    return `<span style="font-family: 'Cambria Math', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; font-style: normal; font-weight: bold; font-size: 1.05em; display: inline-block;">√</span>`;
+  }
+  return `<span style="display: inline-block; font-style: normal; white-space: nowrap; margin: 0 1px;"><span style="font-family: 'Cambria Math', 'Segoe UI Symbol', 'Arial Unicode MS', sans-serif; font-weight: bold; font-size: 1.08em; padding-right: 1px; vertical-align: baseline;">√</span><span style="border-top: 1.5px solid currentColor; padding-top: 1px; display: inline-block; vertical-align: baseline;">${trimmed}</span></span>`;
+};
+
+// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
 const renderTextWithMath = (text) => {
   if (!text) return '';
   let result = text;
 
-  // 1. Process explicit $...$ math blocks first
+  // 1. Process raw \sqrt{...} or √ expressions first into crisp square root HTML
+  result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
+  result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
+  result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
+  result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
+  result = result.replace(/√/g, renderSquareRootHTML(''));
+
+  // 2. Process explicit $...$ math blocks using KaTeX
   result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
       return katex.renderToString(mathContent, {
@@ -75,55 +91,11 @@ const renderTextWithMath = (text) => {
     }
   });
 
-  // 2. Process raw \sqrt{...} or \frac{...} outside of $...$
-  result = result.replace(/\\(sqrt|frac)\{([^}]*)\}(\{([^}]*)\})?/g, (match) => {
-    try {
-      return katex.renderToString(match, {
-        throwOnError: false,
-        displayMode: false,
-        output: 'html'
-      });
-    } catch {
-      return match;
-    }
-  });
-
-  // 3. Process Unicode square root √ symbol (supporting optional spaces like √ 5, √5, √(x+1), etc.)
-  result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => {
-    try {
-      return katex.renderToString(`\\sqrt{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return `√(${inner})`; }
-  });
-  result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => {
-    try {
-      return katex.renderToString(`\\sqrt{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return `√{${inner}}`; }
-  });
-  result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => {
-    try {
-      return katex.renderToString(`\\sqrt{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return `√${inner}`; }
-  });
-  // Standalone √ fallback: render in system math font so paper fonts like Cinzel don't hide or corrupt it
-  result = result.replace(/√/g, '<span style="font-family: \'Inter\', -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; font-style: normal;">√</span>');
-
-  // 4. Process Unicode cube root ∛ symbol (supporting optional spaces)
-  result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => {
-    try {
-      return katex.renderToString(`\\sqrt[3]{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return `∛(${inner})`; }
-  });
-  result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => {
-    try {
-      return katex.renderToString(`\\sqrt[3]{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return `∛{${inner}}`; }
-  });
-  result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => {
-    try {
-      return katex.renderToString(`\\sqrt[3]{${inner.trim()}}`, { throwOnError: false, displayMode: false, output: 'html' });
-    } catch { return `∛${inner}`; }
-  });
-  result = result.replace(/∛/g, '<span style="font-family: \'Inter\', -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif; font-style: normal;">∛</span>');
+  // 3. Process Unicode cube root ∛ symbol (supporting optional spaces)
+  result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `∛(${inner})`);
+  result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `∛{${inner}}`);
+  result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `∛${inner}`);
+  result = result.replace(/∛/g, '<span style="font-family: \'Cambria Math\', \'Segoe UI Symbol\', \'Arial Unicode MS\', sans-serif; font-style: normal; font-weight: bold;">∛</span>');
 
   result = result.replace(/\n/g, '<br>');
   return result;
