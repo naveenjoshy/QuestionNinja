@@ -606,36 +606,41 @@ button:disabled,
 .paper-sections-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 10px;
 }
 
 .paper-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .paper-header,
 .paper-section-header,
+.paper-section-title-row,
+.paper-section-instructions,
 .paper-question-item,
+.paper-question-number,
+.paper-question-body,
 .paper-subquestion-item,
+.paper-image-container,
 .paper-mcq-options,
 .paper-match-table,
 .paper-table-question {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
+  -webkit-column-break-inside: avoid !important;
 }
 
 .paper-section-header {
   border-bottom: 1.5px solid var(--text-paper);
-  padding-bottom: 6px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
-  break-after: avoid !important;
-  page-break-after: avoid !important;
 }
 
 .paper-section-title-row {
@@ -664,12 +669,14 @@ button:disabled,
 }
 
 .paper-section-instructions {
-  font-size: 15px;
+  font-size: 13.5px;
   font-style: italic;
-  margin-top: 0;
-  text-align: justify;
-  text-align-last: left;
-  word-break: break-word;
+  color: var(--text-paper-secondary);
+  border-bottom: 1px dashed var(--text-paper-secondary);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 .paper-questions-list {
@@ -684,7 +691,8 @@ button:disabled,
   gap: 10px;
   font-size: 17px;
   align-items: start;
-  page-break-inside: avoid;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 .paper-question-number {
@@ -959,12 +967,24 @@ textarea.mcq-option-textarea {
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
+
+  .page-break-before,
+  .paper-page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+}
+
+.page-break-before,
+.paper-page-break-before {
+  page-break-before: always !important;
+  break-before: page !important;
 }
 
 /* Running Footer / Page Numbers */
 .paper-answer-line {
-  border-bottom: 1.5px dashed #444;
-  height: 16px;
+  border-bottom: 1px dashed #666;
+  height: 8px;
   width: 100%;
 }
 
@@ -1259,6 +1279,69 @@ textarea.mcq-option-textarea {
   color: #111;
   font-size: 20px;
   overflow-x: auto;
+}
+
+/* Complex Arithmetic & Math Symbol Fonts */
+@font-face {
+  font-family: 'KaTeX_Main';
+  src: url('https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/fonts/KaTeX_Main-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'KaTeX_Math';
+  src: url('https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/fonts/KaTeX_Math-Italic.woff2') format('woff2');
+  font-weight: normal;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'KaTeX_Size1';
+  src: url('https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/fonts/KaTeX_Size1-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'KaTeX_AMS';
+  src: url('https://cdn.jsdelivr.net/npm/katex@0.17.0/dist/fonts/KaTeX_AMS-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.katex,
+.paper-sheet,
+.paper-formula-block,
+.formula-inline-preview,
+.paper-question-body {
+  font-family: 'KaTeX_Main', 'KaTeX_Math', 'STIX Two Math', 'Noto Sans Math', 'Cambria Math', 'Latin Modern Math', 'Inter', sans-serif;
+}
+
+/* Square Root & Mathematical Symbol Overbar & Typography Styling */
+.math-sqrt {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.math-sqrt-symbol {
+  font-family: 'KaTeX_Main', 'STIX Two Math', 'Cambria Math', 'Noto Sans Math', sans-serif;
+  font-weight: normal;
+  font-size: 1.1em;
+  line-height: 1;
+  padding-right: 1px;
+}
+
+.math-sqrt-content {
+  border-top: 1.5px solid currentColor;
+  padding-top: 1px;
+  padding-left: 2px;
+  padding-right: 2px;
+  line-height: 1.2;
+}
+
+.math-minus {
+  font-family: 'KaTeX_Main', 'STIX Two Math', 'Cambria Math', sans-serif;
+  padding: 0 2px;
 }
 
 /* Formula inline preview in editor */

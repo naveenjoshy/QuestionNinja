@@ -34,6 +34,8 @@ import {
   Check
 } from 'lucide-react';
 import * as docx from 'docx';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas-pro';
 import html2pdf from 'html2pdf.js';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -57,20 +59,16 @@ const hasFormula = (text) => {
   return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
-// Pure HTML/CSS radical checkmark shape (single rotated border box)
-// Supported 100% natively by html2canvas (PDF export) and browsers without dropping elements, without missing fonts, and without overbar
-const RADICAL_CSS = `<span style="display:inline-block;width:4px;height:9px;border-bottom:2px solid currentColor;border-right:2px solid currentColor;transform:rotate(45deg);margin-right:4px;margin-left:2px;vertical-align:-1px;" aria-hidden="true"></span>`;
-
-// Helper: render square root without top overbar line
+// Helper: render square root with proper radical symbol and top overbar line
 const renderSquareRootHTML = (content) => {
   const trimmed = content ? content.trim() : '';
   if (!trimmed) {
-    return RADICAL_CSS;
+    return `<span class="math-sqrt-symbol">√</span>`;
   }
-  return `<span style="display:inline-block;white-space:nowrap;">${RADICAL_CSS}<span>${trimmed}</span></span>`;
+  return `<span class="math-sqrt"><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${trimmed}</span></span>`;
 };
 
-// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt)
+// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt, minus)
 const renderTextWithMath = (text) => {
   if (!text) return '';
   let result = text;
@@ -92,20 +90,25 @@ const renderTextWithMath = (text) => {
     }
   });
 
-  // 2. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into pure CSS radical + content
+  // 2. Format math subtraction and negative numbers with Unicode minus sign (U+2212) BEFORE creating HTML tags
+  result = result.replace(/(\b[0-9a-zA-Z]+\b|\))\s*-\s*(\b[0-9a-zA-Z]+\b|\()/g, '$1 − $2');
+  result = result.replace(/(^|\s)-([0-9a-zA-Z])/g, '$1−$2');
+
+  // 3. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into styled radical + overbar content
+  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, degree, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">${degree}</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${inner}</span></span>`);
   result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
   result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
   result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√/g, RADICAL_CSS);
+  result = result.replace(/√/g, '<span class="math-sqrt-symbol">√</span>');
 
-  // 3. Convert Unicode cube root ∛ to styled span
-  result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `∛(${inner})`);
-  result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `∛{${inner}}`);
-  result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `∛${inner}`);
-  result = result.replace(/∛/g, '<span style="font-family: \'Cambria Math\', \'Segoe UI Symbol\', \'Arial Unicode MS\', sans-serif; font-style: normal; font-weight: bold;">∛</span>');
+  // 4. Convert Unicode cube root ∛ to styled span
+  result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">3</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">(${inner})</span></span>`);
+  result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">3</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${inner}</span></span>`);
+  result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">3</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${inner}</span></span>`);
+  result = result.replace(/∛/g, '<span class="math-sqrt-symbol">∛</span>');
 
-  // 4. Restore rendered $...$ math blocks
+  // 5. Restore rendered $...$ math blocks
   mathBlocks.forEach((html, i) => {
     result = result.replace(`___MATH_BLOCK_${i}___`, html);
   });
@@ -142,8 +145,9 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
         ...defaultOptions
       }));
     } else {
-      // This is plain text, which may contain newlines '\n'
-      const lines = part.split('\n');
+      // Plain text part (format math subtraction and negative numbers with Unicode minus sign U+2212)
+      const formattedPart = part.replace(/(\b[0-9a-zA-Z]+\b|\))\s*-\s*(\b[0-9a-zA-Z]+\b|\()/g, '$1 − $2');
+      const lines = formattedPart.split('\n');
       lines.forEach((line, lIdx) => {
         const runProps = {
           text: line,
@@ -160,15 +164,16 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
   return runs;
 };
 
-// Helper: convert LaTeX to readable plain text for DOCX
+// Helper: convert LaTeX to readable plain text for DOCX with full math symbol support
 const latexToPlainText = (latex) => {
   if (!latex) return '';
   let text = latex;
+  // Binomial coefficients / combinations
+  text = text.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, (_, n, k) => `C(${n}, ${k})`);
   // Fractions (keep clean separation for numerator / denominator)
-  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, (_, num, den) => {
-    return `(${num}) / (${den})`;
-  });
-  // Square root
+  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, (_, num, den) => `(${num}) / (${den})`);
+  // nth root and square root
+  text = text.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, n, arg) => `ⁿ√(${arg})`);
   text = text.replace(/\\sqrt\{([^}]*)\}/g, (_, arg) => {
     const trimmed = arg ? arg.trim() : '';
     if (/^[0-9a-zA-Z]+$/.test(trimmed)) {
@@ -176,9 +181,13 @@ const latexToPlainText = (latex) => {
     }
     return `√(${trimmed})`;
   });
+  // Vector notation
+  text = text.replace(/\\vec\{([^}]*)\}/g, (_, v) => `${v}⃗`);
+  text = text.replace(/\\hat\{([^}]*)\}/g, (_, v) => `${v}̂`);
+  text = text.replace(/\\bar\{([^}]*)\}/g, (_, v) => `${v}̄`);
   // Superscript
   text = text.replace(/\^\{([^}]*)\}/g, (_, p) => {
-    const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','+':'⁺','-':'⁻' };
+    const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','+':'⁺','-':'⁻','=':'⁼','(':'⁽',')':'⁾','a':'ᵃ','b':'ᵇ','c':'ᶜ','x':'ˣ','y':'ʸ' };
     return p.split('').map(c => supMap[c] || `^${c}`).join('');
   });
   text = text.replace(/\^([0-9n])/g, (_, c) => {
@@ -187,25 +196,46 @@ const latexToPlainText = (latex) => {
   });
   // Subscript
   text = text.replace(/_\{([^}]*)\}/g, (_, p) => {
-    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉' };
+    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','+':'₊','-':'₋','=':'₌','(':'₍',')':'₎','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ' };
     return p.split('').map(c => subMap[c] || `_${c}`).join('');
   });
-  text = text.replace(/_([0-9])/g, (_, c) => {
-    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉' };
+  text = text.replace(/_([0-9a-zA-Z])/g, (_, c) => {
+    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ' };
     return subMap[c] || `_${c}`;
   });
-  // Greek letters
-  const greeks = { '\\alpha':'α','\\beta':'β','\\gamma':'γ','\\delta':'δ','\\theta':'θ','\\lambda':'λ','\\mu':'μ','\\pi':'π','\\sigma':'σ','\\phi':'φ','\\omega':'ω','\\Delta':'Δ','\\Sigma':'Σ','\\Pi':'Π','\\Omega':'Ω' };
+  // Full Greek alphabet (lowercase & uppercase)
+  const greeks = {
+    '\\alpha':'α','\\beta':'β','\\gamma':'γ','\\delta':'δ','\\epsilon':'ε','\\varepsilon':'ϵ',
+    '\\zeta':'ζ','\\eta':'η','\\theta':'θ','\\vartheta':'ϑ','\\iota':'ι','\\kappa':'κ',
+    '\\lambda':'λ','\\mu':'μ','\\nu':'ν','\\xi':'ξ','\\pi':'π','\\varpi':'ϖ',
+    '\\rho':'ρ','\\varrho':'ϱ','\\sigma':'σ','\\varsigma':'ς','\\tau':'τ','\\upsilon':'υ',
+    '\\phi':'φ','\\varphi':'ϕ','\\chi':'χ','\\psi':'ψ','\\omega':'ω',
+    '\\Gamma':'Γ','\\Delta':'Δ','\\Theta':'Θ','\\Lambda':'Λ','\\Xi':'Ξ','\\Pi':'Π',
+    '\\Sigma':'Σ','\\Upsilon':'Υ','\\Phi':'Φ','\\Psi':'Ψ','\\Omega':'Ω'
+  };
   for (const [k, v] of Object.entries(greeks)) {
     text = text.replaceAll(k, v);
   }
-  // Operators
-  const ops = { '\\pm':'±','\\times':'×','\\div':'÷','\\neq':'≠','\\leq':'≤','\\geq':'≥','\\infty':'∞','\\propto':'∝','\\approx':'≈','\\rightarrow':'→','\\leftarrow':'←','\\leftrightarrow':'↔','\\int':'∫','\\partial':'∂','\\sum':'Σ','\\prod':'∏','\\cdot':'·','\\ldots':'…' };
+  // Comprehensive Math, Arithmetic, Calculus & Logic operators
+  const ops = {
+    '\\pm':'±','\\mp':'∓','\\times':'×','\\div':'÷','\\cdot':'·','\\star':'⋆','\\circ':'∘',
+    '\\bullet':'•','\\cap':'∩','\\cup':'∪','\\uplus':'⊎','\\sqcap':'⊓','\\sqcup':'⊔',
+    '\\vee':'∨','\\wedge':'∧','\\setminus':'∖','\\diamond':'⋄',
+    '\\leq':'≤','\\geq':'≥','\\neq':'≠','\\equiv':'≡','\\approx':'≈','\\sim':'∼',
+    '\\simeq':'≃','\\asymp':'≍','\\propto':'∝','\\perp':'⊥','\\parallel':'∥',
+    '\\in':'∈','\\notin':'∉','\\subset':'⊂','\\supset':'⊃','\\subseteq':'⊆','\\supseteq':'⊇',
+    '\\forall':'∀','\\exists':'∃','\\nexists':'∄','\\emptyset':'∅','\\nabla':'∇',
+    '\\partial':'∂','\\int':'∫','\\iint':'∬','\\iiint':'∭','\\oint':'∮','\\sum':'∑',
+    '\\prod':'∏','\\coprod':'∐','\\infty':'∞','\\therefore':'∴','\\because':'∵',
+    '\\implies':'⇒','\\iff':'⇔','\\rightarrow':'→','\\leftarrow':'←','\\leftrightarrow':'↔',
+    '\\Rightarrow':'⇒','\\Leftarrow':'⇐','\\Leftrightarrow':'⇔','\\angle':'∠','\\measuredangle':'∡',
+    '\\degree':'°','\\ldots':'…','\\cdots':'⋯','\\vdots':'⋮','\\ddots':'⋱'
+  };
   for (const [k, v] of Object.entries(ops)) {
     text = text.replaceAll(k, v);
   }
   // Clean remaining commands
-  text = text.replace(/\\(lim|log|sin|cos|tan|ln)/g, '$1');
+  text = text.replace(/\\(lim|log|sin|cos|tan|cot|sec|csc|ln|max|min|deg)/g, '$1');
   text = text.replace(/\\[a-zA-Z]+/g, '');
   text = text.replace(/[{}]/g, '');
   text = text.replace(/\s+/g, ' ').trim();
@@ -845,6 +875,7 @@ export default function App() {
       marks: 10,
       instructions: 'Answer all questions. Each question carries equal marks.',
       type: 'essay',
+      pageBreakBefore: false,
       questions: []
     };
     setSections([...sections, newSection]);
@@ -913,7 +944,8 @@ export default function App() {
         const defaultQuestion = {
           id: `q-${Date.now()}`,
           text: '',
-          marks: 1
+          marks: 1,
+          pageBreakBefore: false
         };
 
         if (type === 'mcq') {
@@ -1232,6 +1264,7 @@ export default function App() {
       'Section Title',
       'Section Marks',
       'Section Instructions',
+      'Section Page Break Before',
       'Question Type',
       'Question Text',
       'Question Marks',
@@ -1243,7 +1276,8 @@ export default function App() {
       'Image Height',
       'Sub Questions',
       'Shuffle Column B',
-      'Table Data'
+      'Table Data',
+      'Page Break Before'
     ];
 
     const getBrandingMetaCols = () => [
@@ -1278,6 +1312,7 @@ export default function App() {
             sec.title || '',
             sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
             sec.instructions || '',
+            sec.pageBreakBefore ? 'true' : 'false',
             '',
             '',
             '',
@@ -1328,6 +1363,7 @@ export default function App() {
               sec.title || '',
               sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
               sec.instructions || '',
+              sec.pageBreakBefore ? 'true' : 'false',
               sec.type || 'essay',
               q.text || '',
               getQuestionMarks(q),
@@ -1339,7 +1375,8 @@ export default function App() {
               q.imageHeight || '',
               subQsStr,
               q.shuffleColumnB ? 'true' : 'false',
-              tableDataStr
+              tableDataStr,
+              q.pageBreakBefore ? 'true' : 'false'
             ]);
           });
         }
@@ -1438,6 +1475,7 @@ export default function App() {
         const secTitleIdx = getColIdx('Section Title') !== -1 ? getColIdx('Section Title') : 0;
         const secMarksIdx = getColIdx('Section Marks') !== -1 ? getColIdx('Section Marks') : 1;
         const secInstructionsIdx = getColIdx('Section Instructions') !== -1 ? getColIdx('Section Instructions') : 2;
+        const secPageBreakBeforeIdx = getColIdx('Section Page Break Before');
         const qTypeIdx = getColIdx('Question Type') !== -1 ? getColIdx('Question Type') : 3;
         const qTextIdx = getColIdx('Question Text') !== -1 ? getColIdx('Question Text') : 4;
         const qMarksIdx = getColIdx('Question Marks') !== -1 ? getColIdx('Question Marks') : 5;
@@ -1450,6 +1488,7 @@ export default function App() {
         const subQsIdx = getColIdx('Sub Questions') !== -1 ? getColIdx('Sub Questions') : 12;
         const shuffleColBIdx = getColIdx('Shuffle Column B');
         const tableDataIdx = getColIdx('Table Data');
+        const pageBreakBeforeIdx = getColIdx('Page Break Before');
 
         const importedSections = [];
         let importedBranding = null;
@@ -1515,6 +1554,7 @@ export default function App() {
           const secTitle = row[secTitleIdx] || '';
           const secMarks = Math.max(0, Math.round((Number(row[secMarksIdx]) || 0) * 100) / 100);
           const secInstructions = row[secInstructionsIdx] || '';
+          const secPageBreakVal = secPageBreakBeforeIdx !== -1 ? row[secPageBreakBeforeIdx] : '';
           const qType = row[qTypeIdx] || '';
           const qText = row[qTextIdx] || '';
           const qMarks = Math.max(0, Math.round((Number(row[qMarksIdx]) || 0) * 100) / 100);
@@ -1527,6 +1567,7 @@ export default function App() {
           const subQsStr = row[subQsIdx] || '';
           const shuffleColBVal = shuffleColBIdx !== -1 ? row[shuffleColBIdx] : '';
           const tableDataStr = tableDataIdx !== -1 ? row[tableDataIdx] : '';
+          const pageBreakBeforeVal = pageBreakBeforeIdx !== -1 ? row[pageBreakBeforeIdx] : '';
 
           if (!secTitle && !qText) continue;
 
@@ -1537,6 +1578,7 @@ export default function App() {
               marks: secMarks,
               instructions: secInstructions,
               type: qType || 'essay',
+              pageBreakBefore: secPageBreakVal === 'true',
               questions: []
             };
             importedSections.push(currentSection);
@@ -1573,6 +1615,10 @@ export default function App() {
 
             if (shuffleColBVal !== '') {
               q.shuffleColumnB = shuffleColBVal === 'true';
+            }
+
+            if (pageBreakBeforeVal !== '') {
+              q.pageBreakBefore = pageBreakBeforeVal === 'true';
             }
 
             if (tableDataStr) {
@@ -1730,61 +1776,200 @@ export default function App() {
     try {
       const filename = generateExportFilename('pdf');
 
-      // Create an un-clipped clone container in document.body so html2canvas can capture full height without container scroll clipping
+      // Create an in-viewport container with opacity 0 so browser computes exact layout geometry
       tempContainer = document.createElement('div');
       tempContainer.style.position = 'absolute';
-      tempContainer.style.left = '-9999px';
+      tempContainer.style.left = '0px';
       tempContainer.style.top = '0px';
-      tempContainer.style.width = '210mm';
+      tempContainer.style.width = '794px';
       tempContainer.style.background = '#ffffff';
       tempContainer.style.color = '#000000';
-      tempContainer.style.zIndex = '-9999';
+      tempContainer.style.opacity = '0';
+      tempContainer.style.pointerEvents = 'none';
+      tempContainer.style.zIndex = '-99999';
 
       const clone = el.cloneNode(true);
+      clone.style.boxShadow = 'none';
+      clone.style.margin = '0';
+      clone.style.width = '794px';
+      clone.style.boxSizing = 'border-box';
+      clone.style.position = 'relative'; // Must be positioned so it's an offsetParent for getElemTop traversal
 
       // Hide footer in clone if present
       const cloneFooter = clone.querySelector('.paper-footer');
       if (cloneFooter) cloneFooter.style.display = 'none';
 
-      // Hide print-hide elements in clone
+      // Hide print-hide elements (visual page break indicators, action buttons) in clone
       const printHideElements = clone.querySelectorAll('.print-hide');
       printHideElements.forEach(item => item.style.display = 'none');
 
       tempContainer.appendChild(clone);
       document.body.appendChild(tempContainer);
 
-      const opt = {
-        margin: [12, 0, 18, 0], // top, right, bottom, left in mm
-        filename: filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          scrollY: 0,
-          scrollX: 0,
-          windowWidth: 794
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-        pagebreak: {
-          mode: ['css', 'legacy'],
-          avoid: [
-            '.paper-section-header',
-            '.paper-question-item',
-            '.paper-subquestion-item',
-            '.paper-header',
-            '.exam-meta-grid',
-            '.paper-image-container',
-            '.paper-mcq-options'
-          ]
+      // Ensure all web fonts and KaTeX math formulas are completely rendered
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Use offsetTop traversal — viewport-independent, works for any document height.
+      const getElemTop = (elem) => {
+        let top = 0;
+        let curr = elem;
+        let safety = 0;
+        while (curr && curr !== clone && curr !== tempContainer && curr !== document.body && safety < 50) {
+          top += curr.offsetTop;
+          curr = curr.offsetParent;
+          safety++;
         }
+        return top;
       };
 
-      const worker = html2pdf().set(opt).from(clone);
-      const pdf = await worker.toPdf().get('pdf');
+      const getBoxes = (selector) => {
+        return Array.from(clone.querySelectorAll(selector)).map(elem => {
+          const top = getElemTop(elem);
+          const height = elem.offsetHeight;
+          return { elem, top, bottom: top + height, height };
+        }).filter(b => b.height > 0).sort((a, b) => a.top - b.top);
+      };
 
+      const questionBoxes = getBoxes('.paper-question-item');
+      const explicitBreakBoxes = getBoxes('.page-break-before');
+      const sectionHeaderBoxes = getBoxes('.paper-section-header');
+      const subItemBoxes = getBoxes('.paper-subquestion-item, .paper-mcq-option, .paper-question-body p, .paper-question-body > *, tr, .math-line')
+        .filter(b => !b.elem.closest('.paper-section-header'));
+
+      // Render full element to single hires canvas
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false,
+        scrollY: 0,
+        scrollX: 0,
+        windowWidth: 794,
+        windowHeight: clone.offsetHeight
+      });
+
+      // A4 PDF Dimensions: 210mm x 297mm
+      const totalHeightCSS = clone.offsetHeight;
+      const pdfWidth = 210; // mm
+      const pdfHeight = 297; // mm
+      const topMarginMM = 10; // mm
+      const bottomMarginMM = 14; // mm
+      const usableHeightMM = pdfHeight - (topMarginMM + bottomMarginMM); // 273mm
+      const usableHeightCSS = (usableHeightMM / pdfWidth) * 794; // approx 1031.8px CSS
+
+      // Collect ALL explicit break positions (sorted)
+      const explicitYPositions = explicitBreakBoxes.map(eb => eb.top).sort((a, b) => a - b);
+
+      // Helper: find the safest break point at or before `limit` that doesn't cut through any element
+      const findSafeBreakBefore = (limit, afterY) => {
+        // 1. If any section header group (header + instructions + first question) straddles limit, break before section header
+        for (const sh of sectionHeaderBoxes) {
+          const qFirst = questionBoxes.find(q => q.top >= sh.top);
+          const groupBottom = qFirst ? qFirst.top + 10 : sh.bottom + 10;
+          if (sh.top > afterY + 20 && sh.top <= limit && groupBottom > limit - 10) {
+            return sh.top - 5;
+          }
+        }
+
+        // 2. If a question item straddles limit, break before the question
+        const cutQ = questionBoxes.find(q => q.top > afterY + 20 && q.top <= limit - 10 && q.bottom > limit + 5);
+        if (cutQ) return cutQ.top - 5;
+
+        // 3. If a section header itself straddles limit, break before section header
+        const cutH = sectionHeaderBoxes.find(sh => sh.top > afterY + 20 && sh.top <= limit - 10 && sh.bottom > limit + 5);
+        if (cutH) return cutH.top - 5;
+
+        // 4. Sub-item fallback (MCQ option, subquestion, paragraph, table row, math line)
+        const cutSub = subItemBoxes
+          .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 5)
+          .sort((a, b) => b.top - a.top)[0];
+        if (cutSub) return cutSub.top - 5;
+
+        return limit;
+      };
+
+      // Single-pass greedy page break computation: guarantees every slice <= usableHeightCSS
+      const pageBreaks = [0];
+      let currentY = 0;
+
+      while (currentY < totalHeightCSS - 10) {
+        let maxTargetY = currentY + usableHeightCSS;
+        if (maxTargetY >= totalHeightCSS - 10) {
+          pageBreaks.push(totalHeightCSS);
+          break;
+        }
+
+        // Check if an explicit page break is requested between currentY + 30 and maxTargetY
+        const nextExplicit = explicitYPositions.find(pos => pos > currentY + 30 && pos <= maxTargetY + 10);
+
+        let breakY;
+        if (nextExplicit) {
+          breakY = nextExplicit - 5;
+        } else {
+          breakY = findSafeBreakBefore(maxTargetY, currentY);
+          if (breakY <= currentY + 30) {
+            breakY = maxTargetY;
+          }
+        }
+
+        // Ensure breakY is strictly progressing and bounded by maxTargetY
+        breakY = Math.min(maxTargetY, Math.max(currentY + 30, breakY));
+
+        pageBreaks.push(breakY);
+        currentY = breakY;
+      }
+
+      // Generate jsPDF document using cleanly sliced canvas sections
+      const pdf = new jsPDF({
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+        compress: true
+      });
+
+      const scale = canvas.width / clone.offsetWidth;
+      let pagesAdded = 0;
+
+      for (let i = 0; i < pageBreaks.length - 1; i++) {
+        const startY = pageBreaks[i];
+        const endY = pageBreaks[i + 1];
+        const sliceHeightCSS = endY - startY;
+
+        if (sliceHeightCSS < 5) continue;
+
+        if (pagesAdded > 0) {
+          pdf.addPage();
+        }
+        pagesAdded++;
+
+        const canvasSliceHeight = Math.max(1, Math.round(sliceHeightCSS * scale));
+
+        // Create canvas slice
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = canvasSliceHeight;
+
+        const ctx = sliceCanvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+
+        ctx.drawImage(
+          canvas,
+          0, Math.round(startY * scale), canvas.width, canvasSliceHeight,
+          0, 0, canvas.width, canvasSliceHeight
+        );
+
+        const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 0.95);
+        const slicePdfHeight = (sliceHeightCSS / 794) * pdfWidth; // in mm
+
+        pdf.addImage(sliceImgData, 'JPEG', 0, topMarginMM, pdfWidth, slicePdfHeight);
+      }
+
+      // Stamp dynamic page numbers
       const totalPages = pdf.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
@@ -1796,7 +1981,7 @@ export default function App() {
       pdf.save(filename);
     } catch (err) {
       console.error('PDF export failed:', err);
-      alert('PDF export failed. Please try again or use Print instead.');
+      alert(`PDF export failed (${err?.message || err}). Please try again or use Print instead.`);
     } finally {
       if (tempContainer && tempContainer.parentNode) {
         tempContainer.parentNode.removeChild(tempContainer);
@@ -2026,10 +2211,20 @@ export default function App() {
     let absoluteQuestionCount = 1;
 
     for (const sec of sections) {
+      // Section page break if requested
+      if (sec.pageBreakBefore) {
+        headerChildren.push(
+          new docx.Paragraph({
+            children: [new docx.PageBreak()]
+          })
+        );
+      }
+
       const hasInstructions = !!sec.instructions;
-      // Section header with bottom border line matching PDF (below instructions if present)
+      // Section header title
       headerChildren.push(
         new docx.Paragraph({
+          keepNext: true,
           alignment: docx.AlignmentType.JUSTIFY,
           border: hasInstructions ? undefined : {
             bottom: {
@@ -2067,6 +2262,7 @@ export default function App() {
       if (sec.instructions) {
         headerChildren.push(
           new docx.Paragraph({
+            keepNext: true,
             alignment: docx.AlignmentType.JUSTIFY,
             border: {
               bottom: {
@@ -2094,10 +2290,19 @@ export default function App() {
         const qNum = `Q${absoluteQuestionCount}.`;
         absoluteQuestionCount++;
 
+        if (q.pageBreakBefore) {
+          headerChildren.push(
+            new docx.Paragraph({
+              children: [new docx.PageBreak()]
+            })
+          );
+        }
+
         // Add question text matching PDF (Q1. and (1 M))
         const qLines = (q.text || '').split('\n');
         headerChildren.push(
           new docx.Paragraph({
+            keepNext: true,
             alignment: docx.AlignmentType.JUSTIFY,
             spacing: { before: 60, after: 20 },
             tabStops: [
@@ -2976,9 +3181,14 @@ export default function App() {
                 return (
                   <div key={sec.id} className="editor-card" style={{ borderLeft: `4px solid var(--accent)` }}>
                     <div className="editor-card-header">
-                      <div className="editor-card-title" onClick={() => toggleSectionCollapse(sec.id)} style={{ cursor: 'pointer', flex: 1 }}>
+                      <div className="editor-card-title" onClick={() => toggleSectionCollapse(sec.id)} style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Layers size={14} />
                         <span>Section {String.fromCharCode(65 + sIdx)}</span>
+                        {sec.pageBreakBefore && (
+                          <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                            ✂ Page Break
+                          </span>
+                        )}
                         {collapsedSections[sec.id] && (
                           <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: '6px' }}>
                             ({sec.questions.length} questions, {secTotal}M)
@@ -3048,6 +3258,22 @@ export default function App() {
                           />
                         </div>
 
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', marginBottom: '8px' }}>
+                          <input
+                            type="checkbox"
+                            id={`sec-pagebreak-${sec.id}`}
+                            checked={!!sec.pageBreakBefore}
+                            onChange={(e) => updateSectionMeta(sec.id, 'pageBreakBefore', e.target.checked)}
+                            style={{ cursor: 'pointer', margin: 0, width: 'auto' }}
+                          />
+                          <label
+                            htmlFor={`sec-pagebreak-${sec.id}`}
+                            style={{ fontSize: '12px', fontWeight: '500', cursor: 'pointer', margin: 0, userSelect: 'none', color: 'var(--text-primary)' }}
+                          >
+                            Insert Page Break before this section
+                          </label>
+                        </div>
+
                         <div className="form-group">
                           <label>Section Question Type</label>
                           <select
@@ -3078,9 +3304,16 @@ export default function App() {
                           {sec.questions.map((q, qIdx) => (
                             <div key={q.id} onPaste={(e) => handlePasteImage(e, sec.id, q.id)} style={{ padding: '12px', backgroundColor: 'var(--bg-editor)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color)' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--accent)' }}>
-                                  Q{qIdx + 1} ({(sec.type || 'essay').toUpperCase()})
-                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--accent)' }}>
+                                    Q{qIdx + 1} ({(sec.type || 'essay').toUpperCase()})
+                                  </span>
+                                  {q.pageBreakBefore && (
+                                    <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                                      ✂ Page Break
+                                    </span>
+                                  )}
+                                </div>
                                 <div style={{ display: 'flex', gap: '4px' }}>
                                   <button className="btn-icon-only" style={{ padding: '4px' }} onClick={() => moveQuestion(sec.id, qIdx, 'up')} disabled={qIdx === 0}>
                                     <ArrowUp size={12} />
@@ -3117,6 +3350,22 @@ export default function App() {
                                     <AlertTriangle size={12} /> Please enter the question text.
                                   </span>
                                 )}
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                                  <input
+                                    type="checkbox"
+                                    id={`pagebreak-${sec.id}-${q.id}`}
+                                    checked={!!q.pageBreakBefore}
+                                    onChange={(e) => updateQuestion(sec.id, q.id, { pageBreakBefore: e.target.checked })}
+                                    style={{ cursor: 'pointer', margin: 0, width: 'auto' }}
+                                  />
+                                  <label
+                                    htmlFor={`pagebreak-${sec.id}-${q.id}`}
+                                    style={{ fontSize: '11px', fontWeight: '500', cursor: 'pointer', margin: 0, userSelect: 'none', color: 'var(--text-primary)' }}
+                                  >
+                                    Insert Page Break before this question
+                                  </label>
+                                </div>
 
                                 {/* Question Image Fields - positioned directly below Question Text */}
                                 {sec.type !== 'match_following' && (
@@ -3692,6 +3941,14 @@ export default function App() {
                                         </div>
                                       </div>
                                     ))}
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!!q.pageBreakBefore}
+                                        onChange={(e) => updateQuestion(sec.id, q.id, { pageBreakBefore: e.target.checked })}
+                                      />
+                                      <label style={{ fontSize: '11px' }}>Page break before question</label>
+                                    </div>
                                     {q.subQuestions && q.subQuestions.length > 0 && (
                                       <button
                                         className="btn btn-secondary btn-sm"
@@ -4281,7 +4538,28 @@ export default function App() {
                     </div>
                   ) : (
                     sections.map((sec, sIdx) => (
-                      <div key={sec.id} className="paper-section">
+                      <React.Fragment key={sec.id}>
+                        {sec.pageBreakBefore && (
+                          <div className="preview-page-break-indicator print-hide" style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justify: 'center',
+                            gap: '8px',
+                            margin: '20px 0 14px 0',
+                            padding: '6px 12px',
+                            borderTop: '2px dashed var(--accent)',
+                            borderBottom: '2px dashed var(--accent)',
+                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                            color: 'var(--accent)',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            borderRadius: '4px',
+                            letterSpacing: '0.5px'
+                          }}>
+                            <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
+                          </div>
+                        )}
+                        <div className={`paper-section ${sec.pageBreakBefore ? 'page-break-before' : ''}`}>
                         <div className="paper-section-header">
                           <div className="paper-section-title-row">
                             <h2 className="paper-section-title">{sec.title}</h2>
@@ -4303,7 +4581,28 @@ export default function App() {
                             const globalNum = previousQuestionsCount + qIdx + 1;
 
                             return (
-                              <div key={q.id} className="paper-question-item">
+                              <React.Fragment key={q.id}>
+                                {q.pageBreakBefore && (
+                                  <div className="preview-page-break-indicator print-hide" style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justify: 'center',
+                                    gap: '8px',
+                                    margin: '16px 0 12px 0',
+                                    padding: '6px 12px',
+                                    borderTop: '2px dashed var(--accent)',
+                                    borderBottom: '2px dashed var(--accent)',
+                                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                    color: 'var(--accent)',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    borderRadius: '4px',
+                                    letterSpacing: '0.5px'
+                                  }}>
+                                    <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
+                                  </div>
+                                )}
+                                <div className={`paper-question-item ${q.pageBreakBefore ? 'page-break-before' : ''}`}>
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
                                   <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
@@ -4384,8 +4683,8 @@ export default function App() {
                                                 </div>
                                               )}
                                               {!metadata.separateAnswerSheet && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', paddingLeft: '20px' }}>
-                                                  {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4 }).map((_, lineIdx) => (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '2px', paddingLeft: '20px' }}>
+                                                  {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 2 }).map((_, lineIdx) => (
                                                     <div key={lineIdx} className="paper-answer-line"></div>
                                                   ))}
                                                 </div>
@@ -4395,8 +4694,8 @@ export default function App() {
                                         </div>
                                       ) : (
                                         !metadata.separateAnswerSheet && (
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '8px' }}>
-                                            {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5 }).map((_, lineIdx) => (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '3px' }}>
+                                            {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 2 }).map((_, lineIdx) => (
                                               <div key={lineIdx} className="paper-answer-line"></div>
                                             ))}
                                           </div>
@@ -4496,12 +4795,14 @@ export default function App() {
                                 </div>
                                 <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
                               </div>
-                            );
+                            </React.Fragment>
+                          );
                           })}
                         </div>
                       </div>
-                    ))
-                  )}
+                    </React.Fragment>
+                  ))
+                )}
                 </div>
 
                 {/* Page number footer */}
