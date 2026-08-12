@@ -21,6 +21,7 @@ import {
   ChevronUp,
   Sun,
   Moon,
+  Eye,
   ArrowLeft,
   ArrowRight,
   Loader2,
@@ -316,7 +317,7 @@ const DEFAULT_BRANDING = {
   logoPos: { x: 0, y: 0 },
   schoolName: 'Girijyothi CMI Public School',
   schoolAddress: 'Vazhathope, Idukki',
-  fontFamily: 'Cinzel',
+  fontFamily: 'Inter',
   headerLogoOnly: false,
   hideSchoolLogo: false
 };
@@ -452,6 +453,150 @@ const DEFAULT_SECTIONS = [
   }
 ];
 
+const QUICK_MATH_SYMBOLS = [
+  { label: '√x', latex: '\\sqrt{x}' },
+  { label: 'a/b', latex: '\\frac{a}{b}' },
+  { label: 'x²', latex: 'x^2' },
+  { label: 'x₁', latex: 'x_1' },
+  { label: '±', latex: '\\pm' },
+  { label: 'θ', latex: '\\theta' },
+  { label: 'π', latex: '\\pi' },
+  { label: 'α', latex: '\\alpha' },
+  { label: 'β', latex: '\\beta' },
+  { label: '∫', latex: '\\int' },
+  { label: '∑', latex: '\\sum' },
+  { label: '∞', latex: '\\infty' },
+  { label: '→', latex: '\\rightarrow' },
+  { label: '≠', latex: '\\neq' },
+  { label: '≤', latex: '\\le' },
+  { label: '≥', latex: '\\ge' },
+  { label: '≈', latex: '\\approx' }
+];
+
+const PRESET_TEMPLATES = {
+  cbse10: {
+    name: 'Class 10 Science (CBSE 80 Marks)',
+    branding: {
+      schoolName: 'Greenwood International School',
+      schoolAddress: 'Sector 14, Main Campus, New Delhi - 110001\nPhone: +91 11 2345 6789 | Web: www.greenwood.edu.in',
+      fontFamily: 'Inter',
+      hideSchoolLogo: false,
+      headerLogoOnly: false,
+      logoPos: { x: 0, y: 0 },
+      logoWidth: 80,
+      logoHeight: 80
+    },
+    metadata: {
+      examTitle: 'MID-TERM ASSESSMENT 2026',
+      subject: 'SCIENCE (PHYSICAL & LIFE SCIENCES)',
+      grade: 'CLASS X',
+      duration: '3 Hours',
+      maxMarks: 80,
+      date: '2026-09-15',
+      instructions: '1. All questions are compulsory.\n2. Section A contains 16 MCQs of 1 mark each.\n3. Section B contains 6 Short Answer Questions of 2 marks each.\n4. Section C contains 7 Short Answer Questions of 3 marks each.\n5. Section D contains 3 Long Answer Questions of 5 marks each.\n6. Use of calculators is not permitted.',
+      language: 'english',
+      separateAnswerSheet: true
+    },
+    sections: [
+      {
+        id: 'sec-cbse-mcq',
+        title: 'SECTION A - MULTIPLE CHOICE QUESTIONS',
+        instructions: 'Select the single correct option for each question.',
+        type: 'mcq',
+        questions: [
+          { id: 'q-cbse-1', text: 'Which of the following represents the correct balanced chemical equation for the reaction between hydrogen gas and chlorine gas?', marks: 1, options: ['H₂ + Cl₂ → 2HCl', '2H + 2Cl → 2HCl', 'H₂ + Cl₂ → HCl₂', 'H₂ + 2Cl → H₂Cl'] },
+          { id: 'q-cbse-2', text: 'The focal length of a concave mirror is 20 cm. Its radius of curvature $R$ will be:', marks: 1, options: ['10 cm', '20 cm', '40 cm', '80 cm'] },
+          { id: 'q-cbse-3', text: 'Which gas is evolved when dilute hydrochloric acid reacts with zinc granules?', marks: 1, options: ['Carbon dioxide', 'Hydrogen gas', 'Oxygen gas', 'Nitrogen dioxide'] },
+          { id: 'q-cbse-4', text: 'The breakdown of pyruvate to give carbon dioxide, water and energy takes place in:', marks: 1, options: ['Cytoplasm', 'Mitochondria', 'Chloroplast', 'Nucleus'] }
+        ]
+      },
+      {
+        id: 'sec-cbse-sa',
+        title: 'SECTION B - SHORT ANSWER QUESTIONS',
+        instructions: 'Answer each question in about 30-50 words.',
+        type: 'essay',
+        questions: [
+          { id: 'q-cbse-5', text: 'State Ohm\'s Law and write its mathematical formula $V = I \\times R$. Draw a circuit diagram to verify Ohm\'s Law.', marks: 2, blankLines: 4 },
+          { id: 'q-cbse-6', text: 'What is a redox reaction? Identify the substance oxidized and reduced in the following reaction:\n$CuO + H_2 \\rightarrow Cu + H_2O$', marks: 2, blankLines: 4 },
+          { id: 'q-cbse-7', text: 'Explain why the sky appears blue to an observer on Earth during daytime.', marks: 2, blankLines: 4 }
+        ]
+      }
+    ]
+  },
+  physics12: {
+    name: 'Class 12 Physics (70 Marks)',
+    branding: {
+      schoolName: 'St. Xavier Higher Secondary School',
+      schoolAddress: 'Campus Avenue, Science Block, Bengaluru\nContact: exam.dep@stxaviers.edu',
+      fontFamily: 'Montserrat',
+      hideSchoolLogo: false,
+      headerLogoOnly: false,
+      logoPos: { x: 0, y: 0 },
+      logoWidth: 80,
+      logoHeight: 80
+    },
+    metadata: {
+      examTitle: 'FIRST QUARTERLY EXAMINATION 2026',
+      subject: 'PHYSICS (THEORY)',
+      grade: 'CLASS XII',
+      duration: '3 Hours',
+      maxMarks: 70,
+      date: '2026-10-01',
+      instructions: '1. All questions are compulsory.\n2. Numerical constants: $c = 3 \\times 10^8\\text{ m/s}$, $e = 1.6 \\times 10^{-19}\\text{ C}$.',
+      language: 'english',
+      separateAnswerSheet: true
+    },
+    sections: [
+      {
+        id: 'sec-p12-mcq',
+        title: 'SECTION A - CONCEPTUAL MCQs',
+        instructions: 'Choose the correct option.',
+        type: 'mcq',
+        questions: [
+          { id: 'q-p12-1', text: 'The electrostatic potential $V$ at any point $(x, y, z)$ in space is given by $V = 4x^2\\text{ volts}$. The electric field $\\vec{E}$ at point $(1, 0, 2)\\text{ m}$ is:', marks: 1, options: ['-8 î V/m', '8 î V/m', '-16 î V/m', '4 î V/m'] },
+          { id: 'q-p12-2', text: 'Two thin convex lenses of focal lengths $f_1 = 15\\text{ cm}$ and $f_2 = 30\\text{ cm}$ are kept in contact. Equivalent power $P$ of the combination is:', marks: 1, options: ['+10 D', '+5 D', '+15 D', '+2.5 D'] }
+        ]
+      }
+    ]
+  },
+  mathQuiz: {
+    name: 'Mathematics Weekly Quiz (25 Marks)',
+    branding: {
+      schoolName: 'Model Public Academy',
+      schoolAddress: 'Department of Mathematics',
+      fontFamily: 'Inter',
+      hideSchoolLogo: false,
+      headerLogoOnly: false,
+      logoPos: { x: 0, y: 0 },
+      logoWidth: 80,
+      logoHeight: 80
+    },
+    metadata: {
+      examTitle: 'WEEKLY MATHEMATICS QUIZ',
+      subject: 'ALGEBRA & GEOMETRY',
+      grade: 'CLASS IX',
+      duration: '45 Minutes',
+      maxMarks: 25,
+      date: '2026-08-20',
+      instructions: 'Answer all questions clearly. Show formula steps.',
+      language: 'english',
+      separateAnswerSheet: true
+    },
+    sections: [
+      {
+        id: 'sec-mq-1',
+        title: 'SECTION A - ALGEBRA & POLYNOMIALS',
+        instructions: 'Solve the following algebraic equations.',
+        type: 'essay',
+        questions: [
+          { id: 'q-mq-1', text: 'Factorise the quadratic polynomial: $x^2 - 7x + 12 = 0$. Find its roots.', marks: 3, blankLines: 4 },
+          { id: 'q-mq-2', text: 'Find the value of $k$ if $(x - 1)$ is a factor of $p(x) = 2x^2 + kx + \\sqrt{2}$.', marks: 3, blankLines: 4 }
+        ]
+      }
+    ]
+  }
+};
+
 export default function App() {
   // App states
   const [branding, setBranding] = useState(DEFAULT_BRANDING);
@@ -469,9 +614,62 @@ export default function App() {
   const [activeInputInfo, setActiveInputInfo] = useState(null);
   const [csvImportModal, setCsvImportModal] = useState({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: false, importExam: true, importQuestions: true });
   const [isPdfExporting, setIsPdfExporting] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(0.85);
+  const [mobileView, setMobileView] = useState('editor'); // 'editor' | 'preview'
+  const [showLivePreview, setShowLivePreview] = useState(true);
   const paperSheetRef = useRef(null);
   const formulaInputRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  const loadPresetTemplate = (presetKey) => {
+    const template = PRESET_TEMPLATES[presetKey];
+    if (!template) return;
+    if (template.branding) setBranding(prev => ({ ...prev, ...template.branding }));
+    if (template.metadata) setMetadata(prev => ({ ...prev, ...template.metadata }));
+    if (template.sections) setSections(template.sections);
+  };
+
+  const insertQuickMathSymbol = (latexSymbol) => {
+    if (!activeInputInfo) return;
+    const elementId = activeInputInfo.id;
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const currentValue = el.value;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const formulaString = `$${latexSymbol}$`;
+    const newValue = currentValue.substring(0, start) + formulaString + currentValue.substring(end);
+    updateValueForId(elementId, newValue);
+
+    setTimeout(() => {
+      const inputEl = document.getElementById(elementId);
+      if (inputEl) {
+        inputEl.focus();
+        const newCursorPos = start + formulaString.length;
+        inputEl.setSelectionRange(newCursorPos, newCursorPos);
+        setActiveInputInfo({ id: elementId });
+      }
+    }, 50);
+  };
+
+  const quickAddQuestionType = (qType) => {
+    let targetSecId = sections[0]?.id;
+    if (!targetSecId) {
+      const newSecId = `sec-${Date.now()}`;
+      const newSec = {
+        id: newSecId,
+        title: 'SECTION A - GENERAL QUESTIONS',
+        instructions: 'Answer all questions in this section.',
+        type: qType,
+        questions: []
+      };
+      setSections([newSec]);
+      targetSecId = newSecId;
+    }
+    setActiveTab('sections');
+    addQuestion(targetSecId);
+  };
 
   // Hook to track focus on formula-enabled text inputs
   useEffect(() => {
@@ -775,6 +973,10 @@ export default function App() {
   const getExamCurrentTotalMarks = () => {
     const rawTotal = sections.reduce((total, s) => total + getSectionTotalMarks(s), 0);
     return Math.round(rawTotal * 100) / 100;
+  };
+
+  const getExamTotalQuestionsCount = () => {
+    return sections.reduce((total, sec) => total + (sec.questions ? sec.questions.length : 0), 0);
   };
 
   const hasBlankQuestions = () => {
@@ -1452,43 +1654,59 @@ export default function App() {
         }
 
         const headerRow = parsedRows[0].map(h => (h || '').trim().toLowerCase());
-        const getColIdx = (name) => headerRow.indexOf(name.toLowerCase());
+        const getColIdx = (...names) => {
+          for (const name of names) {
+            const idx = headerRow.findIndex(h => h === name.toLowerCase() || h.includes(name.toLowerCase()));
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        };
 
-        // Header column mappings
-        const schoolLogoIdx = getColIdx('School Logo');
-        const schoolLogoWidthIdx = getColIdx('School Logo Width');
-        const schoolLogoHeightIdx = getColIdx('School Logo Height');
-        const hideSchoolLogoIdx = getColIdx('Hide School Logo');
+        const normalizeQType = (rawType, defaultType = 'essay') => {
+          if (!rawType) return defaultType;
+          const lower = String(rawType).trim().toLowerCase().replace(/[-_]/g, ' ');
+          if (lower.includes('mcq') || lower.includes('multiple choice')) return 'mcq';
+          if (lower.includes('true') || lower.includes('false') || lower.includes('tf')) return 'true_false';
+          if (lower.includes('match') || lower.includes('following') || lower.includes('pair')) return 'match_following';
+          if (lower.includes('table')) return 'table';
+          return 'essay';
+        };
+
+        // Header column mappings with aliases
+        const schoolLogoIdx = getColIdx('School Logo', 'logo');
+        const schoolLogoWidthIdx = getColIdx('School Logo Width', 'logo width');
+        const schoolLogoHeightIdx = getColIdx('School Logo Height', 'logo height');
+        const hideSchoolLogoIdx = getColIdx('Hide School Logo', 'hide logo');
         const headerLogoOnlyIdx = getColIdx('Header Logo Only');
-        const schoolNameIdx = getColIdx('School Name');
-        const schoolAddressIdx = getColIdx('School Address');
-        const fontFamilyIdx = getColIdx('Font Family');
+        const schoolNameIdx = getColIdx('School Name', 'school');
+        const schoolAddressIdx = getColIdx('School Address', 'address');
+        const fontFamilyIdx = getColIdx('Font Family', 'font');
 
-        const examTitleIdx = getColIdx('Exam Title');
+        const examTitleIdx = getColIdx('Exam Title', 'title');
         const subjectIdx = getColIdx('Subject');
-        const classDivIdx = getColIdx('Class Div');
-        const maxMarksIdx = getColIdx('Max Marks');
-        const durationIdx = getColIdx('Duration');
-        const separateAnswerSheetIdx = getColIdx('Separate Answer Sheet');
-        const languageIdx = getColIdx('Language');
+        const classDivIdx = getColIdx('Class Div', 'grade', 'class');
+        const maxMarksIdx = getColIdx('Max Marks', 'total marks');
+        const durationIdx = getColIdx('Duration', 'time');
+        const separateAnswerSheetIdx = getColIdx('Separate Answer Sheet', 'answer sheet');
+        const languageIdx = getColIdx('Language', 'lang');
 
         // Section & Question column mappings with legacy index fallbacks
-        const secTitleIdx = getColIdx('Section Title') !== -1 ? getColIdx('Section Title') : 0;
+        const secTitleIdx = getColIdx('Section Title', 'section') !== -1 ? getColIdx('Section Title', 'section') : 0;
         const secMarksIdx = getColIdx('Section Marks') !== -1 ? getColIdx('Section Marks') : 1;
-        const secInstructionsIdx = getColIdx('Section Instructions') !== -1 ? getColIdx('Section Instructions') : 2;
+        const secInstructionsIdx = getColIdx('Section Instructions', 'instructions') !== -1 ? getColIdx('Section Instructions', 'instructions') : 2;
         const secPageBreakBeforeIdx = getColIdx('Section Page Break Before');
-        const qTypeIdx = getColIdx('Question Type') !== -1 ? getColIdx('Question Type') : 3;
-        const qTextIdx = getColIdx('Question Text') !== -1 ? getColIdx('Question Text') : 4;
-        const qMarksIdx = getColIdx('Question Marks') !== -1 ? getColIdx('Question Marks') : 5;
-        const optionsIdx = getColIdx('Options') !== -1 ? getColIdx('Options') : 6;
+        const qTypeIdx = getColIdx('Question Type', 'type') !== -1 ? getColIdx('Question Type', 'type') : 3;
+        const qTextIdx = getColIdx('Question Text', 'text', 'question') !== -1 ? getColIdx('Question Text', 'text', 'question') : 4;
+        const qMarksIdx = getColIdx('Question Marks', 'marks') !== -1 ? getColIdx('Question Marks', 'marks') : 5;
+        const optionsIdx = getColIdx('Options', 'choices') !== -1 ? getColIdx('Options', 'choices') : 6;
         const blankLinesIdx = getColIdx('Blank Lines') !== -1 ? getColIdx('Blank Lines') : 7;
-        const matchPairsIdx = getColIdx('Match Pairs') !== -1 ? getColIdx('Match Pairs') : 8;
-        const imageDataIdx = getColIdx('Image Data') !== -1 ? getColIdx('Image Data') : 9;
+        const matchPairsIdx = getColIdx('Match Pairs', 'match', 'matching', 'pairs') !== -1 ? getColIdx('Match Pairs', 'match', 'matching', 'pairs') : 8;
+        const imageDataIdx = getColIdx('Image Data', 'image') !== -1 ? getColIdx('Image Data', 'image') : 9;
         const imageWidthIdx = getColIdx('Image Width') !== -1 ? getColIdx('Image Width') : 10;
         const imageHeightIdx = getColIdx('Image Height') !== -1 ? getColIdx('Image Height') : 11;
-        const subQsIdx = getColIdx('Sub Questions') !== -1 ? getColIdx('Sub Questions') : 12;
-        const shuffleColBIdx = getColIdx('Shuffle Column B');
-        const tableDataIdx = getColIdx('Table Data');
+        const subQsIdx = getColIdx('Sub Questions', 'subquestions') !== -1 ? getColIdx('Sub Questions', 'subquestions') : 12;
+        const shuffleColBIdx = getColIdx('Shuffle Column B', 'shuffle');
+        const tableDataIdx = getColIdx('Table Data', 'table');
         const pageBreakBeforeIdx = getColIdx('Page Break Before');
 
         const importedSections = [];
@@ -1556,7 +1774,7 @@ export default function App() {
           const secMarks = Math.max(0, Math.round((Number(row[secMarksIdx]) || 0) * 100) / 100);
           const secInstructions = row[secInstructionsIdx] || '';
           const secPageBreakVal = secPageBreakBeforeIdx !== -1 ? row[secPageBreakBeforeIdx] : '';
-          const qType = row[qTypeIdx] || '';
+          const rawQType = row[qTypeIdx] || '';
           const qText = row[qTextIdx] || '';
           const qMarks = Math.max(0, Math.round((Number(row[qMarksIdx]) || 0) * 100) / 100);
           const optionsStr = row[optionsIdx] || '';
@@ -1570,7 +1788,9 @@ export default function App() {
           const tableDataStr = tableDataIdx !== -1 ? row[tableDataIdx] : '';
           const pageBreakBeforeVal = pageBreakBeforeIdx !== -1 ? row[pageBreakBeforeIdx] : '';
 
-          if (!secTitle && !qText) continue;
+          const hasQuestionData = !!(qText || matchPairsStr || optionsStr || tableDataStr || subQsStr);
+
+          if (!secTitle && !hasQuestionData) continue;
 
           if (secTitle && (!currentSection || currentSection.title !== secTitle)) {
             currentSection = {
@@ -1578,7 +1798,7 @@ export default function App() {
               title: secTitle,
               marks: secMarks,
               instructions: secInstructions,
-              type: qType || 'essay',
+              type: normalizeQType(rawQType, 'essay'),
               pageBreakBefore: secPageBreakVal === 'true',
               questions: []
             };
@@ -1591,17 +1811,19 @@ export default function App() {
               title: 'Imported Section',
               marks: 0,
               instructions: '',
-              type: qType || 'essay',
+              type: normalizeQType(rawQType, 'essay'),
               questions: []
             };
             importedSections.push(currentSection);
           }
 
-          if (qType && qText) {
+          const effectiveQType = normalizeQType(rawQType || currentSection.type, 'essay');
+
+          if (hasQuestionData || effectiveQType === 'match_following') {
             const q = {
               id: `q-${Date.now()}-${i}`,
-              type: qType,
-              text: qText,
+              type: effectiveQType,
+              text: qText || (effectiveQType === 'match_following' ? 'Match the following items:' : ''),
               marks: qMarks
             };
 
@@ -1637,7 +1859,7 @@ export default function App() {
               }
             }
 
-            if (qType === 'mcq') {
+            if (effectiveQType === 'mcq') {
               if (optionsStr) {
                 const trimmedOpt = optionsStr.trim();
                 if (trimmedOpt.startsWith('[') || trimmedOpt.startsWith('{')) {
@@ -1653,20 +1875,26 @@ export default function App() {
               } else {
                 q.options = ['', '', '', ''];
               }
-            } else if (qType === 'essay') {
+            } else if (effectiveQType === 'essay') {
               q.blankLines = (blankLinesVal !== '' && !isNaN(blankLinesVal)) ? Math.max(0, parseInt(blankLinesVal, 10)) : 5;
-            } else if (qType === 'match_following') {
+            } else if (effectiveQType === 'match_following') {
               if (matchPairsStr) {
                 const trimmed = matchPairsStr.trim();
                 if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
                   try {
                     const parsed = JSON.parse(trimmed);
-                    q.matchPairs = Array.isArray(parsed) ? parsed.map(p => ({
-                      premise: typeof p === 'string' ? p : (p.premise || ''),
-                      premiseImage: typeof p === 'object' ? (p.premiseImage || '') : '',
-                      response: typeof p === 'string' ? p : (p.response || ''),
-                      responseImage: typeof p === 'object' ? (p.responseImage || '') : ''
-                    })) : [];
+                    q.matchPairs = Array.isArray(parsed) ? parsed.map(p => {
+                      if (typeof p === 'string') {
+                        const parts = p.split('=');
+                        return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
+                      }
+                      return {
+                        premise: p.premise !== undefined ? p.premise : (p.premiseText !== undefined ? p.premiseText : (p.left || '')),
+                        premiseImage: p.premiseImage || p.leftImage || '',
+                        response: p.response !== undefined ? p.response : (p.responseText !== undefined ? p.responseText : (p.right || '')),
+                        responseImage: p.responseImage || p.rightImage || ''
+                      };
+                    }) : [];
                   } catch (e) {
                     q.matchPairs = matchPairsStr.split(';').map(pair => {
                       const parts = pair.split('=');
@@ -1680,7 +1908,9 @@ export default function App() {
                   });
                 }
               } else {
-                q.matchPairs = [];
+                q.matchPairs = [
+                  { premise: 'Column A Item 1', premiseImage: '', response: 'Column B Match 1', responseImage: '' }
+                ];
               }
             }
 
@@ -1688,10 +1918,6 @@ export default function App() {
               q.image = imageData;
               q.imageWidth = Number(imageWidthVal) || 300;
               q.imageHeight = Number(imageHeightVal) || 200;
-            }
-
-            if (q.type === 'image') {
-              q.type = 'essay';
             }
 
             currentSection.questions.push(q);
@@ -1813,23 +2039,16 @@ export default function App() {
       }
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Use offsetTop traversal — viewport-independent, works for any document height.
+      // Use getBoundingClientRect for absolute pixel precision relative to clone root
+      const cloneRect = clone.getBoundingClientRect();
       const getElemTop = (elem) => {
-        let top = 0;
-        let curr = elem;
-        let safety = 0;
-        while (curr && curr !== clone && curr !== tempContainer && curr !== document.body && safety < 50) {
-          top += curr.offsetTop;
-          curr = curr.offsetParent;
-          safety++;
-        }
-        return top;
+        return elem.getBoundingClientRect().top - cloneRect.top;
       };
 
       const getBoxes = (selector) => {
         return Array.from(clone.querySelectorAll(selector)).map(elem => {
           const top = getElemTop(elem);
-          const height = elem.offsetHeight;
+          const height = elem.getBoundingClientRect().height;
           return { elem, top, bottom: top + height, height };
         }).filter(b => b.height > 0).sort((a, b) => a.top - b.top);
       };
@@ -1838,15 +2057,15 @@ export default function App() {
       const explicitBreakBoxes = getBoxes('.page-break-before');
       const sectionHeaderBoxes = getBoxes('.paper-section-header');
       const sectionInstructionBoxes = getBoxes('.paper-section-instructions');
-      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *, .paper-section-instructions');
+      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *, .paper-section-instructions, .paper-question-title, .paper-question-text');
       const tableRowBoxes = getBoxes('tr');
       const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
-      const subItemBoxes = getBoxes('.paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block')
+      const subItemBoxes = getBoxes('.paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line')
         .filter(b => !b.elem.closest('.paper-section-header'));
       const unbreakableBoxes = [
-        ...questionBoxes,
         ...sectionHeaderBoxes,
         ...sectionInstructionBoxes,
+        ...questionBoxes,
         ...paragraphBoxes,
         ...tableRowBoxes,
         ...tableBoxes,
@@ -1885,40 +2104,30 @@ export default function App() {
 
       // Helper: find the safest break point at or before `limit` that doesn't cut through any element
       const findSafeBreakBefore = (limit, afterY) => {
-        // 1. If any section header group (header + instructions + first question) straddles limit, break before section header
+        let bestBreak = limit;
+
+        // 1. If any section header group (header + instructions + top of first question) straddles limit, break before section header
         for (const sh of sectionHeaderBoxes) {
           const qFirst = questionBoxes.find(q => q.top >= sh.top);
-          const groupBottom = qFirst ? qFirst.top + 10 : sh.bottom + 10;
-          if (sh.top > afterY + 20 && sh.top <= limit && groupBottom > limit - 10) {
-            return sh.top - 5;
+          const minRequiredBottom = qFirst ? Math.min(qFirst.top + 35, qFirst.bottom) : sh.bottom + 15;
+          if (sh.top >= afterY + 15 && sh.top < limit - 10 && minRequiredBottom > limit - 4) {
+            return sh.top - 6;
           }
         }
 
-        // 2. If a question item straddles limit, break before the question
-        const cutQ = questionBoxes.find(q => q.top > afterY + 20 && q.top <= limit - 10 && q.bottom > limit + 5);
-        if (cutQ) return cutQ.top - 5;
+        // 2. If a question item straddles limit and fits on a page, break before the question
+        const cutQ = questionBoxes.find(q => q.top >= afterY + 15 && q.top < limit - 10 && q.bottom > limit - 4);
+        if (cutQ && cutQ.height <= usableHeightCSS - 20) {
+          return cutQ.top - 6;
+        }
 
-        // 3. If a section header or section instructions straddle limit, break before section header/instructions
-        const cutH = [...sectionHeaderBoxes, ...sectionInstructionBoxes].find(sh => sh.top > afterY + 15 && sh.top <= limit - 10 && sh.bottom > limit + 5);
-        if (cutH) return cutH.top - 5;
-
-        // 4. Paragraphs and table rows are never allowed to straddle a page break.
-        const cutParagraphOrRow = [...paragraphBoxes, ...tableRowBoxes]
-          .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 5)
-          .sort((a, b) => b.top - a.top)[0];
-        if (cutParagraphOrRow) return cutParagraphOrRow.top - 5;
-
-        // 5. Sub-item fallback (MCQ option, question block, tables, math line)
-        const cutSub = subItemBoxes
-          .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 5)
-          .sort((a, b) => b.top - a.top)[0];
-        if (cutSub) return cutSub.top - 5;
-
-        // 6. Long-content blocks such as full paragraphs or table sections should move to the next page
-        const cutLongContent = unbreakableBoxes
-          .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 15)
-          .sort((a, b) => b.top - a.top)[0];
-        if (cutLongContent) return cutLongContent.top - 5;
+        // 3. Check all unbreakable boxes (section headers, instructions, paragraphs, table rows, options)
+        const overflowingBox = unbreakableBoxes
+          .filter(b => b.top >= afterY + 10 && b.top < limit - 8 && b.bottom > limit - 4 && b.height <= usableHeightCSS - 20)
+          .sort((a, b) => a.top - b.top)[0];
+        if (overflowingBox) {
+          return overflowingBox.top - 6;
+        }
 
         return limit;
       };
@@ -1944,20 +2153,18 @@ export default function App() {
           breakY = findSafeBreakBefore(maxTargetY, currentY);
         }
 
-        const firstOverflowingElement = unbreakableBoxes.find(el => {
-          const startsOnThisPage = el.top >= currentY - 5 && el.top < maxTargetY - 10;
-          const extendsPastPage = el.bottom > maxTargetY - 2;
-          return startsOnThisPage && extendsPastPage;
-        });
+        // Double-check: ensure no unbreakable element is cut across breakY
+        const cutElem = unbreakableBoxes
+          .filter(el => el.top >= currentY + 10 && el.top < breakY - 4 && el.bottom > breakY - 4 && el.height <= usableHeightCSS - 20)
+          .sort((a, b) => a.top - b.top)[0];
 
-        if (firstOverflowingElement && firstOverflowingElement.top > currentY + 15) {
-          breakY = Math.min(breakY, firstOverflowingElement.top - 5);
+        if (cutElem) {
+          breakY = cutElem.top - 6;
         }
 
-        // If a forced break is still too close to the current position, move it forward so
-        // the element begins on the next page instead of being split across pages.
-        if (!Number.isFinite(breakY) || breakY <= currentY + 10) {
-          breakY = Math.min(maxTargetY, currentY + 10);
+        // Safety fallback: avoid infinite loops if breakY is too close to currentY
+        if (!Number.isFinite(breakY) || breakY <= currentY + 15) {
+          breakY = Math.min(maxTargetY, currentY + Math.max(30, usableHeightCSS * 0.5));
         }
 
         if (breakY >= totalHeightCSS - 10) {
@@ -2110,7 +2317,7 @@ export default function App() {
           alignment: docx.AlignmentType.CENTER,
           children: [
             new docx.TextRun({
-              text: (branding.schoolName || '').toUpperCase(),
+              text: branding.schoolName || '',
               bold: true,
               size: 50,
               font: getFontFamily()
@@ -2294,7 +2501,7 @@ export default function App() {
               position: docx.TabStopPosition.MAX
             }
           ],
-          spacing: { before: 240, after: hasInstructions ? 40 : 80 },
+          spacing: { before: 140, after: hasInstructions ? 20 : 40 },
           children: [
             new docx.TextRun({
               text: (sec.title || '').toUpperCase(),
@@ -2318,7 +2525,6 @@ export default function App() {
         instructionLines.forEach((line, idx) => {
           headerChildren.push(
             new docx.Paragraph({
-              keepNext: true,
               alignment: docx.AlignmentType.JUSTIFY,
               border: idx === instructionLines.length - 1 ? {
                 bottom: {
@@ -2329,8 +2535,8 @@ export default function App() {
                 }
               } : undefined,
               spacing: {
-                before: idx === 0 ? 40 : 20,
-                after: idx === instructionLines.length - 1 ? 80 : 20
+                before: idx === 0 ? 20 : 10,
+                after: idx === instructionLines.length - 1 ? 40 : 10
               },
               children: [
                 new docx.TextRun({
@@ -2364,7 +2570,7 @@ export default function App() {
           new docx.Paragraph({
             keepNext: true,
             alignment: docx.AlignmentType.JUSTIFY,
-            spacing: { before: 180, after: 60 },
+            spacing: { before: 100, after: 30 },
             tabStops: [
               {
                 type: docx.TabStopType.RIGHT,
@@ -2561,109 +2767,113 @@ export default function App() {
           }
         }
 
-        else if (sec.type === 'essay') {
-          if (q.subQuestions && q.subQuestions.length > 0) {
-            for (let sqIdx = 0; sqIdx < q.subQuestions.length; sqIdx++) {
-              const sq = q.subQuestions[sqIdx];
-              const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
-              const sqLines = (sq.text || '').split('\n');
+        else if (sec.type === 'essay' && q.subQuestions && q.subQuestions.length > 0) {
+          for (let sqIdx = 0; sqIdx < q.subQuestions.length; sqIdx++) {
+            const sq = q.subQuestions[sqIdx];
+            const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
+            const sqLinesText = (sq.text || '').split('\n');
+            headerChildren.push(
+              new docx.Paragraph({
+                alignment: docx.AlignmentType.JUSTIFY,
+                indent: { left: 360 },
+                spacing: { before: 40, after: 20 },
+                tabStops: [
+                  {
+                    type: docx.TabStopType.RIGHT,
+                    position: docx.TabStopPosition.MAX
+                  }
+                ],
+                children: [
+                  new docx.TextRun({
+                    text: `${sqLabel}  `,
+                    bold: true,
+                    size: 28
+                  }),
+                  ...docxTextRunsWithMath(sqLinesText[0] || '', { size: 28 }),
+                  new docx.TextRun({
+                    text: `\t(${formatMarks(sq.marks)} M)`,
+                    italic: true,
+                    size: 28
+                  })
+                ]
+              })
+            );
+            for (let lIdx = 1; lIdx < sqLinesText.length; lIdx++) {
               headerChildren.push(
                 new docx.Paragraph({
-                  alignment: docx.AlignmentType.JUSTIFY,
-                  indent: { left: 360 },
-                  spacing: { before: 40, after: 20 },
-                  tabStops: [
-                    {
-                      type: docx.TabStopType.RIGHT,
-                      position: docx.TabStopPosition.MAX
-                    }
-                  ],
-                  children: [
-                    new docx.TextRun({
-                      text: `${sqLabel}  `,
-                      bold: true,
-                      size: 28
-                    }),
-                    ...docxTextRunsWithMath(sqLines[0] || '', { size: 28 }),
-                    new docx.TextRun({
-                      text: `\t(${formatMarks(sq.marks)} M)`,
-                      italic: true,
-                      size: 28
-                    })
-                  ]
+                  indent: { left: 720 },
+                  spacing: { after: 20 },
+                  children: docxTextRunsWithMath(sqLinesText[lIdx])
                 })
               );
-              for (let lIdx = 1; lIdx < sqLines.length; lIdx++) {
+            }
+
+            if (sq.image) {
+              const sqImageBytes = await imageToUint8Array(sq.image);
+              if (sqImageBytes) {
                 headerChildren.push(
                   new docx.Paragraph({
                     indent: { left: 720 },
-                    spacing: { after: 20 },
-                    children: docxTextRunsWithMath(sqLines[lIdx])
+                    spacing: { before: 80, after: 80 },
+                    children: [
+                      new docx.ImageRun({
+                        data: sqImageBytes,
+                        transformation: {
+                          width: sq.imageWidth || 300,
+                          height: sq.imageHeight || 200
+                        }
+                      })
+                    ]
                   })
                 );
               }
+            }
 
-              if (sq.image) {
-                const sqImageBytes = await imageToUint8Array(sq.image);
-                if (sqImageBytes) {
-                  headerChildren.push(
-                    new docx.Paragraph({
-                      indent: { left: 720 },
-                      spacing: { before: 80, after: 80 },
-                      children: [
-                        new docx.ImageRun({
-                          data: sqImageBytes,
-                          transformation: {
-                            width: sq.imageWidth || 300,
-                            height: sq.imageHeight || 200
-                          }
-                        })
-                      ]
-                    })
-                  );
-                }
-              }
-
-              if (!metadata.separateAnswerSheet) {
-                const sqLines = (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 4;
-                for (let i = 0; i < sqLines; i++) {
-                  headerChildren.push(
-                    new docx.Paragraph({
-                      indent: { left: 360 },
-                      border: {
-                        bottom: {
-                          style: docx.BorderStyle.SINGLE,
-                          size: 8,
-                          color: '333333',
-                          space: 2
-                        }
-                      },
-                      spacing: { before: 40, after: 80 },
-                      children: [new docx.TextRun({ text: '' })]
-                    })
-                  );
-                }
+            if (!metadata.separateAnswerSheet) {
+              const sqLinesCount = (sq.blankLines !== undefined && sq.blankLines !== '' && sq.blankLines !== null)
+                ? Math.max(0, parseInt(sq.blankLines, 10) || 0)
+                : 4;
+              for (let i = 0; i < sqLinesCount; i++) {
+                headerChildren.push(
+                  new docx.Paragraph({
+                    indent: { left: 360 },
+                    border: {
+                      bottom: {
+                        style: docx.BorderStyle.SINGLE,
+                        size: 8,
+                        color: '333333',
+                        space: 2
+                      }
+                    },
+                    spacing: { before: 40, after: 80 },
+                    children: [new docx.TextRun({ text: '' })]
+                  })
+                );
               }
             }
-          } else if (!metadata.separateAnswerSheet) {
-            // Renders specified blank lines
-            const linesCount = (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 5;
-            for (let i = 0; i < linesCount; i++) {
-              headerChildren.push(
-                new docx.Paragraph({
-                  border: {
-                    bottom: {
-                      style: docx.BorderStyle.SINGLE,
-                      size: 8,
-                      color: '333333',
-                      space: 2
-                    }
-                  },
-                  spacing: { before: 40, after: 80 },
-                  children: [new docx.TextRun({ text: '' })]
-                })
-              );
-            }
+          }
+        }
+
+        // Render main question blank lines for any question type if blankLines is specified
+        if (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0)) {
+          const linesCount = (q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
+            ? Math.max(0, parseInt(q.blankLines, 10) || 0)
+            : (sec.type === 'essay' ? 4 : 0);
+          for (let i = 0; i < linesCount; i++) {
+            headerChildren.push(
+              new docx.Paragraph({
+                border: {
+                  bottom: {
+                    style: docx.BorderStyle.SINGLE,
+                    size: 8,
+                    color: '333333',
+                    space: 2
+                  }
+                },
+                spacing: { before: 40, after: 80 },
+                children: [new docx.TextRun({ text: '' })]
+              })
+            );
           }
         }
 
@@ -3006,51 +3216,118 @@ export default function App() {
   };
 
   return (
-    <div className={`app-container theme-${theme}`}>
-      {/* Editor Panel (Left sidebar) */}
-      <div className="editor-panel">
-        <div className="editor-header">
-          <div>
-            <h1>
-              <img src={pageLogo} style={{ width: '26px', height: '26px', objectFit: 'contain', marginRight: '2px' }} alt="Logo" />
-              <span>QuestionNinja</span>
-            </h1>
-            <p>Where Great Questions Begin</p>
+    <div className={`app-container studio-container theme-${theme}`}>
+      {/* Studio Top Header Bar */}
+      <div className="studio-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(79, 70, 229, 0.2) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(99, 102, 241, 0.25)'
+          }}>
+            <img src={pageLogo} style={{ width: '26px', height: '26px', objectFit: 'contain' }} alt="Logo" />
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-secondary btn-sm" onClick={toggleTheme} title="Toggle Light/Dark Theme">
-              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => setIsPreviewOpen(true)}>
-              <Maximize2 size={14} /> Live Preview
-            </button>
+          <div>
+            <h1 style={{ fontSize: '18px', fontWeight: 800, margin: 0, letterSpacing: '-0.3px', background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              QuestionNinja Studio
+            </h1>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, fontWeight: 500 }}>
+              Professional Question Paper Generator
+            </p>
           </div>
         </div>
 
-        {/* Tab Selection */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+
+
+        {/* Action Controls & Responsive Toggle */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginLeft: 'auto' }}>
+          {/* Side-by-side Live Preview Toggle (Desktop Only) */}
           <button
-            className={`btn btn-sm ${activeTab === 'branding' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'branding' ? '2px solid var(--accent)' : 'none' }}
-            onClick={() => setActiveTab('branding')}
+            className={`btn btn-sm side-preview-toggle-btn ${showLivePreview ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setShowLivePreview(!showLivePreview)}
+            title={showLivePreview ? "Hide side preview to expand editor" : "Show side-by-side live paper preview"}
+            style={{ alignItems: 'center', gap: '6px' }}
           >
-            <ImageIcon size={14} /> School Details
+            <Eye size={14} />
+            <span>{showLivePreview ? 'Side Preview: ON' : 'Side Preview: OFF'}</span>
           </button>
-          <button
-            className={`btn btn-sm ${activeTab === 'metadata' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'metadata' ? '2px solid var(--accent)' : 'none' }}
-            onClick={() => setActiveTab('metadata')}
-          >
-            <Settings size={14} /> Exam Details
+
+
+
+          <button className="btn btn-secondary btn-sm" onClick={toggleTheme} title="Toggle Light/Dark Theme">
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
-          <button
-            className={`btn btn-sm ${activeTab === 'sections' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ flex: 1, borderRadius: 0, border: 'none', borderBottom: activeTab === 'sections' ? '2px solid var(--accent)' : 'none' }}
-            onClick={() => setActiveTab('sections')}
-          >
-            <Layers size={14} /> Questions
+
+          <button className="btn btn-primary btn-sm" onClick={() => setIsPreviewOpen(true)} title="Full Paper Preview Modal">
+            <Maximize2 size={15} />
+            <span>Preview</span>
           </button>
         </div>
+      </div>
+
+      {/* Main Studio Workspace */}
+      <div className="studio-workspace">
+        {/* Left Column: Question & Exam Builder */}
+        <div className={`studio-editor-column ${!showLivePreview ? 'full-width' : ''} ${mobileView === 'preview' ? 'hidden-mobile' : ''}`}>
+          {/* Marks & Status Validation Meter */}
+          <div className="marks-meter-bar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Target: <strong style={{ color: 'var(--text-primary)' }}>{metadata.maxMarks || 0} M</strong>
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Sections: <strong style={{ color: 'var(--text-primary)' }}>{sections ? sections.length : 0}</strong>
+              </span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                Questions: <strong style={{ color: 'var(--text-primary)' }}>{getExamTotalQuestionsCount()}</strong>
+              </span>
+            </div>
+            <div>
+              {getExamCurrentTotalMarks() === metadata.maxMarks ? (
+                <span className="marks-meter-badge marks-meter-success">
+                  <CheckCircle size={14} /> Allocated: {formatMarks(getExamCurrentTotalMarks())} M (Match!)
+                </span>
+              ) : (
+                <span className="marks-meter-badge marks-meter-warning">
+                  <AlertTriangle size={14} /> Allocated: {formatMarks(getExamCurrentTotalMarks())} / {metadata.maxMarks} M
+                </span>
+              )}
+            </div>
+          </div>
+
+
+
+          {/* Tab Selection */}
+          <div className="nav-tab-container">
+            <button
+              className={`nav-tab-btn ${activeTab === 'branding' ? 'active' : ''}`}
+              onClick={() => setActiveTab('branding')}
+            >
+              <ImageIcon size={15} />
+              <span>School Details</span>
+            </button>
+            <button
+              className={`nav-tab-btn ${activeTab === 'metadata' ? 'active' : ''}`}
+              onClick={() => setActiveTab('metadata')}
+            >
+              <Settings size={15} />
+              <span>Exam Details</span>
+            </button>
+            <button
+              className={`nav-tab-btn ${activeTab === 'sections' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sections')}
+            >
+              <Layers size={15} />
+              <span>Questions ({getExamTotalQuestionsCount()})</span>
+            </button>
+          </div>
 
         <div className="editor-content">
           {/* TAB 1: SCHOOL DETAILS */}
@@ -4429,10 +4706,407 @@ export default function App() {
             </label>
           </div>
         </div>
-
       </div>
 
-      {/* Preview Modal */}
+        {/* Right Column: Real-Time Side-by-Side Live A4 Paper Sheet View */}
+        <div className={`studio-preview-column ${!showLivePreview ? 'hidden' : ''} ${mobileView === 'editor' ? 'hidden-mobile' : ''}`}>
+          {/* Live Preview Controls Header */}
+          <div style={{
+            padding: '12px 20px',
+            borderBottom: '1px solid var(--border-color)',
+            background: 'var(--bg-sidebar)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}>
+            {/* Zoom Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '4px 8px' }}
+                onClick={() => setPreviewZoom(prev => Math.max(0.4, Number((prev - 0.05).toFixed(2))))}
+                title="Zoom Out (5%)"
+              >
+                -
+              </button>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', minWidth: '48px', textAlign: 'center' }}>
+                {Math.round(previewZoom * 100)}%
+              </span>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '4px 8px' }}
+                onClick={() => setPreviewZoom(prev => Math.min(1.5, Number((prev + 0.05).toFixed(2))))}
+                title="Zoom In (5%)"
+              >
+                +
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '4px 8px', fontSize: '11px' }}
+                onClick={() => setPreviewZoom(0.85)}
+                title="Reset Zoom to 85%"
+              >
+                Reset
+              </button>
+            </div>
+
+
+          </div>
+
+          {/* Paper Zoom Container */}
+          <div style={{ padding: '24px 12px', flex: 1, display: 'flex', justifyContent: 'center', overflowY: 'auto' }}>
+            <div style={{ transform: `scale(${previewZoom})`, transformOrigin: 'top center', transition: 'transform 0.2s ease' }}>
+              {/* Dynamic A4 Preview Sheet */}
+              <div ref={paperSheetRef} className={`paper-sheet lang-${metadata.language || 'english'}`}>
+
+                {/* Header Layout */}
+                <div className={`paper-header font-${branding.fontFamily}`}>
+                  {branding.logo && !branding.hideSchoolLogo && (
+                    <div
+                      ref={logoRef}
+                      className={`brand-logo-container ${isDragging ? 'dragging' : ''} ${branding.headerLogoOnly ? 'centered' : ''}`}
+                      style={branding.headerLogoOnly ? {
+                        width: `${branding.logoWidth || 100}px`,
+                        height: `${branding.logoHeight || 100}px`
+                      } : {
+                        width: `${branding.logoWidth || 100}px`,
+                        height: `${branding.logoHeight || 100}px`,
+                        left: `${branding.logoPos.x}px`,
+                        top: `${branding.logoPos.y}px`
+                      }}
+                      onPointerDown={branding.headerLogoOnly ? undefined : handleLogoPointerDown}
+                      onPointerMove={branding.headerLogoOnly ? undefined : handleLogoPointerMove}
+                      onPointerUp={branding.headerLogoOnly ? undefined : handleLogoPointerUp}
+                    >
+                      {!branding.headerLogoOnly && <div className="drag-indicator">Drag to move</div>}
+                      <img
+                        src={branding.logo}
+                        className="brand-logo-img"
+                        alt="School Logo"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          if (branding.logo !== schoolLogo) {
+                            setBranding(prev => ({ ...prev, logo: schoolLogo }));
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {!branding.headerLogoOnly && (
+                    <div className="school-details">
+                      {branding.schoolName && <h1 className="school-name-render">{branding.schoolName}</h1>}
+                      {branding.schoolAddress && <p className="school-address-render">{branding.schoolAddress}</p>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Exam Specs Row */}
+                <div className="exam-meta-grid">
+                  <div className="exam-meta-item full-width">
+                    <span className="exam-meta-label">Examination:</span>
+                    <span>{metadata.title || '_______________________'}</span>
+                  </div>
+                  <div className="exam-meta-item full-width">
+                    <span className="exam-meta-label">Subject:</span>
+                    <span>{metadata.subject || '_______________________'}</span>
+                  </div>
+                  <div className="exam-meta-item full-width">
+                    <span className="exam-meta-label">Class:</span>
+                    <span>{metadata.classDiv || '_______________________'}</span>
+                  </div>
+                  <div className="exam-meta-item full-width">
+                    <span className="exam-meta-label">Max Marks:</span>
+                    <span>{formatMarks(metadata.maxMarks)}</span>
+                  </div>
+                  <div className="exam-meta-item full-width">
+                    <span className="exam-meta-label">Duration:</span>
+                    <span>{metadata.duration || '_______________________'}</span>
+                  </div>
+                </div>
+
+                {/* Render Sections & Questions */}
+                <div className="paper-sections-container">
+                  {sections.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: '#999', padding: '40px 0', fontSize: '14px', fontStyle: 'italic' }}>
+                      No sections added yet. Use the "Questions" tab in the editor to create sections and populate questions.
+                    </div>
+                  ) : (
+                    sections.map((sec, sIdx) => (
+                      <React.Fragment key={sec.id}>
+                        {sec.pageBreakBefore && (
+                          <div className="preview-page-break-indicator print-hide" style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            margin: '20px 0 14px 0',
+                            padding: '6px 12px',
+                            borderTop: '2px dashed var(--accent)',
+                            borderBottom: '2px dashed var(--accent)',
+                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                            color: 'var(--accent)',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            borderRadius: '4px',
+                            letterSpacing: '0.5px'
+                          }}>
+                            <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
+                          </div>
+                        )}
+                        <div className={`paper-section ${sec.pageBreakBefore ? 'page-break-before' : ''}`}>
+                        <div className="paper-section-header">
+                          <div className="paper-section-title-row">
+                            <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
+                            <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
+                          </div>
+                          {sec.instructions && (
+                            <div className="paper-section-instructions">{sec.instructions}</div>
+                          )}
+                        </div>
+
+                        <div className="paper-questions-list">
+                          {sec.questions.map((q, qIdx) => {
+                            let previousQuestionsCount = 0;
+                            for (let i = 0; i < sIdx; i++) {
+                              previousQuestionsCount += sections[i].questions.length;
+                            }
+                            const globalNum = previousQuestionsCount + qIdx + 1;
+
+                            return (
+                              <React.Fragment key={q.id}>
+                                {q.pageBreakBefore && (
+                                  <div className="preview-page-break-indicator print-hide" style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    margin: '16px 0 12px 0',
+                                    padding: '6px 12px',
+                                    borderTop: '2px dashed var(--accent)',
+                                    borderBottom: '2px dashed var(--accent)',
+                                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                    color: 'var(--accent)',
+                                    fontSize: '11px',
+                                    fontWeight: 'bold',
+                                    borderRadius: '4px',
+                                    letterSpacing: '0.5px'
+                                  }}>
+                                    <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
+                                  </div>
+                                )}
+                                <div className={`paper-question-item ${q.pageBreakBefore ? 'page-break-before' : ''}`}>
+                                <span className="paper-question-number">Q{globalNum}.</span>
+                                <div className="paper-question-body">
+                                  <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+
+                                  {/* Question Image render */}
+                                  {q.image && sec.type !== 'match_following' && (
+                                    <div className="paper-image-container" style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-start' }}>
+                                      <img
+                                        src={q.image}
+                                        alt={`Question ${globalNum}`}
+                                        style={{
+                                          width: `${q.imageWidth || 300}px`,
+                                          height: `${q.imageHeight || 200}px`,
+                                          objectFit: 'contain',
+                                          maxWidth: '100%'
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* MCQ Options */}
+                                  {sec.type === 'mcq' && q.options && (
+                                    <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
+                                      {q.options.map((opt, oIdx) => (
+                                        <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                            <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
+                                            {getOptionText(opt) && (
+                                              <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
+                                            )}
+                                          </div>
+                                          {getOptionImage(opt) && (
+                                            <div style={{ marginTop: '4px', marginLeft: '22px' }}>
+                                              <img
+                                                src={getOptionImage(opt)}
+                                                alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                style={{
+                                                  width: getOptionImageWidth(opt) ? `${getOptionImageWidth(opt)}px` : 'auto',
+                                                  height: getOptionImageHeight(opt) ? `${getOptionImageHeight(opt)}px` : 'auto',
+                                                  maxWidth: '100%',
+                                                  maxHeight: '180px',
+                                                  objectFit: 'contain'
+                                                }}
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Essay spaces and Sub-Questions */}
+                                  {sec.type === 'essay' && (
+                                    <>
+                                      {q.subQuestions && q.subQuestions.length > 0 ? (
+                                        <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                          {q.subQuestions.map((sq, sqIdx) => (
+                                            <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                                <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
+                                                  <span style={{ flex: 1, textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                </div>
+                                                <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
+                                              </div>
+                                              {sq.image && (
+                                                <div className="paper-subquestion-image-container" style={{ marginTop: '4px', paddingLeft: '18px' }}>
+                                                  <img
+                                                    src={sq.image}
+                                                    alt={`Sub-question ${sq.label || sqIdx + 1}`}
+                                                    style={{
+                                                      width: `${sq.imageWidth || 300}px`,
+                                                      height: `${sq.imageHeight || 200}px`,
+                                                      objectFit: 'contain',
+                                                      maxWidth: '100%'
+                                                    }}
+                                                  />
+                                                </div>
+                                              )}
+                                              {!metadata.separateAnswerSheet && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '2px', paddingLeft: '20px' }}>
+                                                  {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 2 }).map((_, lineIdx) => (
+                                                    <div key={lineIdx} className="paper-answer-line"></div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        !metadata.separateAnswerSheet && (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '3px' }}>
+                                            {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 2 }).map((_, lineIdx) => (
+                                              <div key={lineIdx} className="paper-answer-line"></div>
+                                            ))}
+                                          </div>
+                                        )
+                                      )}
+                                    </>
+                                  )}
+
+                                  {/* True/False selection */}
+                                  {sec.type === 'true_false' && !metadata.separateAnswerSheet && (
+                                    <div className="paper-tf-options">
+                                      <span>[   ] True</span>
+                                      <span>[   ] False</span>
+                                    </div>
+                                  )}
+
+                                  {/* Match the Following columns */}
+                                  {sec.type === 'match_following' && q.matchPairs && (
+                                    <table className="paper-match-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Column A</th>
+                                          <th style={{ paddingLeft: '20px' }}>Column B</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {q.matchPairs.map((pair, pIdx) => {
+                                          const shuffledList = getShuffledList(q);
+                                          const roman = (idx) => {
+                                            const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+                                            return r[idx] || (idx + 1).toString();
+                                          };
+                                          const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
+                                          const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
+                                          const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
+
+                                          return (
+                                            <tr key={pIdx}>
+                                              <td style={{ padding: '6px 0', verticalAlign: 'top' }}>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
+                                                  <div>
+                                                    {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
+                                                    {pair.premiseImage && (
+                                                      <img
+                                                        src={pair.premiseImage}
+                                                        alt={`Col A ${pIdx + 1}`}
+                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                              <td style={{ padding: '6px 0', paddingLeft: '20px', verticalAlign: 'top' }}>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{roman(pIdx)}.</span>
+                                                  <div>
+                                                    {respText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(respText) }} />}
+                                                    {respImg && (
+                                                      <img
+                                                        src={respImg}
+                                                        alt={`Col B ${pIdx + 1}`}
+                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                      />
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  )}
+
+                                  {/* Table question render */}
+                                  {sec.type === 'table' && q.tableData && (
+                                    <table className="paper-table-question">
+                                      <thead>
+                                        <tr>
+                                          {q.tableData.headers.map((h, hIdx) => (
+                                            <th key={hIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(h) }} />
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {q.tableData.rows.map((row, rIdx) => (
+                                          <tr key={rIdx}>
+                                            {row.map((cell, cIdx) => (
+                                              <td key={cIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(cell) }} />
+                                            ))}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                                <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
+                              </div>
+                            </React.Fragment>
+                          );
+                          })}
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  ))
+                )}
+                </div>
+
+                {/* Page number footer */}
+                <div className="paper-footer"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       {isPreviewOpen && (
         <div className="modal-overlay preview-overlay" onClick={() => setIsPreviewOpen(false)}>
           <div className="modal-content preview-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -4529,7 +5203,7 @@ export default function App() {
 
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
-              <div ref={paperSheetRef} className={`paper-sheet lang-${metadata.language || 'english'} font-${branding.fontFamily}`}>
+              <div ref={paperSheetRef} className={`paper-sheet lang-${metadata.language || 'english'}`}>
 
                 {/* Header Layout */}
                 <div className={`paper-header font-${branding.fontFamily}`}>
