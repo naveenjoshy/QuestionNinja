@@ -151,6 +151,7 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
       lines.forEach((line, lIdx) => {
         const runProps = {
           text: line,
+          font: defaultOptions.font || getFontFamily(),
           size: defaultOptions.size || 34,
           ...defaultOptions
         };
@@ -2059,7 +2060,15 @@ export default function App() {
   const getFontFamily = () => {
     if (metadata.language === 'malayalam') return 'Manjari';
     if (metadata.language === 'hindi') return 'Noto Sans Devanagari';
-    return branding.fontFamily === 'Inter' ? 'Calibri' : 'Times New Roman';
+    switch (branding.fontFamily) {
+      case 'Inter': return 'Inter';
+      case 'Playfair': return 'Playfair Display';
+      case 'Montserrat': return 'Montserrat';
+      case 'Courier': return 'Courier Prime';
+      case 'Merriweather': return 'Merriweather';
+      case 'Cinzel': return 'Cinzel';
+      default: return branding.fontFamily || 'Inter';
+    }
   };
 
   const imageToUint8Array = async (src) => {
@@ -4517,7 +4526,7 @@ export default function App() {
 
             <div className="modal-body">
               {/* Dynamic A4 Preview Sheet */}
-              <div ref={paperSheetRef} className={`paper-sheet lang-${metadata.language || 'english'}`}>
+              <div ref={paperSheetRef} className={`paper-sheet lang-${metadata.language || 'english'} font-${branding.fontFamily}`}>
 
                 {/* Header Layout */}
                 <div className={`paper-header font-${branding.fontFamily}`}>

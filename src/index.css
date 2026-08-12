@@ -854,12 +854,12 @@ textarea.mcq-option-textarea {
 }
 
 /* Typography Overrides */
-.font-Inter { font-family: 'Inter', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', sans-serif; }
-.font-Playfair { font-family: 'Playfair Display', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
-.font-Montserrat { font-family: 'Montserrat', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', sans-serif; }
-.font-Courier { font-family: 'Courier Prime', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', monospace; }
-.font-Merriweather { font-family: 'Merriweather', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
-.font-Cinzel { font-family: 'Cinzel', 'Inter', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
+.font-Inter, .font-Inter * { font-family: 'Inter', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', sans-serif; }
+.font-Playfair, .font-Playfair * { font-family: 'Playfair Display', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
+.font-Montserrat, .font-Montserrat * { font-family: 'Montserrat', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', sans-serif; }
+.font-Courier, .font-Courier * { font-family: 'Courier Prime', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', monospace; }
+.font-Merriweather, .font-Merriweather * { font-family: 'Merriweather', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
+.font-Cinzel, .font-Cinzel * { font-family: 'Cinzel', 'Inter', 'Cambria Math', 'Noto Sans Math', 'Segoe UI Symbol', serif; }
 
 /* Drag Overlay helper */
 .drag-indicator {
@@ -1330,11 +1330,9 @@ textarea.mcq-option-textarea {
 }
 
 .katex,
-.paper-sheet,
 .paper-formula-block,
-.formula-inline-preview,
-.paper-question-body {
-  font-family: 'KaTeX_Main', 'KaTeX_Math', 'STIX Two Math', 'Noto Sans Math', 'Cambria Math', 'Latin Modern Math', 'Inter', sans-serif;
+.formula-inline-preview {
+  font-family: 'KaTeX_Main', 'KaTeX_Math', 'STIX Two Math', 'Noto Sans Math', 'Cambria Math', 'Latin Modern Math', sans-serif;
 }
 
 /* Square Root & Mathematical Symbol Overbar & Typography Styling */
