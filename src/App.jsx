@@ -2364,7 +2364,7 @@ export default function App() {
           new docx.Paragraph({
             keepNext: true,
             alignment: docx.AlignmentType.JUSTIFY,
-            spacing: { before: 60, after: 20 },
+            spacing: { before: 180, after: 60 },
             tabStops: [
               {
                 type: docx.TabStopType.RIGHT,
@@ -2431,10 +2431,10 @@ export default function App() {
             const lines = text ? text.split('\n') : [''];
             paragraphs.push(
               new docx.Paragraph({
-                spacing: { after: 40 },
+                spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 32 }),
-                  ...docxTextRunsWithMath(lines[0] || '', { size: 32 })
+                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 28 }),
+                  ...docxTextRunsWithMath(lines[0] || '', { size: 28 })
                 ]
               })
             );
@@ -2442,8 +2442,8 @@ export default function App() {
               paragraphs.push(
                 new docx.Paragraph({
                   indent: { left: 450 },
-                  spacing: { after: 40 },
-                  children: docxTextRunsWithMath(lines[i], { size: 32 })
+                  spacing: { before: 40, after: 40 },
+                  children: docxTextRunsWithMath(lines[i], { size: 28 })
                 })
               );
             }
@@ -2471,7 +2471,8 @@ export default function App() {
 
           if (isSingle) {
             const numOpts = q.options.length;
-            const colWidth = Math.floor(9000 / numOpts);
+            const availWidth = 8550;
+            const colWidth = Math.floor(availWidth / numOpts);
             const cells = q.options.map((opt, oIdx) => {
               const letter = String.fromCharCode(65 + oIdx);
               return new docx.TableCell({
@@ -2488,7 +2489,8 @@ export default function App() {
 
             headerChildren.push(
               new docx.Table({
-                width: { size: 9000, type: docx.WidthType.DXA },
+                width: { size: availWidth, type: docx.WidthType.DXA },
+                indent: { size: 450, type: docx.WidthType.DXA },
                 columnWidths: Array(numOpts).fill(colWidth),
                 borders: {
                   top: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2516,7 +2518,7 @@ export default function App() {
                 new docx.TableRow({
                   children: [
                     new docx.TableCell({
-                      width: { size: 4500, type: docx.WidthType.DXA },
+                      width: { size: 4275, type: docx.WidthType.DXA },
                       borders: {
                         top: { style: docx.BorderStyle.NONE, size: 0 },
                         bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2526,7 +2528,7 @@ export default function App() {
                       children: leftChildren
                     }),
                     new docx.TableCell({
-                      width: { size: 4500, type: docx.WidthType.DXA },
+                      width: { size: 4275, type: docx.WidthType.DXA },
                       borders: {
                         top: { style: docx.BorderStyle.NONE, size: 0 },
                         bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2542,8 +2544,9 @@ export default function App() {
 
             headerChildren.push(
               new docx.Table({
-                width: { size: 9000, type: docx.WidthType.DXA },
-                columnWidths: [4500, 4500],
+                width: { size: 8550, type: docx.WidthType.DXA },
+                indent: { size: 450, type: docx.WidthType.DXA },
+                columnWidths: [4275, 4275],
                 borders: {
                   top: { style: docx.BorderStyle.NONE, size: 0 },
                   bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2667,13 +2670,13 @@ export default function App() {
         else if (sec.type === 'true_false' && !metadata.separateAnswerSheet) {
           headerChildren.push(
             new docx.Paragraph({
-              indent: { left: 720 },
-              spacing: { after: 60 },
+              indent: { left: 450 },
+              spacing: { before: 80, after: 120 },
               children: [
                 new docx.TextRun({
                   text: '[    ] True        [    ] False',
                   bold: true,
-                  size: 34
+                  size: 28
                 })
               ]
             })
@@ -2698,7 +2701,7 @@ export default function App() {
             new docx.TableRow({
               children: [
                 new docx.TableCell({
-                  width: { size: 4500, type: docx.WidthType.DXA },
+                  width: { size: 4275, type: docx.WidthType.DXA },
                   borders: {
                     top: { style: docx.BorderStyle.NONE, size: 0 },
                     bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
@@ -2708,12 +2711,12 @@ export default function App() {
                   children: [
                     new docx.Paragraph({
                       spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 34 })]
+                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 30 })]
                     })
                   ]
                 }),
                 new docx.TableCell({
-                  width: { size: 4500, type: docx.WidthType.DXA },
+                  width: { size: 4275, type: docx.WidthType.DXA },
                   borders: {
                     top: { style: docx.BorderStyle.NONE, size: 0 },
                     bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
@@ -2723,7 +2726,7 @@ export default function App() {
                   children: [
                     new docx.Paragraph({
                       spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 34 })]
+                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 30 })]
                     })
                   ]
                 })
@@ -2744,8 +2747,8 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 34 }),
-                  ...docxTextRunsWithMath(itemA.text || '')
+                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 28 }),
+                  ...docxTextRunsWithMath(itemA.text || '', { size: 28 })
                 ]
               })
             ];
@@ -2770,8 +2773,8 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 34 }),
-                  ...docxTextRunsWithMath(itemB.text || '')
+                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 28 }),
+                  ...docxTextRunsWithMath(itemB.text || '', { size: 28 })
                 ]
               })
             ];
@@ -2796,7 +2799,7 @@ export default function App() {
               new docx.TableRow({
                 children: [
                   new docx.TableCell({
-                    width: { size: 4500, type: docx.WidthType.DXA },
+                    width: { size: 4275, type: docx.WidthType.DXA },
                     borders: {
                       top: { style: docx.BorderStyle.NONE, size: 0 },
                       bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2806,7 +2809,7 @@ export default function App() {
                     children: cellAChildren
                   }),
                   new docx.TableCell({
-                    width: { size: 4500, type: docx.WidthType.DXA },
+                    width: { size: 4275, type: docx.WidthType.DXA },
                     borders: {
                       top: { style: docx.BorderStyle.NONE, size: 0 },
                       bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2822,8 +2825,9 @@ export default function App() {
 
           headerChildren.push(
             new docx.Table({
-              width: { size: 9000, type: docx.WidthType.DXA },
-              columnWidths: [4500, 4500],
+              width: { size: 8550, type: docx.WidthType.DXA },
+              indent: { size: 450, type: docx.WidthType.DXA },
+              columnWidths: [4275, 4275],
               borders: {
                 top: { style: docx.BorderStyle.NONE, size: 0 },
                 bottom: { style: docx.BorderStyle.NONE, size: 0 },
@@ -2848,7 +2852,7 @@ export default function App() {
               children: [
                 new docx.Paragraph({
                   spacing: { before: 40, after: 40 },
-                  children: docxTextRunsWithMath(h || '', { bold: true })
+                  children: docxTextRunsWithMath(h || '', { bold: true, size: 28 })
                 })
               ]
             })
@@ -2862,7 +2866,7 @@ export default function App() {
                 children: [
                   new docx.Paragraph({
                     spacing: { before: 40, after: 40 },
-                    children: docxTextRunsWithMath(cell || '')
+                    children: docxTextRunsWithMath(cell || '', { size: 28 })
                   })
                 ]
               })
@@ -2872,8 +2876,8 @@ export default function App() {
 
           headerChildren.push(
             new docx.Table({
-              width: { size: 9000, type: docx.WidthType.DXA },
-              indent: { size: 360, type: docx.WidthType.DXA },
+              width: { size: 8550, type: docx.WidthType.DXA },
+              indent: { size: 450, type: docx.WidthType.DXA },
               rows: tblRows
             })
           );
