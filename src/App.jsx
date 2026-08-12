@@ -151,7 +151,6 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
       lines.forEach((line, lIdx) => {
         const runProps = {
           text: line,
-          font: defaultOptions.font || getFontFamily(),
           size: defaultOptions.size || 34,
           ...defaultOptions
         };
