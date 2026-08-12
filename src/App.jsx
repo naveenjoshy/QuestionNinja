@@ -2039,16 +2039,23 @@ export default function App() {
       }
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Use getBoundingClientRect for absolute pixel precision relative to clone root
-      const cloneRect = clone.getBoundingClientRect();
+      // Use offsetTop traversal — viewport-independent, works for any document height and scroll position
       const getElemTop = (elem) => {
-        return elem.getBoundingClientRect().top - cloneRect.top;
+        let top = 0;
+        let curr = elem;
+        let safety = 0;
+        while (curr && curr !== clone && curr !== tempContainer && curr !== document.body && safety < 50) {
+          top += curr.offsetTop;
+          curr = curr.offsetParent;
+          safety++;
+        }
+        return top;
       };
 
       const getBoxes = (selector) => {
         return Array.from(clone.querySelectorAll(selector)).map(elem => {
           const top = getElemTop(elem);
-          const height = elem.getBoundingClientRect().height;
+          const height = elem.offsetHeight || elem.getBoundingClientRect().height;
           return { elem, top, bottom: top + height, height };
         }).filter(b => b.height > 0).sort((a, b) => a.top - b.top);
       };
@@ -2057,7 +2064,7 @@ export default function App() {
       const explicitBreakBoxes = getBoxes('.page-break-before');
       const sectionHeaderBoxes = getBoxes('.paper-section-header');
       const sectionInstructionBoxes = getBoxes('.paper-section-instructions');
-      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *, .paper-section-instructions, .paper-question-title, .paper-question-text');
+      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *, .paper-question-title, .paper-question-text');
       const tableRowBoxes = getBoxes('tr');
       const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
       const subItemBoxes = getBoxes('.paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line')
@@ -2097,43 +2104,62 @@ export default function App() {
       // Collect ALL explicit break positions (sorted)
       const explicitYPositions = [...new Set(
         explicitBreakBoxes
-          .map(eb => Math.max(0, Math.round(eb.top - 8)))
+          .map(eb => {
+            const parentSecHeader = sectionHeaderBoxes.find(sh => sh.top <= eb.top + 5 && sh.top > eb.top - 150);
+            if (parentSecHeader && parentSecHeader.top > 0) {
+              return Math.max(0, Math.round(parentSecHeader.top - 8));
+            }
+            return Math.max(0, Math.round(eb.top - 8));
+          })
           .filter(y => Number.isFinite(y))
           .sort((a, b) => a - b)
       )];
 
       // Helper: find the safest break point at or before `limit` that doesn't cut through any element
       const findSafeBreakBefore = (limit, afterY) => {
-        let bestBreak = limit;
-
-        // 1. If any section header group (header + instructions + top of first question) straddles limit, break before section header
+        // 1. Check Section Header Groups: Section Header (title + instructions) MUST stay together as an unbreakable unit
         for (const sh of sectionHeaderBoxes) {
-          const qFirst = questionBoxes.find(q => q.top >= sh.top);
-          const minRequiredBottom = qFirst ? Math.min(qFirst.top + 35, qFirst.bottom) : sh.bottom + 15;
-          if (sh.top >= afterY + 15 && sh.top < limit - 10 && minRequiredBottom > limit - 4) {
-            return sh.top - 6;
+          if (sh.top > afterY + 15 && sh.top < limit - 5) {
+            if (sh.bottom > limit - 6) {
+              return Math.max(afterY + 20, sh.top - 6);
+            }
           }
         }
 
-        // 2. If a question item straddles limit and fits on a page, break before the question
-        const cutQ = questionBoxes.find(q => q.top >= afterY + 15 && q.top < limit - 10 && q.bottom > limit - 4);
-        if (cutQ && cutQ.height <= usableHeightCSS - 20) {
-          return cutQ.top - 6;
+        // 2. Check Question Items: ENTIRE question item (text + options/blank lines/subquestions/match tables) must stay intact
+        for (const q of questionBoxes) {
+          if (q.top > afterY + 15 && q.top < limit - 5) {
+            if (q.bottom > limit - 6 && q.height <= usableHeightCSS - 25) {
+              return Math.max(afterY + 20, q.top - 6);
+            }
+          }
         }
 
-        // 3. Check all unbreakable boxes (section headers, instructions, paragraphs, table rows, options)
-        const overflowingBox = unbreakableBoxes
-          .filter(b => b.top >= afterY + 10 && b.top < limit - 8 && b.bottom > limit - 4 && b.height <= usableHeightCSS - 20)
+        // 3. Check Section Instructions independently
+        for (const si of sectionInstructionBoxes) {
+          if (si.top > afterY + 15 && si.top < limit - 5) {
+            if (si.bottom > limit - 6) {
+              const parentHeader = sectionHeaderBoxes.find(sh => sh.top <= si.top && sh.bottom >= si.top);
+              if (parentHeader && parentHeader.top > afterY + 15) {
+                return Math.max(afterY + 20, parentHeader.top - 6);
+              }
+              return Math.max(afterY + 20, si.top - 6);
+            }
+          }
+        }
+
+        // 4. Fallback for large content: Check sub-items, paragraphs, or table rows
+        const cutSub = unbreakableBoxes
+          .filter(b => b.top > afterY + 15 && b.top < limit - 8 && b.bottom > limit - 5 && b.height <= usableHeightCSS - 25)
           .sort((a, b) => a.top - b.top)[0];
-        if (overflowingBox) {
-          return overflowingBox.top - 6;
+        if (cutSub) {
+          return Math.max(afterY + 20, cutSub.top - 6);
         }
 
         return limit;
       };
 
-      // Single-pass greedy page break computation: keeps explicit page breaks intact while
-      // still respecting safe boundaries to avoid cutting any element mid-page.
+      // Single-pass greedy page break computation
       const pageBreaks = [0];
       let currentY = 0;
 
@@ -2153,18 +2179,20 @@ export default function App() {
           breakY = findSafeBreakBefore(maxTargetY, currentY);
         }
 
-        // Double-check: ensure no unbreakable element is cut across breakY
-        const cutElem = unbreakableBoxes
-          .filter(el => el.top >= currentY + 10 && el.top < breakY - 4 && el.bottom > breakY - 4 && el.height <= usableHeightCSS - 20)
-          .sort((a, b) => a.top - b.top)[0];
+        // Double-check: if breakY was not set by a question/section break, ensure no paragraph/row is cut
+        if (breakY === maxTargetY) {
+          const cutElem = unbreakableBoxes
+            .filter(el => el.top >= currentY + 15 && el.top < breakY - 4 && el.bottom > breakY - 4 && el.height <= usableHeightCSS - 30)
+            .sort((a, b) => a.top - b.top)[0];
 
-        if (cutElem) {
-          breakY = cutElem.top - 6;
+          if (cutElem) {
+            breakY = Math.max(currentY + 20, cutElem.top - 6);
+          }
         }
 
         // Safety fallback: avoid infinite loops if breakY is too close to currentY
         if (!Number.isFinite(breakY) || breakY <= currentY + 15) {
-          breakY = Math.min(maxTargetY, currentY + Math.max(30, usableHeightCSS * 0.5));
+          breakY = Math.min(maxTargetY, currentY + Math.max(40, usableHeightCSS * 0.5));
         }
 
         if (breakY >= totalHeightCSS - 10) {
@@ -2472,8 +2500,9 @@ export default function App() {
     let absoluteQuestionCount = 1;
 
     for (const sec of sections) {
-      // Section page break if requested
-      if (sec.pageBreakBefore) {
+      const firstQHasBreak = sec.questions && sec.questions[0] && sec.questions[0].pageBreakBefore;
+      // Section page break if requested on section OR on the first question of the section
+      if (sec.pageBreakBefore || firstQHasBreak) {
         headerChildren.push(
           new docx.Paragraph({
             children: [new docx.PageBreak()]
@@ -2552,11 +2581,13 @@ export default function App() {
       }
 
       // Add each question
-      for (const q of sec.questions) {
+      for (let qIdx = 0; qIdx < sec.questions.length; qIdx++) {
+        const q = sec.questions[qIdx];
         const qNum = `Q${absoluteQuestionCount}.`;
         absoluteQuestionCount++;
 
-        if (q.pageBreakBefore) {
+        // Only insert page break before question if it's NOT the first question (first question break was inserted before section heading)
+        if (q.pageBreakBefore && qIdx > 0) {
           headerChildren.push(
             new docx.Paragraph({
               children: [new docx.PageBreak()]
@@ -2837,43 +2868,26 @@ export default function App() {
                 headerChildren.push(
                   new docx.Paragraph({
                     indent: { left: 360 },
-                    border: {
-                      bottom: {
-                        style: docx.BorderStyle.SINGLE,
-                        size: 8,
-                        color: '333333',
-                        space: 2
+                    tabStops: [
+                      {
+                        type: docx.TabStopType.RIGHT,
+                        position: docx.TabStopPosition.MAX
                       }
-                    },
-                    spacing: { before: 40, after: 80 },
-                    children: [new docx.TextRun({ text: '' })]
+                    ],
+                    spacing: { before: 100, after: 100 },
+                    children: [
+                      new docx.TextRun({
+                        text: '\t',
+                        underline: {
+                          type: docx.UnderlineType.SINGLE,
+                          color: '777777'
+                        }
+                      })
+                    ]
                   })
                 );
               }
             }
-          }
-        }
-
-        // Render main question blank lines for any question type if blankLines is specified
-        if (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0)) {
-          const linesCount = (q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
-            ? Math.max(0, parseInt(q.blankLines, 10) || 0)
-            : (sec.type === 'essay' ? 4 : 0);
-          for (let i = 0; i < linesCount; i++) {
-            headerChildren.push(
-              new docx.Paragraph({
-                border: {
-                  bottom: {
-                    style: docx.BorderStyle.SINGLE,
-                    size: 8,
-                    color: '333333',
-                    space: 2
-                  }
-                },
-                spacing: { before: 40, after: 80 },
-                children: [new docx.TextRun({ text: '' })]
-              })
-            );
           }
         }
 
@@ -2893,14 +2907,25 @@ export default function App() {
           );
         }
 
-        else if (sec.type === 'match_following' && q.matchPairs) {
-          const columnA = q.matchPairs.map(p => ({ text: p.premise, image: p.premiseImage }));
+        else if ((sec.type === 'match_following' || (q.matchPairs && q.matchPairs.length > 0)) && q.matchPairs) {
+          const columnA = q.matchPairs.map(p => {
+            if (typeof p === 'string') {
+              const parts = p.split('=');
+              return { text: parts[0] || p, image: '' };
+            }
+            return { text: p.premise || p.text || '', image: p.premiseImage || '' };
+          });
+
           const shuffledList = getShuffledList(q);
           const columnB = q.matchPairs.map((pair, pIdx) => {
             const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
+            if (typeof itemB === 'string') {
+              const parts = itemB.split('=');
+              return { text: parts.length > 1 ? parts[1] : parts[0], image: '' };
+            }
             return {
-              text: typeof itemB === 'string' ? itemB : (itemB.response || ''),
-              image: typeof itemB === 'object' ? (itemB.responseImage || '') : ''
+              text: itemB.response || itemB.text || '',
+              image: itemB.responseImage || ''
             };
           });
 
@@ -3091,6 +3116,35 @@ export default function App() {
               rows: tblRows
             })
           );
+        }
+
+        // Render main question blank lines for any question type if blankLines is specified
+        if (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0)) {
+          const linesCount = (q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
+            ? Math.max(0, parseInt(q.blankLines, 10) || 0)
+            : (sec.type === 'essay' ? 4 : 0);
+          for (let i = 0; i < linesCount; i++) {
+            headerChildren.push(
+              new docx.Paragraph({
+                tabStops: [
+                  {
+                    type: docx.TabStopType.RIGHT,
+                    position: docx.TabStopPosition.MAX
+                  }
+                ],
+                spacing: { before: 100, after: 100 },
+                children: [
+                  new docx.TextRun({
+                    text: '\t',
+                    underline: {
+                      type: docx.UnderlineType.SINGLE,
+                      color: '777777'
+                    }
+                  })
+                ]
+              })
+            );
+          }
         }
       }
     }
@@ -4834,9 +4888,12 @@ export default function App() {
                       No sections added yet. Use the "Questions" tab in the editor to create sections and populate questions.
                     </div>
                   ) : (
-                    sections.map((sec, sIdx) => (
+                    sections.map((sec, sIdx) => {
+                      const firstQHasBreak = sec.questions && sec.questions[0] && sec.questions[0].pageBreakBefore;
+                      const hasSecBreak = sec.pageBreakBefore || firstQHasBreak;
+                      return (
                       <React.Fragment key={sec.id}>
-                        {sec.pageBreakBefore && (
+                        {hasSecBreak && (
                           <div className="preview-page-break-indicator print-hide" style={{
                             display: 'flex',
                             alignItems: 'center',
@@ -4856,7 +4913,7 @@ export default function App() {
                             <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
                           </div>
                         )}
-                        <div className={`paper-section ${sec.pageBreakBefore ? 'page-break-before' : ''}`}>
+                        <div className={`paper-section ${hasSecBreak ? 'page-break-before' : ''}`}>
                         <div className="paper-section-header">
                           <div className="paper-section-title-row">
                             <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
@@ -4874,10 +4931,11 @@ export default function App() {
                               previousQuestionsCount += sections[i].questions.length;
                             }
                             const globalNum = previousQuestionsCount + qIdx + 1;
+                            const showQBreak = q.pageBreakBefore && qIdx > 0;
 
                             return (
                               <React.Fragment key={q.id}>
-                                {q.pageBreakBefore && (
+                                {showQBreak && (
                                   <div className="preview-page-break-indicator print-hide" style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -4897,7 +4955,7 @@ export default function App() {
                                     <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
                                   </div>
                                 )}
-                                <div className={`paper-question-item ${q.pageBreakBefore ? 'page-break-before' : ''}`}>
+                                <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
                                   <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
@@ -5096,7 +5154,8 @@ export default function App() {
                         </div>
                       </div>
                     </React.Fragment>
-                  ))
+                  );
+                  })
                 )}
                 </div>
 
@@ -5278,13 +5337,16 @@ export default function App() {
                       No sections added yet. Use the "Questions" tab in the editor to create sections and populate questions.
                     </div>
                   ) : (
-                    sections.map((sec, sIdx) => (
+                    sections.map((sec, sIdx) => {
+                      const firstQHasBreak = sec.questions && sec.questions[0] && sec.questions[0].pageBreakBefore;
+                      const hasSecBreak = sec.pageBreakBefore || firstQHasBreak;
+                      return (
                       <React.Fragment key={sec.id}>
-                        {sec.pageBreakBefore && (
+                        {hasSecBreak && (
                           <div className="preview-page-break-indicator print-hide" style={{
                             display: 'flex',
                             alignItems: 'center',
-                            justify: 'center',
+                            justifyContent: 'center',
                             gap: '8px',
                             margin: '20px 0 14px 0',
                             padding: '6px 12px',
@@ -5300,7 +5362,7 @@ export default function App() {
                             <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
                           </div>
                         )}
-                        <div className={`paper-section ${sec.pageBreakBefore ? 'page-break-before' : ''}`}>
+                        <div className={`paper-section ${hasSecBreak ? 'page-break-before' : ''}`}>
                         <div className="paper-section-header">
                           <div className="paper-section-title-row">
                             <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
@@ -5320,14 +5382,15 @@ export default function App() {
                               previousQuestionsCount += sections[i].questions.length;
                             }
                             const globalNum = previousQuestionsCount + qIdx + 1;
+                            const showQBreak = q.pageBreakBefore && qIdx > 0;
 
                             return (
                               <React.Fragment key={q.id}>
-                                {q.pageBreakBefore && (
+                                {showQBreak && (
                                   <div className="preview-page-break-indicator print-hide" style={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    justify: 'center',
+                                    justifyContent: 'center',
                                     gap: '8px',
                                     margin: '16px 0 12px 0',
                                     padding: '6px 12px',
@@ -5343,7 +5406,7 @@ export default function App() {
                                     <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
                                   </div>
                                 )}
-                                <div className={`paper-question-item ${q.pageBreakBefore ? 'page-break-before' : ''}`}>
+                                <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
                                   <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
@@ -5542,7 +5605,8 @@ export default function App() {
                         </div>
                       </div>
                     </React.Fragment>
-                  ))
+                  );
+                  })
                 )}
                 </div>
 
