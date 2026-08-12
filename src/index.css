@@ -653,7 +653,7 @@ button:disabled,
 .paper-section-title {
   font-size: 18px;
   font-weight: 700;
-  text-transform: uppercase;
+  text-transform: uppercase !important;
   text-align: justify;
   text-align-last: left;
   word-break: break-word;
@@ -675,8 +675,11 @@ button:disabled,
   border-bottom: 1px dashed var(--text-paper-secondary);
   padding-bottom: 4px;
   margin-bottom: 4px;
+  white-space: pre-wrap !important;
+  word-break: break-word;
   break-inside: avoid !important;
   page-break-inside: avoid !important;
+  -webkit-column-break-inside: avoid !important;
 }
 
 .paper-questions-list {
@@ -724,6 +727,7 @@ button:disabled,
   grid-template-columns: 1fr 1fr;
   gap: 8px 24px;
   padding-left: 4px;
+  font-size: 15.5px;
 }
 
 .paper-mcq-options.single-line {
@@ -738,6 +742,7 @@ button:disabled,
   display: flex;
   gap: 8px;
   align-items: flex-start;
+  font-size: 15.5px;
 }
 
 .paper-mcq-option-text {
@@ -745,6 +750,7 @@ button:disabled,
   white-space: pre-wrap;
   word-break: normal;
   overflow-wrap: break-word;
+  font-size: 15.5px;
 }
 
 .paper-mcq-options.single-line .paper-mcq-option {
@@ -766,7 +772,7 @@ textarea.mcq-option-textarea {
   display: flex;
   gap: 24px;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15.5px;
   margin-top: 4px;
 }
 
@@ -775,6 +781,7 @@ textarea.mcq-option-textarea {
   width: 100%;
   border-collapse: collapse;
   margin-top: 8px;
+  font-size: 15.5px;
 }
 
 .paper-match-table th {
@@ -782,7 +789,7 @@ textarea.mcq-option-textarea {
   width: 50%;
   text-align: left;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 15.5px;
   border-bottom: 1px solid var(--text-primary, #000);
 }
 
@@ -790,6 +797,7 @@ textarea.mcq-option-textarea {
   padding: 6px 0;
   width: 50%;
   vertical-align: top;
+  font-size: 15.5px;
 }
 
 /* Table Question render */
@@ -797,7 +805,11 @@ textarea.mcq-option-textarea {
   width: 100%;
   border-collapse: collapse;
   margin-top: 8px;
-  font-size: 15px;
+  font-size: 15.5px;
+}
+
+.paper-subquestion-item {
+  font-size: 15.5px;
 }
 
 .paper-table-question th,
@@ -953,14 +965,24 @@ textarea.mcq-option-textarea {
   /* Force page break behavior */
   .page-break-avoid,
   .paper-section-header,
+  .paper-section-instructions,
   .paper-question-item,
   .paper-subquestion-item,
+  .paper-question-body p,
   .paper-image-container,
   .paper-mcq-options,
+  .paper-mcq-option,
+  .paper-match-table,
+  .paper-table-question,
+  .paper-formula-block,
   .paper-header,
-  .exam-meta-grid {
+  .exam-meta-grid,
+  p,
+  tr,
+  table {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
   }
 
   .paper-section-header {

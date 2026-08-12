@@ -888,7 +888,8 @@ export default function App() {
   const updateSectionMeta = (secId, field, value) => {
     setSections(sections.map(s => {
       if (s.id === secId) {
-        return { ...s, [field]: value };
+        const finalValue = field === 'title' ? String(value || '').toUpperCase() : value;
+        return { ...s, [field]: finalValue };
       }
       return s;
     }));
@@ -1360,7 +1361,7 @@ export default function App() {
 
             rows.push([
               ...getBrandingMetaCols(),
-              sec.title || '',
+              (sec.title || '').toUpperCase(),
               sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
               sec.instructions || '',
               sec.pageBreakBefore ? 'true' : 'false',
@@ -1836,14 +1837,16 @@ export default function App() {
       const questionBoxes = getBoxes('.paper-question-item');
       const explicitBreakBoxes = getBoxes('.page-break-before');
       const sectionHeaderBoxes = getBoxes('.paper-section-header');
-      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *');
+      const sectionInstructionBoxes = getBoxes('.paper-section-instructions');
+      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *, .paper-section-instructions');
       const tableRowBoxes = getBoxes('tr');
-      const tableBoxes = getBoxes('table');
-      const subItemBoxes = getBoxes('.paper-mcq-option, .math-line')
+      const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
+      const subItemBoxes = getBoxes('.paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block')
         .filter(b => !b.elem.closest('.paper-section-header'));
       const unbreakableBoxes = [
         ...questionBoxes,
         ...sectionHeaderBoxes,
+        ...sectionInstructionBoxes,
         ...paragraphBoxes,
         ...tableRowBoxes,
         ...tableBoxes,
@@ -1895,8 +1898,8 @@ export default function App() {
         const cutQ = questionBoxes.find(q => q.top > afterY + 20 && q.top <= limit - 10 && q.bottom > limit + 5);
         if (cutQ) return cutQ.top - 5;
 
-        // 3. If a section header itself straddles limit, break before section header
-        const cutH = sectionHeaderBoxes.find(sh => sh.top > afterY + 20 && sh.top <= limit - 10 && sh.bottom > limit + 5);
+        // 3. If a section header or section instructions straddle limit, break before section header/instructions
+        const cutH = [...sectionHeaderBoxes, ...sectionInstructionBoxes].find(sh => sh.top > afterY + 15 && sh.top <= limit - 10 && sh.bottom > limit + 5);
         if (cutH) return cutH.top - 5;
 
         // 4. Paragraphs and table rows are never allowed to straddle a page break.
@@ -1942,13 +1945,13 @@ export default function App() {
         }
 
         const firstOverflowingElement = unbreakableBoxes.find(el => {
-          const startsOnThisPage = el.top >= currentY && el.top < maxTargetY;
-          const extendsPastPage = el.bottom > maxTargetY + 15;
+          const startsOnThisPage = el.top >= currentY - 5 && el.top < maxTargetY - 10;
+          const extendsPastPage = el.bottom > maxTargetY - 2;
           return startsOnThisPage && extendsPastPage;
         });
 
-        if (firstOverflowingElement) {
-          breakY = Math.min(Math.max(currentY + 10, firstOverflowingElement.top - 5), maxTargetY);
+        if (firstOverflowingElement && firstOverflowingElement.top > currentY + 15) {
+          breakY = Math.min(breakY, firstOverflowingElement.top - 5);
         }
 
         // If a forced break is still too close to the current position, move it forward so
@@ -2303,29 +2306,35 @@ export default function App() {
 
       // Section instructions
       if (sec.instructions) {
-        headerChildren.push(
-          new docx.Paragraph({
-            keepNext: true,
-            alignment: docx.AlignmentType.JUSTIFY,
-            border: {
-              bottom: {
-                style: docx.BorderStyle.SINGLE,
-                size: 8,
-                color: '000000',
-                space: 4
-              }
-            },
-            spacing: { before: 40, after: 80 },
-            children: [
-              new docx.TextRun({
-                text: sec.instructions || '',
-                italic: true,
-                size: 30,
-                font: getFontFamily()
-              })
-            ]
-          })
-        );
+        const instructionLines = String(sec.instructions).split('\n');
+        instructionLines.forEach((line, idx) => {
+          headerChildren.push(
+            new docx.Paragraph({
+              keepNext: true,
+              alignment: docx.AlignmentType.JUSTIFY,
+              border: idx === instructionLines.length - 1 ? {
+                bottom: {
+                  style: docx.BorderStyle.SINGLE,
+                  size: 8,
+                  color: '000000',
+                  space: 4
+                }
+              } : undefined,
+              spacing: {
+                before: idx === 0 ? 40 : 20,
+                after: idx === instructionLines.length - 1 ? 80 : 20
+              },
+              children: [
+                new docx.TextRun({
+                  text: line,
+                  italic: true,
+                  size: 30,
+                  font: getFontFamily()
+                })
+              ]
+            })
+          );
+        });
       }
 
       // Add each question
@@ -2416,8 +2425,8 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { after: 40 },
                 children: [
-                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 34 }),
-                  ...docxTextRunsWithMath(lines[0] || '')
+                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 32 }),
+                  ...docxTextRunsWithMath(lines[0] || '', { size: 32 })
                 ]
               })
             );
@@ -2426,7 +2435,7 @@ export default function App() {
                 new docx.Paragraph({
                   indent: { left: 450 },
                   spacing: { after: 40 },
-                  children: docxTextRunsWithMath(lines[i])
+                  children: docxTextRunsWithMath(lines[i], { size: 32 })
                 })
               );
             }
@@ -3260,8 +3269,9 @@ export default function App() {
                           <label>Section Title</label>
                           <input
                             type="text"
-                            value={sec.title}
-                            onChange={(e) => updateSectionMeta(sec.id, 'title', e.target.value)}
+                            value={(sec.title || '').toUpperCase()}
+                            onChange={(e) => updateSectionMeta(sec.id, 'title', e.target.value.toUpperCase())}
+                            style={{ textTransform: 'uppercase' }}
                           />
                         </div>
 
@@ -3297,7 +3307,9 @@ export default function App() {
                           <textarea
                             value={sec.instructions}
                             onChange={(e) => updateSectionMeta(sec.id, 'instructions', e.target.value)}
-                            placeholder="e.g. Answer any 5 of the following 7 questions"
+                            placeholder="e.g. Answer any 5 of the following 7 questions&#10;Each question carries equal marks"
+                            rows={3}
+                            style={{ minHeight: '65px', resize: 'vertical' }}
                           />
                         </div>
 
@@ -4605,11 +4617,11 @@ export default function App() {
                         <div className={`paper-section ${sec.pageBreakBefore ? 'page-break-before' : ''}`}>
                         <div className="paper-section-header">
                           <div className="paper-section-title-row">
-                            <h2 className="paper-section-title">{sec.title}</h2>
+                            <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
                             <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
                           </div>
                           {sec.instructions && (
-                            <p className="paper-section-instructions">{sec.instructions}</p>
+                            <div className="paper-section-instructions">{sec.instructions}</div>
                           )}
                         </div>
 
