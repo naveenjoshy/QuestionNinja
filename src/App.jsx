@@ -1836,8 +1836,19 @@ export default function App() {
       const questionBoxes = getBoxes('.paper-question-item');
       const explicitBreakBoxes = getBoxes('.page-break-before');
       const sectionHeaderBoxes = getBoxes('.paper-section-header');
-      const subItemBoxes = getBoxes('.paper-subquestion-item, .paper-mcq-option, .paper-question-body p, .paper-question-body > *, tr, .math-line')
+      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *');
+      const tableRowBoxes = getBoxes('tr');
+      const tableBoxes = getBoxes('table');
+      const subItemBoxes = getBoxes('.paper-mcq-option, .math-line')
         .filter(b => !b.elem.closest('.paper-section-header'));
+      const unbreakableBoxes = [
+        ...questionBoxes,
+        ...sectionHeaderBoxes,
+        ...paragraphBoxes,
+        ...tableRowBoxes,
+        ...tableBoxes,
+        ...subItemBoxes
+      ];
 
       // Render full element to single hires canvas
       const canvas = await html2canvas(clone, {
@@ -1862,7 +1873,12 @@ export default function App() {
       const usableHeightCSS = (usableHeightMM / pdfWidth) * 794; // approx 1031.8px CSS
 
       // Collect ALL explicit break positions (sorted)
-      const explicitYPositions = explicitBreakBoxes.map(eb => eb.top).sort((a, b) => a - b);
+      const explicitYPositions = [...new Set(
+        explicitBreakBoxes
+          .map(eb => Math.max(0, Math.round(eb.top - 8)))
+          .filter(y => Number.isFinite(y))
+          .sort((a, b) => a - b)
+      )];
 
       // Helper: find the safest break point at or before `limit` that doesn't cut through any element
       const findSafeBreakBefore = (limit, afterY) => {
@@ -1883,41 +1899,68 @@ export default function App() {
         const cutH = sectionHeaderBoxes.find(sh => sh.top > afterY + 20 && sh.top <= limit - 10 && sh.bottom > limit + 5);
         if (cutH) return cutH.top - 5;
 
-        // 4. Sub-item fallback (MCQ option, subquestion, paragraph, table row, math line)
+        // 4. Paragraphs and table rows are never allowed to straddle a page break.
+        const cutParagraphOrRow = [...paragraphBoxes, ...tableRowBoxes]
+          .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 5)
+          .sort((a, b) => b.top - a.top)[0];
+        if (cutParagraphOrRow) return cutParagraphOrRow.top - 5;
+
+        // 5. Sub-item fallback (MCQ option, question block, tables, math line)
         const cutSub = subItemBoxes
           .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 5)
           .sort((a, b) => b.top - a.top)[0];
         if (cutSub) return cutSub.top - 5;
 
+        // 6. Long-content blocks such as full paragraphs or table sections should move to the next page
+        const cutLongContent = unbreakableBoxes
+          .filter(sb => sb.top > afterY + 20 && sb.top <= limit - 10 && sb.bottom > limit + 15)
+          .sort((a, b) => b.top - a.top)[0];
+        if (cutLongContent) return cutLongContent.top - 5;
+
         return limit;
       };
 
-      // Single-pass greedy page break computation: guarantees every slice <= usableHeightCSS
+      // Single-pass greedy page break computation: keeps explicit page breaks intact while
+      // still respecting safe boundaries to avoid cutting any element mid-page.
       const pageBreaks = [0];
       let currentY = 0;
 
       while (currentY < totalHeightCSS - 10) {
-        let maxTargetY = currentY + usableHeightCSS;
+        const maxTargetY = Math.min(currentY + usableHeightCSS, totalHeightCSS);
         if (maxTargetY >= totalHeightCSS - 10) {
           pageBreaks.push(totalHeightCSS);
           break;
         }
 
-        // Check if an explicit page break is requested between currentY + 30 and maxTargetY
-        const nextExplicit = explicitYPositions.find(pos => pos > currentY + 30 && pos <= maxTargetY + 10);
+        const nextExplicit = explicitYPositions.find(pos => pos > currentY + 10 && pos <= maxTargetY + 10);
 
         let breakY;
         if (nextExplicit) {
-          breakY = nextExplicit - 5;
+          breakY = Math.min(nextExplicit - 5, maxTargetY);
         } else {
           breakY = findSafeBreakBefore(maxTargetY, currentY);
-          if (breakY <= currentY + 30) {
-            breakY = maxTargetY;
-          }
         }
 
-        // Ensure breakY is strictly progressing and bounded by maxTargetY
-        breakY = Math.min(maxTargetY, Math.max(currentY + 30, breakY));
+        const firstOverflowingElement = unbreakableBoxes.find(el => {
+          const startsOnThisPage = el.top >= currentY && el.top < maxTargetY;
+          const extendsPastPage = el.bottom > maxTargetY + 15;
+          return startsOnThisPage && extendsPastPage;
+        });
+
+        if (firstOverflowingElement) {
+          breakY = Math.min(Math.max(currentY + 10, firstOverflowingElement.top - 5), maxTargetY);
+        }
+
+        // If a forced break is still too close to the current position, move it forward so
+        // the element begins on the next page instead of being split across pages.
+        if (!Number.isFinite(breakY) || breakY <= currentY + 10) {
+          breakY = Math.min(maxTargetY, currentY + 10);
+        }
+
+        if (breakY >= totalHeightCSS - 10) {
+          pageBreaks.push(totalHeightCSS);
+          break;
+        }
 
         pageBreaks.push(breakY);
         currentY = breakY;
