@@ -118,6 +118,8 @@ const renderTextWithMath = (text) => {
 };
 
 // Helper: convert text with $...$ math or raw √ symbols into an array of docx.TextRun objects
+const docxFontSize = (size) => Math.max(2, Number(size) - 2);
+
 const docxTextRunsWithMath = (text, defaultOptions = {}) => {
   if (!text) return [];
   let processedText = text;
@@ -133,6 +135,7 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
 
   const parts = processedText.split('$');
   const runs = [];
+  const defaultSize = docxFontSize(defaultOptions.size ?? 34);
   parts.forEach((part, index) => {
     if (index % 2 === 1) {
       // This is math
@@ -141,8 +144,8 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
         text: plainMath,
         italics: true,
         font: 'Cambria Math',
-        size: defaultOptions.size || 34,
-        ...defaultOptions
+        ...defaultOptions,
+        size: defaultSize
       }));
     } else {
       // Plain text part (format math subtraction and negative numbers with Unicode minus sign U+2212)
@@ -151,8 +154,8 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
       lines.forEach((line, lIdx) => {
         const runProps = {
           text: line,
-          size: defaultOptions.size || 34,
-          ...defaultOptions
+          ...defaultOptions,
+          size: defaultSize
         };
         if (lIdx > 0) {
           runProps.break = 1;
@@ -2222,8 +2225,8 @@ export default function App() {
           }
         ],
         children: [
-          new docx.TextRun({ text: label, bold: true, size: 34 }),
-          new docx.TextRun({ text: `\t${value || ''}`, size: 34 })
+          new docx.TextRun({ text: label, bold: true, size: docxFontSize(34) }),
+          new docx.TextRun({ text: `\t${value || ''}`, size: docxFontSize(34) })
         ],
         spacing: { after: 120 }
       });
@@ -2288,13 +2291,13 @@ export default function App() {
             new docx.TextRun({
               text: (sec.title || '').toUpperCase(),
               bold: true,
-              size: 36,
+              size: docxFontSize(36),
               font: getFontFamily()
             }),
             new docx.TextRun({
               text: `\t[${formatMarks(sec.marks)} Marks]`,
               bold: true,
-              size: 32,
+              size: docxFontSize(32),
               font: getFontFamily()
             })
           ]
@@ -2320,7 +2323,7 @@ export default function App() {
               new docx.TextRun({
                 text: sec.instructions || '',
                 italic: true,
-                size: 30,
+                size: docxFontSize(30),
                 font: getFontFamily()
               })
             ]
@@ -2358,13 +2361,13 @@ export default function App() {
               new docx.TextRun({
                 text: `${qNum}  `,
                 bold: true,
-                size: 34
+                size: docxFontSize(34)
               }),
               ...docxTextRunsWithMath(qLines[0] || ''),
               new docx.TextRun({
                 text: `\t(${formatMarks(getQuestionMarks(q))} M)`,
                 italic: true,
-                size: 34
+                size: docxFontSize(34)
               })
             ]
           })
@@ -2416,7 +2419,7 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { after: 40 },
                 children: [
-                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 34 }),
+                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: docxFontSize(34) }),
                   ...docxTextRunsWithMath(lines[0] || '')
                 ]
               })
@@ -2562,13 +2565,13 @@ export default function App() {
                     new docx.TextRun({
                       text: `${sqLabel}  `,
                       bold: true,
-                      size: 34
+                      size: docxFontSize(34)
                     }),
                     ...docxTextRunsWithMath(sqLines[0] || ''),
                     new docx.TextRun({
                       text: `\t(${formatMarks(sq.marks)} M)`,
                       italic: true,
-                      size: 34
+                      size: docxFontSize(34)
                     })
                   ]
                 })
@@ -2656,7 +2659,7 @@ export default function App() {
                 new docx.TextRun({
                   text: '[    ] True        [    ] False',
                   bold: true,
-                  size: 34
+                  size: docxFontSize(34)
                 })
               ]
             })
@@ -2691,7 +2694,7 @@ export default function App() {
                   children: [
                     new docx.Paragraph({
                       spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 34 })]
+                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: docxFontSize(34) })]
                     })
                   ]
                 }),
@@ -2706,7 +2709,7 @@ export default function App() {
                   children: [
                     new docx.Paragraph({
                       spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 34 })]
+                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: docxFontSize(34) })]
                     })
                   ]
                 })
@@ -2727,7 +2730,7 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 34 }),
+                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: docxFontSize(34) }),
                   ...docxTextRunsWithMath(itemA.text || '')
                 ]
               })
@@ -2753,7 +2756,7 @@ export default function App() {
               new docx.Paragraph({
                 spacing: { before: 40, after: 40 },
                 children: [
-                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 34 }),
+                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: docxFontSize(34) }),
                   ...docxTextRunsWithMath(itemB.text || '')
                 ]
               })
@@ -2884,12 +2887,12 @@ export default function App() {
                 children: [
                   new docx.TextRun({
                     text: 'Page ',
-                    size: 18
+                    size: docxFontSize(18)
                   }),
                   new docx.SimpleField("PAGE"),
                   new docx.TextRun({
                     text: ' of ',
-                    size: 18
+                    size: docxFontSize(18)
                   }),
                   new docx.SimpleField("NUMPAGES")
                 ]
