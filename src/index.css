@@ -709,6 +709,14 @@ button:disabled,
   word-break: break-word;
 }
 
+.paper-sheet--pdf-export .paper-question-body {
+  font-size: 0.88em;
+}
+
+.paper-sheet--pdf-export .paper-match-table td {
+  font-size: 15px;
+}
+
 .paper-question-marks {
   font-weight: 600;
   text-align: right;
@@ -1455,5 +1463,4 @@ textarea.mcq-option-textarea {
 .editor-panel {
   padding-bottom: 38px !important;
 }
-
 

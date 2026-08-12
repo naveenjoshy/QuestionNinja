@@ -1789,6 +1789,7 @@ export default function App() {
       tempContainer.style.zIndex = '-99999';
 
       const clone = el.cloneNode(true);
+      clone.classList.add('paper-sheet--pdf-export');
       clone.style.boxShadow = 'none';
       clone.style.margin = '0';
       clone.style.width = '794px';
