@@ -1577,7 +1577,7 @@ export default function App() {
               q.imageWidth || '',
               q.imageHeight || '',
               subQsStr,
-              q.shuffleColumnB ? 'true' : 'false',
+              (q.shuffleB || q.shuffleColumnB) ? 'true' : 'false',
               tableDataStr,
               q.pageBreakBefore ? 'true' : 'false'
             ]);
@@ -1837,7 +1837,12 @@ export default function App() {
             }
 
             if (shuffleColBVal !== '') {
-              q.shuffleColumnB = shuffleColBVal === 'true';
+              const isTrue = shuffleColBVal === 'true' || shuffleColBVal === '1';
+              q.shuffleB = isTrue;
+              q.shuffleColumnB = isTrue;
+            } else {
+              q.shuffleB = false;
+              q.shuffleColumnB = false;
             }
 
             if (pageBreakBeforeVal !== '') {
@@ -2104,23 +2109,20 @@ export default function App() {
       // Collect ALL explicit break positions (sorted)
       const explicitYPositions = [...new Set(
         explicitBreakBoxes
-          .map(eb => {
-            const parentSecHeader = sectionHeaderBoxes.find(sh => sh.top <= eb.top + 5 && sh.top > eb.top - 150);
-            if (parentSecHeader && parentSecHeader.top > 0) {
-              return Math.max(0, Math.round(parentSecHeader.top - 8));
-            }
-            return Math.max(0, Math.round(eb.top - 8));
-          })
+          .map(eb => Math.max(0, Math.round(eb.top - 8)))
           .filter(y => Number.isFinite(y))
           .sort((a, b) => a - b)
       )];
 
       // Helper: find the safest break point at or before `limit` that doesn't cut through any element
       const findSafeBreakBefore = (limit, afterY) => {
-        // 1. Check Section Header Groups: Section Header (title + instructions) MUST stay together as an unbreakable unit
+        // 1. Check Section Header Groups: Section Header (title + instructions) MUST stay together with its first question as an unbreakable unit
         for (const sh of sectionHeaderBoxes) {
           if (sh.top > afterY + 15 && sh.top < limit - 5) {
-            if (sh.bottom > limit - 6) {
+            const firstQ = questionBoxes.find(q => q.top >= sh.top && q.top <= sh.bottom + 120);
+            const firstQOverflows = firstQ && (firstQ.bottom > limit - 6 || firstQ.top > limit - 20);
+
+            if (sh.bottom > limit - 6 || firstQOverflows) {
               return Math.max(afterY + 20, sh.top - 6);
             }
           }

@@ -691,10 +691,16 @@ button:disabled,
   background-color: var(--bg-sidebar);
   border-top: 1px solid var(--border-color);
   position: sticky;
-  bottom: 0;
+  bottom: 38px;
   z-index: 10;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+@media (max-width: 768px) {
+  .action-bar {
+    bottom: 52px;
+  }
 }
 
 /* Preview Modal Styles */
@@ -1716,7 +1722,7 @@ textarea.mcq-option-textarea {
 /* Floating Formula Button */
 .floating-formula-btn {
   position: fixed;
-  bottom: 24px;
+  bottom: 48px;
   left: 24px;
   z-index: 9999;
   background-color: var(--accent);
@@ -1733,6 +1739,12 @@ textarea.mcq-option-textarea {
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   animation: slide-up-fade 0.2s ease-out;
+}
+
+@media (max-width: 768px) {
+  .floating-formula-btn {
+    bottom: 64px;
+  }
 }
 
 .floating-formula-btn:hover {
@@ -1789,9 +1801,17 @@ textarea.mcq-option-textarea {
   }
 }
 
-/* Compensate editor panel padding bottom for fixed footer */
-.editor-panel {
-  padding-bottom: 38px !important;
+/* Compensate editor panel and preview column padding bottom for fixed footer */
+.editor-panel,
+.studio-preview-column {
+  padding-bottom: 48px !important;
+}
+
+@media (max-width: 768px) {
+  .editor-panel,
+  .studio-preview-column {
+    padding-bottom: 64px !important;
+  }
 }
 
 /* Disable Side Preview option on Mobile devices */
