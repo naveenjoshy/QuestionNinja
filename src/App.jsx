@@ -3585,11 +3585,11 @@ export default function App() {
 
                 return (
                   <div key={sec.id} className="editor-card" style={{ borderLeft: `4px solid var(--accent)` }}>
-                    <div className="editor-card-header">
-                      <div className="editor-card-title" onClick={() => toggleSectionCollapse(sec.id)} style={{ cursor: 'pointer', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div className="editor-card-header" style={{ alignItems: 'flex-start' }}>
+                      <div className="editor-card-title" onClick={() => toggleSectionCollapse(sec.id)} style={{ cursor: 'pointer', flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <Layers size={15} style={{ color: 'var(--accent)' }} />
-                          <span style={{ fontSize: '15px', fontWeight: '700' }}>Section {String.fromCharCode(65 + sIdx)}</span>
+                          <span style={{ fontSize: '15.5px', fontWeight: '700' }}>Section {String.fromCharCode(65 + sIdx)}</span>
                           {sec.pageBreakBefore && (
                             <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
                               ✂ Page Break
@@ -3601,12 +3601,12 @@ export default function App() {
                             </span>
                           )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', paddingLeft: '23px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', paddingLeft: '23px', marginTop: '2px' }}>
                           {sec.title && (
-                            <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{sec.title}</span>
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{sec.title}</span>
                           )}
-                          {sec.title && sec.type && <span style={{ opacity: 0.5 }}>•</span>}
-                          <span style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: '500' }}>
+                          {sec.title && sec.type && <span style={{ opacity: 0.4 }}>•</span>}
+                          <span style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: '500', backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
                             {sec.type === 'mcq' ? 'Multiple Choice (MCQ)' :
                              sec.type === 'match_following' ? 'Match the Following' :
                              sec.type === 'true_false' ? 'True / False' :
@@ -3615,7 +3615,7 @@ export default function App() {
                           </span>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', alignSelf: 'flex-start', paddingTop: '2px' }}>
                         <button className="btn-icon-only" onClick={() => toggleSectionCollapse(sec.id)} title={collapsedSections[sec.id] ? "Expand Section" : "Collapse Section"}>
                           {collapsedSections[sec.id] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                         </button>
