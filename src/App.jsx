@@ -3319,9 +3319,14 @@ export default function App() {
 
 
 
-          <button className="btn btn-secondary btn-sm" onClick={toggleTheme} title="Toggle Light/Dark Theme">
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            aria-label="Toggle Light/Dark Theme"
+            style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
           <button className="btn btn-primary btn-sm" onClick={() => setIsPreviewOpen(true)} title="Full Paper Preview Modal">
