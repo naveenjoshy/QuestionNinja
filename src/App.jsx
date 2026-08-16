@@ -4370,19 +4370,6 @@ export default function App() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs (Column A & Column B)</label>
-                                    <button
-                                      type="button"
-                                      className="btn btn-secondary btn-sm"
-                                      style={{ padding: '2px 6px', fontSize: '10px' }}
-                                      onClick={() => {
-                                        updateQuestion(sec.id, q.id, {
-                                          matchPairs: [...q.matchPairs, { premise: '', premiseImage: '', response: '', responseImage: '' }],
-                                          _shuffledB: null
-                                        });
-                                      }}
-                                    >
-                                      + Pair
-                                    </button>
                                   </div>
 
                                   {/* Column Headings Banner */}
@@ -4533,6 +4520,20 @@ export default function App() {
                                       </div>
                                     </div>
                                   ))}
+
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ width: '100%', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}
+                                    onClick={() => {
+                                      updateQuestion(sec.id, q.id, {
+                                        matchPairs: [...q.matchPairs, { premise: '', premiseImage: '', response: '', responseImage: '' }],
+                                        _shuffledB: null
+                                      });
+                                    }}
+                                  >
+                                    <Plus size={13} /> Add Pair
+                                  </button>
 
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
                                     <input
