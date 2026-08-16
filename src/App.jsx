@@ -1837,12 +1837,12 @@ export default function App() {
             }
 
             if (shuffleColBVal !== '') {
-              const isTrue = shuffleColBVal === 'true' || shuffleColBVal === '1';
-              q.shuffleB = isTrue;
-              q.shuffleColumnB = isTrue;
+              const isFalse = shuffleColBVal === 'false' || shuffleColBVal === '0';
+              q.shuffleB = !isFalse;
+              q.shuffleColumnB = !isFalse;
             } else {
-              q.shuffleB = false;
-              q.shuffleColumnB = false;
+              q.shuffleB = true;
+              q.shuffleColumnB = true;
             }
 
             if (pageBreakBeforeVal !== '') {
