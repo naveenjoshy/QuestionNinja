@@ -3605,7 +3605,6 @@ export default function App() {
                           {sec.title && (
                             <span style={{ fontWeight: '600', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{sec.title}</span>
                           )}
-                          {sec.title && sec.type && <span style={{ opacity: 0.4 }}>•</span>}
                           <span style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: '500', backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
                             {sec.type === 'mcq' ? 'Multiple Choice (MCQ)' :
                              sec.type === 'match_following' ? 'Match the Following' :
