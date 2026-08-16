@@ -3631,7 +3631,7 @@ export default function App() {
 
                       <div
                         onClick={() => toggleSectionCollapse(sec.id)}
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', paddingLeft: '24px' }}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}
                       >
                         {sec.title && (
                           <span style={{ fontWeight: '600', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{sec.title}</span>
