@@ -3293,7 +3293,17 @@ export default function App() {
             <img src={pageLogo} style={{ width: '26px', height: '26px', objectFit: 'contain' }} alt="Logo" />
           </div>
           <div>
-            <h1 style={{ fontSize: '18px', fontWeight: 800, margin: 0, letterSpacing: '-0.3px', background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <h1 style={{
+              fontSize: '18px',
+              fontWeight: 800,
+              margin: 0,
+              letterSpacing: '-0.3px',
+              background: theme === 'dark'
+                ? 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)'
+                : 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>
               QuestionNinja Studio
             </h1>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, fontWeight: 500 }}>
@@ -3301,8 +3311,6 @@ export default function App() {
             </p>
           </div>
         </div>
-
-
 
         {/* Action Controls & Responsive Toggle */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginLeft: 'auto' }}>
@@ -3316,8 +3324,6 @@ export default function App() {
             <Eye size={14} />
             <span>{showLivePreview ? 'Side Preview: ON' : 'Side Preview: OFF'}</span>
           </button>
-
-
 
           <button
             className="btn btn-secondary btn-sm"
@@ -3344,7 +3350,7 @@ export default function App() {
           <div className="marks-meter-bar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Target: <strong style={{ color: 'var(--text-primary)' }}>{metadata.maxMarks || 0} M</strong>
+                Marks: <strong style={{ color: 'var(--text-primary)' }}>{metadata.maxMarks || 0} M</strong>
               </span>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
                 Sections: <strong style={{ color: 'var(--text-primary)' }}>{sections ? sections.length : 0}</strong>
