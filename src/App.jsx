@@ -1836,13 +1836,16 @@ export default function App() {
               }
             }
 
-            if (shuffleColBVal !== '') {
-              const isFalse = shuffleColBVal === 'false' || shuffleColBVal === '0';
-              q.shuffleB = !isFalse;
-              q.shuffleColumnB = !isFalse;
-            } else {
+            if (effectiveQType === 'match_following') {
               q.shuffleB = true;
               q.shuffleColumnB = true;
+            } else if (shuffleColBVal !== '') {
+              const isTrue = shuffleColBVal === 'true' || shuffleColBVal === '1';
+              q.shuffleB = isTrue;
+              q.shuffleColumnB = isTrue;
+            } else {
+              q.shuffleB = false;
+              q.shuffleColumnB = false;
             }
 
             if (pageBreakBeforeVal !== '') {
