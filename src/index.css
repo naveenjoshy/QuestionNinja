@@ -1819,4 +1819,99 @@ textarea.mcq-option-textarea {
   }
 }
 
+/* About Developer Right Side Modal / Drawer */
+.about-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(12, 14, 24, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: flex-end; /* Show on the right side */
+  align-items: center;
+  z-index: 10000; /* Strictly above fixed footer (z-index: 90) */
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.about-modal-content {
+  max-width: 440px;
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.45), 0 0 24px rgba(99, 102, 241, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-card);
+  backdrop-filter: blur(25px) saturate(200%);
+  -webkit-backdrop-filter: blur(25px) saturate(200%);
+  animation: aboutSlideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes aboutSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.about-modal-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.about-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.about-modal-body::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.about-modal-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.about-modal-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+@media (max-width: 640px) {
+  .about-modal-overlay {
+    padding: 12px;
+    justify-content: center;
+    align-items: flex-end;
+  }
+  .about-modal-content {
+    max-width: 100%;
+    max-height: calc(100vh - 24px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+
 

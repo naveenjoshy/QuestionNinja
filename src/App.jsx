@@ -30,7 +30,8 @@ import {
   BookOpen,
   GraduationCap,
   School,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
@@ -5900,19 +5901,27 @@ export default function App() {
       )}
 
       {isAboutModalOpen && (
-        <div className="modal-backdrop" onClick={() => setIsAboutModalOpen(false)}>
-          <div className="modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="about-modal-overlay" onClick={() => setIsAboutModalOpen(false)}>
+          <div className="about-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px' }}>
+              <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
                 About Developer
               </h3>
-              <button className="modal-close" onClick={() => setIsAboutModalOpen(false)}>×</button>
+              <button
+                type="button"
+                className="about-modal-close-btn"
+                onClick={() => setIsAboutModalOpen(false)}
+                title="Close"
+                aria-label="Close About Developer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }}>
+            <div className="about-modal-body">
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
                 <img src={developerPhoto} alt="Naveen Joshy" style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', objectPosition: 'top', border: '2px solid var(--accent)', flexShrink: 0 }} />
                 <div>
@@ -6008,7 +6017,7 @@ export default function App() {
                 <img src={qrCode} alt="Buy Me a Coffee QR Code" style={{ display: 'block', margin: '0 auto', width: '160px', height: '160px', objectFit: 'contain', borderRadius: '12px', border: '1px solid var(--border-color)', padding: '6px', backgroundColor: '#fff' }} />
               </div>
             </div>
-            <div className="modal-footer">
+            <div className="modal-footer" style={{ padding: '14px 20px', flexShrink: 0 }}>
               <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => setIsAboutModalOpen(false)}>
                 Close
               </button>
