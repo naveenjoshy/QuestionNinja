@@ -25,8 +25,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Loader2,
-  ExternalLink,
-  Cloud,
   Shield,
   Upload,
   BookOpen,
@@ -35,6 +33,7 @@ import {
   Check
 } from 'lucide-react';
 import katex from 'katex';
+import DOMPurify from 'dompurify';
 
 let docx;
 let jsPDF;
@@ -56,13 +55,17 @@ const loadExportDependencies = async () => {
   return exportDependenciesPromise;
 };
 
-// Helper: render LaTeX to HTML string
+// Helper: render LaTeX to HTML string (sanitized)
 const renderLatex = (latex) => {
   try {
-    return katex.renderToString(latex, {
+    const rawHtml = katex.renderToString(latex, {
       throwOnError: false,
       displayMode: true,
       output: 'html'
+    });
+    return DOMPurify.sanitize(rawHtml, {
+      ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub'],
+      ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
     });
   } catch {
     return `<span style="color:red;">Invalid formula</span>`;
@@ -78,7 +81,7 @@ const renderSquareRootHTML = (content) => {
   return `<span class="math-sqrt"><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${trimmed}</span></span>`;
 };
 
-// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt, minus)
+// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt, minus) (sanitized)
 const renderTextWithMath = (text) => {
   if (!text) return '';
   let result = text;
@@ -124,7 +127,10 @@ const renderTextWithMath = (text) => {
   });
 
   result = result.replace(/\n/g, '<br>');
-  return result;
+  return DOMPurify.sanitize(result, {
+    ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub', 'br'],
+    ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
+  });
 };
 
 // Helper: convert text with $...$ math or raw √ symbols into an array of docx.TextRun objects
@@ -595,8 +601,6 @@ export default function App() {
   const [collapsedSections, setCollapsedSections] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
-  const [isDocsUploading, setIsDocsUploading] = useState(false);
-  const [docsError, setDocsError] = useState('');
   const [formulaModal, setFormulaModal] = useState({ isOpen: false, latex: '', onSave: null });
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [activeInputInfo, setActiveInputInfo] = useState(null);
@@ -775,9 +779,9 @@ export default function App() {
 
   // Load from local storage on mount
   useEffect(() => {
-    const savedDraft = localStorage.getItem('question_ninja_draft');
-    if (savedDraft) {
-      try {
+    try {
+      const savedDraft = localStorage.getItem('question_ninja_draft');
+      if (savedDraft) {
         const parsed = JSON.parse(savedDraft);
         if (parsed.branding) {
           setBranding(() => ({
@@ -788,16 +792,20 @@ export default function App() {
         }
         if (parsed.metadata) setMetadata(() => ({ ...DEFAULT_METADATA, ...parsed.metadata }));
         if (parsed.sections) setSections(parsed.sections);
-      } catch {
-        console.error('Error loading saved draft from localStorage', e);
       }
+    } catch (e) {
+      console.error('Error loading saved draft from localStorage', e);
     }
   }, []);
 
   // Save to local storage on change
   useEffect(() => {
-    const stateToSave = { branding, metadata, sections };
-    localStorage.setItem('question_ninja_draft', JSON.stringify(stateToSave));
+    try {
+      const stateToSave = { branding, metadata, sections };
+      localStorage.setItem('question_ninja_draft', JSON.stringify(stateToSave));
+    } catch (err) {
+      console.warn('Unable to auto-save draft to localStorage (quota exceeded or storage restricted):', err);
+    }
   }, [branding, metadata, sections]);
 
   // Handle Logo Upload with validation
@@ -1245,6 +1253,10 @@ export default function App() {
         const file = item.getAsFile();
         if (file) {
           e.preventDefault();
+          if (file.size > 3 * 1024 * 1024) {
+            alert('Pasted image exceeds the 3MB size limit. Please choose a smaller image.');
+            return;
+          }
           const reader = new FileReader();
           reader.onload = (uploadEvent) => {
             if (oIdx !== null && oIdx !== undefined) {
@@ -1278,6 +1290,10 @@ export default function App() {
     if (files && files.length > 0) {
       const file = files[0];
       if (file.type.startsWith('image/')) {
+        if (file.size > 3 * 1024 * 1024) {
+          alert('Dropped image exceeds the 3MB size limit. Please choose a smaller image.');
+          return;
+        }
         const reader = new FileReader();
         reader.onload = (uploadEvent) => {
           if (oIdx !== null && oIdx !== undefined) {
@@ -1510,12 +1526,19 @@ export default function App() {
       });
     }
 
+    const sanitizeCSVCell = (val) => {
+      if (val === undefined || val === null) return '""';
+      let str = String(val);
+      // Neutralize formula characters (=, +, -, @, \t, \r) to prevent spreadsheet macro execution
+      if (/^[=+\-@\t\r]/.test(str)) {
+        str = "'" + str;
+      }
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+
     const csvContent = [
       headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
-      ...rows.map(row => row.map(val => {
-        const valStr = val === undefined || val === null ? '' : String(val);
-        return `"${valStr.replace(/"/g, '""')}"`;
-      }).join(','))
+      ...rows.map(row => row.map(sanitizeCSVCell).join(','))
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -3131,45 +3154,6 @@ export default function App() {
     } catch (err) {
       console.error('Error exporting DOCX:', err);
       alert('Failed to generate DOCX file.');
-    }
-  };
-  const handleGoogleDocsWebPreview = async () => {
-    if (hasBlankQuestions()) {
-      if (!window.confirm("Some questions have empty text. Are you sure you want to preview?")) {
-        return;
-      }
-    }
-    setIsDocsUploading(true);
-    setDocsError('');
-    try {
-      const blob = await generateDocxBlob();
-      const formData = new FormData();
-      formData.append('file', blob, generateExportFilename('docx'));
-
-      const response = await fetch('https://tmpfiles.org/api/v1/upload', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`Upload failed with status: ${response.status}`);
-      }
-
-      const resData = await response.json();
-      if (resData.status !== 'success' || !resData.data || !resData.data.url) {
-        throw new Error(resData.message || 'Invalid response from file upload server');
-      }
-
-      const uploadUrl = resData.data.url;
-      const directUrl = uploadUrl.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
-      const googleDocsUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(directUrl)}`;
-      window.open(googleDocsUrl, '_blank');
-      setIsDocsModalOpen(false);
-    } catch (err) {
-      console.error('Error opening in Google Docs:', err);
-      setDocsError(err.message || 'Failed to upload document for Google Docs preview.');
-    } finally {
-      setIsDocsUploading(false);
     }
   };
 
@@ -5616,105 +5600,56 @@ export default function App() {
               </h3>
             </div>
             <div className="modal-body docs-modal-body" style={{ flexDirection: 'column', gap: '20px', backgroundColor: 'var(--bg-sidebar)', padding: '24px' }}>
-              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                Google Docs requires your question paper (.docx) to be uploaded to your Google account. Select your preferred method below:
-              </p>
-
-              <div className="docs-options-grid" style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-                {/* Option 1: Web Preview (Secure Upload) */}
-                <div className="docs-option-card" style={{
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '16px',
-                  backgroundColor: 'var(--bg-card)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Cloud size={18} style={{ color: '#4285f4' }} />
-                    <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>Option A: Instant Web Preview</strong>
-                  </div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                    Temporarily uploads a secure copy of your document (valid for 1 hour) so Google's viewer can load it. Once open, click <strong>"Open with Google Docs"</strong> at the top to edit.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Shield size={22} style={{ color: 'var(--success)' }} />
+                <div>
+                  <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>100% Private & Secure Workflow</strong>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '2px 0 0 0' }}>
+                    Your exam questions are strictly confidential. QuestionNinja generates your Word (.docx) document 100% on your device without sending any data to public third-party servers.
                   </p>
-                  
-                  <div className="docs-warning-alert" style={{
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    borderLeft: '3px solid var(--warning)',
-                    padding: '8px 12px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    color: 'var(--warning)',
-                    lineHeight: '1.4'
-                  }}>
-                    <strong>⚠️ Privacy Note:</strong> Do not use this for actual confidential school exams, as it uploads the document to a temporary public URL.
-                  </div>
-
-                  <button
-                    className="btn btn-primary"
-                    disabled={isDocsUploading}
-                    onClick={handleGoogleDocsWebPreview}
-                    style={{ alignSelf: 'flex-start', marginTop: '4px', gap: '8px', minWidth: '160px' }}
-                  >
-                    {isDocsUploading ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        <span>Uploading...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ExternalLink size={16} />
-                        <span>Proceed to Google Docs</span>
-                      </>
-                    )}
-                  </button>
-
-                  {docsError && (
-                    <div style={{ color: 'var(--danger)', fontSize: '12px', marginTop: '4px' }}>
-                      {docsError}
-                    </div>
-                  )}
                 </div>
+              </div>
 
-                {/* Option 2: Offline Import (100% Private) */}
+              <div className="docs-options-grid" style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
                 <div className="docs-option-card" style={{
                   border: '1px solid var(--border-color)',
                   borderRadius: 'var(--radius-md)',
-                  padding: '16px',
+                  padding: '18px',
                   backgroundColor: 'var(--bg-card)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px'
+                  gap: '14px'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Shield size={18} style={{ color: 'var(--success)' }} />
-                    <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>Option B: Offline Import (100% Private)</strong>
+                  <div style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.6' }}>
+                    <strong>Simple 2-Step Process:</strong>
+                    <ol style={{ margin: '8px 0 0 16px', padding: 0 }}>
+                      <li>Click a button below to <strong>download your question paper</strong> and launch Google Docs or Drive.</li>
+                      <li>Drag and drop the downloaded <strong>.docx file</strong> into Google Docs to start editing immediately.</li>
+                    </ol>
                   </div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                    Download the Word (.docx) file locally to your machine, then manually upload or drag it directly into Google Drive or Docs.
-                  </p>
                   
-                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '6px' }}>
                     <button
-                      className="btn btn-secondary"
+                      className="btn btn-primary"
                       onClick={() => {
                         triggerDocxExport();
-                        window.open('https://drive.google.com/', '_blank');
+                        window.open('https://docs.google.com/document/', '_blank', 'noopener,noreferrer');
+                        setIsDocsModalOpen(false);
                       }}
-                      style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                     >
-                      <Download size={14} /> Download & Open Drive
+                      <Download size={15} /> Download & Open Google Docs
                     </button>
                     <button
                       className="btn btn-secondary"
                       onClick={() => {
                         triggerDocxExport();
-                        window.open('https://docs.google.com/document/', '_blank');
+                        window.open('https://drive.google.com/', '_blank', 'noopener,noreferrer');
+                        setIsDocsModalOpen(false);
                       }}
-                      style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      style={{ fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                     >
-                      <Download size={14} /> Download & Open Docs
+                      <Download size={15} /> Download & Open Google Drive
                     </button>
                   </div>
                 </div>
