@@ -34,12 +34,27 @@ import {
   School,
   Check
 } from 'lucide-react';
-import * as docx from 'docx';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas-pro';
-import html2pdf from 'html2pdf.js';
 import katex from 'katex';
-import 'katex/dist/katex.min.css';
+
+let docx;
+let jsPDF;
+let html2canvas;
+let exportDependenciesPromise;
+
+const loadExportDependencies = async () => {
+  if (!exportDependenciesPromise) {
+    exportDependenciesPromise = Promise.all([
+      import('docx'),
+      import('jspdf'),
+      import('html2canvas-pro')
+    ]).then(([docxModule, jspdfModule, html2canvasModule]) => {
+      docx = docxModule;
+      jsPDF = jspdfModule.jsPDF;
+      html2canvas = html2canvasModule.default;
+    });
+  }
+  return exportDependenciesPromise;
+};
 
 // Helper: render LaTeX to HTML string
 const renderLatex = (latex) => {
@@ -52,12 +67,6 @@ const renderLatex = (latex) => {
   } catch {
     return `<span style="color:red;">Invalid formula</span>`;
   }
-};
-
-// Helper: check if text contains formulas or LaTeX math
-const hasFormula = (text) => {
-  if (!text) return false;
-  return text.includes('$') || text.includes('\\') || /[\u0370-\u03FF\u2200-\u22FF]/.test(text);
 };
 
 // Helper: render square root with proper radical symbol and top overbar line
@@ -453,27 +462,7 @@ const DEFAULT_SECTIONS = [
   }
 ];
 
-const QUICK_MATH_SYMBOLS = [
-  { label: '√x', latex: '\\sqrt{x}' },
-  { label: 'a/b', latex: '\\frac{a}{b}' },
-  { label: 'x²', latex: 'x^2' },
-  { label: 'x₁', latex: 'x_1' },
-  { label: '±', latex: '\\pm' },
-  { label: 'θ', latex: '\\theta' },
-  { label: 'π', latex: '\\pi' },
-  { label: 'α', latex: '\\alpha' },
-  { label: 'β', latex: '\\beta' },
-  { label: '∫', latex: '\\int' },
-  { label: '∑', latex: '\\sum' },
-  { label: '∞', latex: '\\infty' },
-  { label: '→', latex: '\\rightarrow' },
-  { label: '≠', latex: '\\neq' },
-  { label: '≤', latex: '\\le' },
-  { label: '≥', latex: '\\ge' },
-  { label: '≈', latex: '\\approx' }
-];
-
-const PRESET_TEMPLATES = {
+const _PRESET_TEMPLATES = {
   cbse10: {
     name: 'Class 10 Science (CBSE 80 Marks)',
     branding: {
@@ -605,7 +594,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('branding'); // branding, metadata, sections
   const [collapsedSections, setCollapsedSections] = useState({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [isDocsUploading, setIsDocsUploading] = useState(false);
   const [docsError, setDocsError] = useState('');
@@ -615,61 +603,9 @@ export default function App() {
   const [csvImportModal, setCsvImportModal] = useState({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: false, importExam: true, importQuestions: true });
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(0.85);
-  const [mobileView, setMobileView] = useState('editor'); // 'editor' | 'preview'
   const [showLivePreview, setShowLivePreview] = useState(true);
   const paperSheetRef = useRef(null);
   const formulaInputRef = useRef(null);
-  const dropdownRef = useRef(null);
-
-  const loadPresetTemplate = (presetKey) => {
-    const template = PRESET_TEMPLATES[presetKey];
-    if (!template) return;
-    if (template.branding) setBranding(prev => ({ ...prev, ...template.branding }));
-    if (template.metadata) setMetadata(prev => ({ ...prev, ...template.metadata }));
-    if (template.sections) setSections(template.sections);
-  };
-
-  const insertQuickMathSymbol = (latexSymbol) => {
-    if (!activeInputInfo) return;
-    const elementId = activeInputInfo.id;
-    const el = document.getElementById(elementId);
-    if (!el) return;
-
-    const currentValue = el.value;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const formulaString = `$${latexSymbol}$`;
-    const newValue = currentValue.substring(0, start) + formulaString + currentValue.substring(end);
-    updateValueForId(elementId, newValue);
-
-    setTimeout(() => {
-      const inputEl = document.getElementById(elementId);
-      if (inputEl) {
-        inputEl.focus();
-        const newCursorPos = start + formulaString.length;
-        inputEl.setSelectionRange(newCursorPos, newCursorPos);
-        setActiveInputInfo({ id: elementId });
-      }
-    }, 50);
-  };
-
-  const quickAddQuestionType = (qType) => {
-    let targetSecId = sections[0]?.id;
-    if (!targetSecId) {
-      const newSecId = `sec-${Date.now()}`;
-      const newSec = {
-        id: newSecId,
-        title: 'SECTION A - GENERAL QUESTIONS',
-        instructions: 'Answer all questions in this section.',
-        type: qType,
-        questions: []
-      };
-      setSections([newSec]);
-      targetSecId = newSecId;
-    }
-    setActiveTab('sections');
-    addQuestion(targetSecId);
-  };
 
   // Hook to track focus on formula-enabled text inputs
   useEffect(() => {
@@ -811,18 +747,6 @@ export default function App() {
     });
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDownloadOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('question_ninja_theme') || 'dark';
   });
@@ -856,15 +780,15 @@ export default function App() {
       try {
         const parsed = JSON.parse(savedDraft);
         if (parsed.branding) {
-          setBranding(prev => ({
+          setBranding(() => ({
             ...DEFAULT_BRANDING,
             ...parsed.branding,
             logo: parsed.branding.logo === null ? null : (normalizeLogo(parsed.branding.logo) || schoolLogo)
           }));
         }
-        if (parsed.metadata) setMetadata(prev => ({ ...DEFAULT_METADATA, ...parsed.metadata }));
+        if (parsed.metadata) setMetadata(() => ({ ...DEFAULT_METADATA, ...parsed.metadata }));
         if (parsed.sections) setSections(parsed.sections);
-      } catch (e) {
+      } catch {
         console.error('Error loading saved draft from localStorage', e);
       }
     }
@@ -1874,7 +1798,7 @@ export default function App() {
                   try {
                     const parsedOpts = JSON.parse(trimmedOpt);
                     q.options = Array.isArray(parsedOpts) ? parsedOpts : ['', '', '', ''];
-                  } catch (_e) {
+                  } catch {
                     q.options = optionsStr.split(';');
                   }
                 } else {
@@ -1903,7 +1827,7 @@ export default function App() {
                         responseImage: p.responseImage || p.rightImage || ''
                       };
                     }) : [];
-                  } catch (e) {
+                  } catch {
                     q.matchPairs = matchPairsStr.split(';').map(pair => {
                       const parts = pair.split('=');
                       return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
@@ -1980,16 +1904,6 @@ export default function App() {
     setCsvImportModal({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: false, importExam: true, importQuestions: true });
   };
 
-  // Print PDF Trigger
-  const triggerPrint = () => {
-    if (hasBlankQuestions()) {
-      if (!window.confirm("Some questions have empty text. Are you sure you want to print?")) {
-        return;
-      }
-    }
-    window.print();
-  };
-
   const triggerPdfExport = async () => {
     if (!hasQuestions()) {
       alert("No questions added to export.");
@@ -2006,6 +1920,7 @@ export default function App() {
       return;
     }
     setIsPdfExporting(true);
+    await loadExportDependencies();
 
     let tempContainer = null;
     try {
@@ -2334,6 +2249,7 @@ export default function App() {
 
   // DOCX Export Implementation
   const generateDocxBlob = async () => {
+    await loadExportDependencies();
     // Create the School branding header
     const headerChildren = [];
 
@@ -3345,7 +3261,7 @@ export default function App() {
       {/* Main Studio Workspace */}
       <div className="studio-workspace">
         {/* Left Column: Question & Exam Builder */}
-        <div className={`studio-editor-column ${!showLivePreview ? 'full-width' : ''} ${mobileView === 'preview' ? 'hidden-mobile' : ''}`}>
+        <div className={`studio-editor-column ${!showLivePreview ? 'full-width' : ''}`}>
           {/* Marks & Status Validation Meter */}
           <div className="marks-meter-bar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -4804,7 +4720,7 @@ export default function App() {
       </div>
 
         {/* Right Column: Real-Time Side-by-Side Live A4 Paper Sheet View */}
-        <div className={`studio-preview-column ${!showLivePreview ? 'hidden' : ''} ${mobileView === 'editor' ? 'hidden-mobile' : ''}`}>
+        <div className={`studio-preview-column ${!showLivePreview ? 'hidden' : ''}`}>
           {/* Live Preview Controls Header */}
           <div style={{
             padding: '12px 20px',
