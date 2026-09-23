@@ -1992,17 +1992,10 @@ export default function App() {
       }
       await new Promise(resolve => setTimeout(resolve, 150));
 
-      // Use offsetTop traversal — viewport-independent, works for any document height and scroll position
+      // Use getBoundingClientRect for absolute pixel-perfect accuracy
+      const cloneRect = clone.getBoundingClientRect();
       const getElemTop = (elem) => {
-        let top = 0;
-        let curr = elem;
-        let safety = 0;
-        while (curr && curr !== clone && curr !== tempContainer && curr !== document.body && safety < 50) {
-          top += curr.offsetTop;
-          curr = curr.offsetParent;
-          safety++;
-        }
-        return top;
+        return elem.getBoundingClientRect().top - cloneRect.top;
       };
 
       const getBoxes = (selector) => {
@@ -2017,7 +2010,7 @@ export default function App() {
       const explicitBreakBoxes = getBoxes('.page-break-before');
       const sectionHeaderBoxes = getBoxes('.paper-section-header');
       const sectionInstructionBoxes = getBoxes('.paper-section-instructions');
-      const paragraphBoxes = getBoxes('.paper-question-body p, .paper-subquestion-item, .paper-question-body > *, .paper-question-title, .paper-question-text');
+      const paragraphBoxes = getBoxes('p, li, .paper-question-body > *, .paper-question-title, .paper-question-text, .general-instructions-render, .exam-meta-item, .school-details, .paper-section-title');
       const tableRowBoxes = getBoxes('tr');
       const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
       const subItemBoxes = getBoxes('.paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line')
@@ -2068,10 +2061,10 @@ export default function App() {
         for (const sh of sectionHeaderBoxes) {
           if (sh.top > afterY + 15 && sh.top < limit - 5) {
             const firstQ = questionBoxes.find(q => q.top >= sh.top && q.top <= sh.bottom + 120);
-            const firstQOverflows = firstQ && (firstQ.bottom > limit - 6 || firstQ.top > limit - 20);
+            const firstQOverflows = firstQ && (firstQ.bottom > limit || firstQ.top > limit - 20);
 
-            if (sh.bottom > limit - 6 || firstQOverflows) {
-              return Math.max(afterY + 20, sh.top - 6);
+            if (sh.bottom > limit || firstQOverflows) {
+              return Math.max(afterY + 20, sh.top - 10);
             }
           }
         }
@@ -2079,8 +2072,8 @@ export default function App() {
         // 2. Check Question Items: ENTIRE question item (text + options/blank lines/subquestions/match tables) must stay intact
         for (const q of questionBoxes) {
           if (q.top > afterY + 15 && q.top < limit - 5) {
-            if (q.bottom > limit - 6 && q.height <= usableHeightCSS - 25) {
-              return Math.max(afterY + 20, q.top - 6);
+            if (q.bottom > limit && q.height <= usableHeightCSS - 25) {
+              return Math.max(afterY + 20, q.top - 10);
             }
           }
         }
@@ -2088,22 +2081,22 @@ export default function App() {
         // 3. Check Section Instructions independently
         for (const si of sectionInstructionBoxes) {
           if (si.top > afterY + 15 && si.top < limit - 5) {
-            if (si.bottom > limit - 6) {
+            if (si.bottom > limit) {
               const parentHeader = sectionHeaderBoxes.find(sh => sh.top <= si.top && sh.bottom >= si.top);
               if (parentHeader && parentHeader.top > afterY + 15) {
-                return Math.max(afterY + 20, parentHeader.top - 6);
+                return Math.max(afterY + 20, parentHeader.top - 10);
               }
-              return Math.max(afterY + 20, si.top - 6);
+              return Math.max(afterY + 20, si.top - 10);
             }
           }
         }
 
         // 4. Fallback for large content: Check sub-items, paragraphs, or table rows
         const cutSub = unbreakableBoxes
-          .filter(b => b.top > afterY + 15 && b.top < limit - 8 && b.bottom > limit - 5 && b.height <= usableHeightCSS - 25)
+          .filter(b => b.top > afterY + 15 && b.top < limit && b.bottom > limit && b.height <= usableHeightCSS - 25)
           .sort((a, b) => a.top - b.top)[0];
         if (cutSub) {
-          return Math.max(afterY + 20, cutSub.top - 6);
+          return Math.max(afterY + 20, cutSub.top - 10);
         }
 
         return limit;
@@ -2132,11 +2125,11 @@ export default function App() {
         // Double-check: if breakY was not set by a question/section break, ensure no paragraph/row is cut
         if (breakY === maxTargetY) {
           const cutElem = unbreakableBoxes
-            .filter(el => el.top >= currentY + 15 && el.top < breakY - 4 && el.bottom > breakY - 4 && el.height <= usableHeightCSS - 30)
+            .filter(el => el.top >= currentY + 15 && el.top < breakY && el.bottom > breakY && el.height <= usableHeightCSS - 30)
             .sort((a, b) => a.top - b.top)[0];
 
           if (cutElem) {
-            breakY = Math.max(currentY + 20, cutElem.top - 6);
+            breakY = Math.max(currentY + 20, cutElem.top - 10);
           }
         }
 
@@ -4841,7 +4834,7 @@ export default function App() {
                     <span>{metadata.duration || '_______________________'}</span>
                   </div>
                   {metadata.instructions && (
-                    <div className="exam-meta-item full-width" style={{ marginTop: '8px', display: 'block', fontSize: '15px', fontWeight: 'normal' }}>
+                    <div className="exam-meta-item full-width" style={{ marginTop: '8px', display: 'block', fontSize: '15px', fontWeight: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                       <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>General Instructions:</div>
                       <div style={{ whiteSpace: 'pre-wrap' }}>{metadata.instructions}</div>
                     </div>
@@ -5295,6 +5288,12 @@ export default function App() {
                     <span className="exam-meta-label">Duration:</span>
                     <span>{metadata.duration || '_______________________'}</span>
                   </div>
+                  {metadata.instructions && (
+                    <div className="exam-meta-item full-width" style={{ marginTop: '8px', display: 'block', fontSize: '15px', fontWeight: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>General Instructions:</div>
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{metadata.instructions}</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Render Sections & Questions */}
