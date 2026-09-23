@@ -366,7 +366,8 @@ const DEFAULT_METADATA = {
   maxMarks: 50,
   duration: '90 Minutes',
   separateAnswerSheet: true,
-  language: 'english'
+  language: 'english',
+  instructions: ''
 };
 
 const DEFAULT_SECTIONS = [
@@ -1405,6 +1406,7 @@ export default function App() {
       'Duration',
       'Separate Answer Sheet',
       'Language',
+      'General Instructions',
       'Section Title',
       'Section Marks',
       'Section Instructions',
@@ -1439,7 +1441,8 @@ export default function App() {
       metadata.maxMarks !== undefined && metadata.maxMarks !== null ? metadata.maxMarks : '',
       metadata.duration || '',
       metadata.separateAnswerSheet ? 'true' : 'false',
-      metadata.language || ''
+      metadata.language || '',
+      metadata.instructions || ''
     ];
 
     const rows = [];
@@ -1637,6 +1640,7 @@ export default function App() {
         const durationIdx = getColIdx('Duration', 'time');
         const separateAnswerSheetIdx = getColIdx('Separate Answer Sheet', 'answer sheet');
         const languageIdx = getColIdx('Language', 'lang');
+        const generalInstructionsIdx = getColIdx('General Instructions');
 
         // Section & Question column mappings with legacy index fallbacks
         const secTitleIdx = getColIdx('Section Title', 'section') !== -1 ? getColIdx('Section Title', 'section') : 0;
@@ -1702,6 +1706,7 @@ export default function App() {
             const durationVal = durationIdx !== -1 ? row[durationIdx] : undefined;
             const sepAnsVal = separateAnswerSheetIdx !== -1 ? row[separateAnswerSheetIdx] : undefined;
             const langVal = languageIdx !== -1 ? row[languageIdx] : undefined;
+            const generalInstrVal = generalInstructionsIdx !== -1 ? row[generalInstructionsIdx] : undefined;
 
             if (
               titleVal !== undefined || subjectVal !== undefined || classDivVal !== undefined ||
@@ -1715,6 +1720,7 @@ export default function App() {
               if (durationVal !== undefined && durationVal !== '') importedMetadata.duration = durationVal;
               if (sepAnsVal !== undefined && sepAnsVal !== '') importedMetadata.separateAnswerSheet = sepAnsVal === 'true';
               if (langVal !== undefined && langVal !== '') importedMetadata.language = langVal;
+              if (generalInstrVal !== undefined && generalInstrVal !== '') importedMetadata.instructions = generalInstrVal;
             }
           }
 
@@ -2425,6 +2431,20 @@ export default function App() {
     headerChildren.push(createMetaParagraph('Class: ', metadata.classDiv));
     headerChildren.push(createMetaParagraph('Max Marks: ', formatMarks(metadata.maxMarks)));
     headerChildren.push(createMetaParagraph('Duration: ', metadata.duration));
+
+    if (metadata.instructions) {
+      const instructionRuns = [new docx.TextRun({ text: "General Instructions:", bold: true, size: 28 })];
+      const lines = metadata.instructions.split('\n');
+      lines.forEach((line) => {
+        instructionRuns.push(new docx.TextRun({ break: 1, text: line, size: 24 }));
+      });
+      headerChildren.push(
+        new docx.Paragraph({
+          spacing: { before: 120, after: 120 },
+          children: instructionRuns
+        })
+      );
+    }
 
     // Bottom border for metadata
     headerChildren.push(
@@ -3446,20 +3466,13 @@ export default function App() {
               </div>
 
               <div className="form-group">
-                <label>Question Paper Language</label>
-                <select
-                  value={metadata.language || 'english'}
-                  onChange={(e) => setMetadata({ ...metadata, language: e.target.value })}
-                >
-                  <option value="english">English (Default)</option>
-                  <option value="malayalam">Malayalam</option>
-                  <option value="hindi">Hindi</option>
-                </select>
-              </div>
-
-
-
-              {/* Validation Badges */}
+                <label>General Instructions</label>
+                <textarea
+                  value={metadata.instructions || ''}
+                  onChange={(e) => setMetadata({ ...metadata, instructions: e.target.value })}
+                  placeholder="e.g. Answer all questions. Each question carries 1 mark."
+                />
+              </div>              {/* Validation Badges */}
               <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
                   <div className="warning-badge">
@@ -4663,40 +4676,46 @@ export default function App() {
         </div>
 
         {/* Global Action Bar */}
-        <div className="action-bar" style={{ flexDirection: 'column', gap: '8px' }}>
+        <div className="action-bar studio-action-bar">
           {/* Wizard Navigation */}
-          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+          <div className="action-bar-group action-bar-wizard">
             {activeTab !== 'branding' && (
-              <button className="btn btn-secondary" onClick={() => {
-                if (activeTab === 'metadata') setActiveTab('branding');
-                else if (activeTab === 'sections') setActiveTab('metadata');
-              }} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <button
+                className="btn btn-secondary btn-sm action-bar-btn"
+                onClick={() => {
+                  if (activeTab === 'metadata') setActiveTab('branding');
+                  else if (activeTab === 'sections') setActiveTab('metadata');
+                }}
+              >
                 <ArrowLeft size={14} /> Back
               </button>
             )}
             {activeTab !== 'sections' && (
-              <button className="btn btn-primary" onClick={() => {
-                if (activeTab === 'branding') setActiveTab('metadata');
-                else if (activeTab === 'metadata') setActiveTab('sections');
-              }} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <button
+                className="btn btn-primary btn-sm action-bar-btn"
+                onClick={() => {
+                  if (activeTab === 'branding') setActiveTab('metadata');
+                  else if (activeTab === 'metadata') setActiveTab('sections');
+                }}
+              >
                 Next <ArrowRight size={14} />
               </button>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-            <button className="btn btn-secondary btn-sm" onClick={loadDemo} style={{ flex: 1 }}>
+          <div className="action-bar-group action-bar-demo">
+            <button className="btn btn-secondary btn-sm action-bar-btn" onClick={loadDemo}>
               Demo Data
             </button>
-            <button className="btn btn-danger btn-sm" onClick={resetAll} style={{ flex: 1 }}>
+            <button className="btn btn-danger btn-sm action-bar-btn" onClick={resetAll}>
               Clear Draft
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-            <button className="btn btn-primary btn-sm" onClick={exportToCSV} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <div className="action-bar-group action-bar-data">
+            <button className="btn btn-primary btn-sm action-bar-btn" onClick={exportToCSV}>
               <Download size={12} /> Export CSV
             </button>
-            <label className="btn btn-secondary btn-sm" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer', margin: 0 }}>
+            <label className="btn btn-secondary btn-sm action-bar-btn" style={{ cursor: 'pointer', margin: 0 }}>
               <Plus size={12} /> Import CSV
               <input type="file" accept=".csv" onChange={importFromCSV} style={{ display: 'none' }} />
             </label>
@@ -4821,6 +4840,12 @@ export default function App() {
                     <span className="exam-meta-label">Duration:</span>
                     <span>{metadata.duration || '_______________________'}</span>
                   </div>
+                  {metadata.instructions && (
+                    <div className="exam-meta-item full-width" style={{ marginTop: '8px', display: 'block', fontSize: '15px', fontWeight: 'normal' }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>General Instructions:</div>
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{metadata.instructions}</div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Render Sections & Questions */}
