@@ -998,12 +998,25 @@ button:disabled,
 .paper-question-body,
 .paper-subquestion-item,
 .paper-image-container,
-.paper-mcq-options,
-.paper-match-table,
-.paper-table-question {
+.paper-mcq-options {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
   -webkit-column-break-inside: avoid !important;
+}
+
+.paper-match-table,
+.paper-table-question,
+.paper-question-item:has(.paper-match-table),
+.paper-question-item:has(.paper-table-question),
+.paper-question-item:has(.paper-subquestions-list) {
+  break-inside: auto !important;
+  page-break-inside: auto !important;
+}
+
+.paper-match-table tr,
+.paper-table-question tr {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 .paper-section-header {
@@ -1359,17 +1372,24 @@ textarea.mcq-option-textarea {
   .paper-image-container,
   .paper-mcq-options,
   .paper-mcq-option,
-  .paper-match-table,
-  .paper-table-question,
   .paper-formula-block,
   .paper-header,
   .exam-meta-grid,
   p,
-  tr,
-  table {
+  tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
     -webkit-column-break-inside: avoid !important;
+  }
+
+  table,
+  .paper-match-table,
+  .paper-table-question,
+  .paper-question-item:has(.paper-match-table),
+  .paper-question-item:has(.paper-table-question),
+  .paper-question-item:has(.paper-subquestions-list) {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 
   .paper-section-header {

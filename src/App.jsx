@@ -2072,7 +2072,11 @@ export default function App() {
         // 2. Check Question Items: ENTIRE question item (text + options/blank lines/subquestions/match tables) must stay intact
         for (const q of questionBoxes) {
           if (q.top > afterY + 15 && q.top < limit - 5) {
+            const hasSplittableContent = q.elem.querySelector('.paper-match-table, .paper-table-question, .paper-subquestions-list');
             if (q.bottom > limit && q.height <= usableHeightCSS - 25) {
+              if (hasSplittableContent && q.top < limit - 130) {
+                continue;
+              }
               return Math.max(afterY + 20, q.top - 10);
             }
           }
@@ -2469,10 +2473,11 @@ export default function App() {
       }
 
       const hasInstructions = !!sec.instructions;
+      const hasQuestionsInSec = sec.questions && sec.questions.length > 0;
       // Section header title
       headerChildren.push(
         new docx.Paragraph({
-          keepNext: true,
+          keepNext: hasInstructions || hasQuestionsInSec,
           alignment: docx.AlignmentType.JUSTIFY,
           border: hasInstructions ? undefined : {
             bottom: {
@@ -2510,10 +2515,12 @@ export default function App() {
       if (sec.instructions) {
         const instructionLines = String(sec.instructions).split('\n');
         instructionLines.forEach((line, idx) => {
+          const isLastInstructionLine = idx === instructionLines.length - 1;
           headerChildren.push(
             new docx.Paragraph({
+              keepNext: isLastInstructionLine ? hasQuestionsInSec : true,
               alignment: docx.AlignmentType.JUSTIFY,
-              border: idx === instructionLines.length - 1 ? {
+              border: isLastInstructionLine ? {
                 bottom: {
                   style: docx.BorderStyle.SINGLE,
                   size: 8,
@@ -2523,7 +2530,7 @@ export default function App() {
               } : undefined,
               spacing: {
                 before: idx === 0 ? 20 : 10,
-                after: idx === instructionLines.length - 1 ? 40 : 10
+                after: isLastInstructionLine ? 40 : 10
               },
               children: [
                 new docx.TextRun({
@@ -2553,11 +2560,29 @@ export default function App() {
           );
         }
 
+        const linesCount = (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0))
+          ? ((q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
+              ? Math.max(0, parseInt(q.blankLines, 10) || 0)
+              : (sec.type === 'essay' ? 4 : 0))
+          : 0;
+
+        const hasImage = Boolean(q.image && sec.type !== 'match_following');
+        const hasMCQ = Boolean(sec.type === 'mcq' && q.options && q.options.length > 0);
+        const hasEssaySubs = Boolean(sec.type === 'essay' && q.subQuestions && q.subQuestions.length > 0);
+        const hasTF = Boolean(sec.type === 'true_false' && !metadata.separateAnswerSheet);
+        const hasMatch = Boolean((sec.type === 'match_following' || (q.matchPairs && q.matchPairs.length > 0)) && q.matchPairs && q.matchPairs.length > 0);
+        const hasTable = Boolean(sec.type === 'table' && q.tableData);
+        const hasBlankLines = linesCount > 0;
+
+        // Does the question have any sub-element following the question text lines?
+        const hasSubElementsAfterText = hasImage || hasMCQ || hasEssaySubs || hasTF || hasMatch || hasTable || hasBlankLines;
+
         // Add question text matching PDF (Q1. and (1 M))
-        const qLines = (q.text || '').split('\n');
+        const cleanText = (q.text || '').trimEnd();
+        const qLines = cleanText ? cleanText.split('\n') : [''];
         headerChildren.push(
           new docx.Paragraph({
-            keepNext: true,
+            keepNext: qLines.length > 1 ? true : hasSubElementsAfterText,
             alignment: docx.AlignmentType.JUSTIFY,
             spacing: { before: 100, after: 30 },
             tabStops: [
@@ -2583,21 +2608,25 @@ export default function App() {
         );
 
         for (let lIdx = 1; lIdx < qLines.length; lIdx++) {
+          const isLastQLine = lIdx === qLines.length - 1;
           headerChildren.push(
             new docx.Paragraph({
+              keepNext: isLastQLine ? hasSubElementsAfterText : true,
               indent: { left: 450 },
               spacing: { after: 20 },
-              children: docxTextRunsWithMath(qLines[lIdx])
+              children: docxTextRunsWithMath(qLines[lIdx], { size: 30 })
             })
           );
         }
 
         // Question Image (positioned directly below Question Text)
-        if (q.image && sec.type !== 'match_following') {
+        if (hasImage) {
           const imageBytes = await imageToUint8Array(q.image);
           if (imageBytes) {
+            const hasSubElementsAfterImage = hasMCQ || hasEssaySubs || hasTF || hasMatch || hasTable || hasBlankLines;
             headerChildren.push(
               new docx.Paragraph({
+                keepNext: hasSubElementsAfterImage,
                 indent: { left: 450 },
                 spacing: { before: 80, after: 120 },
                 children: [
@@ -2615,7 +2644,7 @@ export default function App() {
         }
 
         // Formatting specific question types
-        if (sec.type === 'mcq' && q.options) {
+        if (hasMCQ) {
           const createOptionParagraphs = (letter, opt) => {
             const text = getOptionText(opt);
             const imgData = getOptionImage(opt);
@@ -2695,7 +2724,7 @@ export default function App() {
                   insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
                   insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
                 },
-                rows: [new docx.TableRow({ children: cells })]
+                rows: [new docx.TableRow({ cantSplit: true, children: cells })]
               })
             );
           } else {
@@ -2711,6 +2740,7 @@ export default function App() {
 
               optRows.push(
                 new docx.TableRow({
+                  cantSplit: true,
                   children: [
                     new docx.TableCell({
                       width: { size: 4275, type: docx.WidthType.DXA },
@@ -2756,52 +2786,70 @@ export default function App() {
           }
         }
 
-        else if (sec.type === 'essay' && q.subQuestions && q.subQuestions.length > 0) {
+        else if (hasEssaySubs) {
           for (let sqIdx = 0; sqIdx < q.subQuestions.length; sqIdx++) {
             const sq = q.subQuestions[sqIdx];
             const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
-            const sqLinesText = (sq.text || '').split('\n');
-            headerChildren.push(
-              new docx.Paragraph({
-                alignment: docx.AlignmentType.JUSTIFY,
-                indent: { left: 360 },
-                spacing: { before: 40, after: 20 },
-                tabStops: [
-                  {
-                    type: docx.TabStopType.RIGHT,
-                    position: docx.TabStopPosition.MAX
-                  }
-                ],
-                children: [
-                  new docx.TextRun({
-                    text: `${sqLabel}  `,
-                    bold: true,
-                    size: 28
-                  }),
-                  ...docxTextRunsWithMath(sqLinesText[0] || '', { size: 28 }),
-                  new docx.TextRun({
-                    text: `\t(${formatMarks(sq.marks)} M)`,
-                    italic: true,
-                    size: 28
+            const sqCleanText = (sq.text || '').trimEnd();
+            const sqLinesText = sqCleanText ? sqCleanText.split('\n') : [''];
+            const sqLinesCount = (!metadata.separateAnswerSheet)
+              ? ((sq.blankLines !== undefined && sq.blankLines !== '' && sq.blankLines !== null)
+                  ? Math.max(0, parseInt(sq.blankLines, 10) || 0)
+                  : 4)
+              : 0;
+            const sqHasImage = Boolean(sq.image);
+            const sqHasFollowup = sqHasImage || sqLinesCount > 0;
+
+            for (let slIdx = 0; slIdx < sqLinesText.length; slIdx++) {
+              const isLastSqLine = slIdx === sqLinesText.length - 1;
+              const keepNextSq = isLastSqLine ? sqHasFollowup : true;
+
+              if (slIdx === 0) {
+                headerChildren.push(
+                  new docx.Paragraph({
+                    keepNext: keepNextSq,
+                    alignment: docx.AlignmentType.JUSTIFY,
+                    indent: { left: 360 },
+                    spacing: { before: 40, after: 20 },
+                    tabStops: [
+                      {
+                        type: docx.TabStopType.RIGHT,
+                        position: docx.TabStopPosition.MAX
+                      }
+                    ],
+                    children: [
+                      new docx.TextRun({
+                        text: `${sqLabel}  `,
+                        bold: true,
+                        size: 28
+                      }),
+                      ...docxTextRunsWithMath(sqLinesText[0] || '', { size: 28 }),
+                      new docx.TextRun({
+                        text: `\t(${formatMarks(sq.marks)} M)`,
+                        italic: true,
+                        size: 28
+                      })
+                    ]
                   })
-                ]
-              })
-            );
-            for (let lIdx = 1; lIdx < sqLinesText.length; lIdx++) {
-              headerChildren.push(
-                new docx.Paragraph({
-                  indent: { left: 720 },
-                  spacing: { after: 20 },
-                  children: docxTextRunsWithMath(sqLinesText[lIdx])
-                })
-              );
+                );
+              } else {
+                headerChildren.push(
+                  new docx.Paragraph({
+                    keepNext: keepNextSq,
+                    indent: { left: 720 },
+                    spacing: { after: 20 },
+                    children: docxTextRunsWithMath(sqLinesText[slIdx], { size: 28 })
+                  })
+                );
+              }
             }
 
-            if (sq.image) {
+            if (sqHasImage) {
               const sqImageBytes = await imageToUint8Array(sq.image);
               if (sqImageBytes) {
                 headerChildren.push(
                   new docx.Paragraph({
+                    keepNext: sqLinesCount > 0,
                     indent: { left: 720 },
                     spacing: { before: 80, after: 80 },
                     children: [
@@ -2818,10 +2866,7 @@ export default function App() {
               }
             }
 
-            if (!metadata.separateAnswerSheet) {
-              const sqLinesCount = (sq.blankLines !== undefined && sq.blankLines !== '' && sq.blankLines !== null)
-                ? Math.max(0, parseInt(sq.blankLines, 10) || 0)
-                : 4;
+            if (sqLinesCount > 0) {
               for (let i = 0; i < sqLinesCount; i++) {
                 headerChildren.push(
                   new docx.Paragraph({
@@ -2849,9 +2894,10 @@ export default function App() {
           }
         }
 
-        else if (sec.type === 'true_false' && !metadata.separateAnswerSheet) {
+        else if (hasTF) {
           headerChildren.push(
             new docx.Paragraph({
+              keepNext: hasBlankLines,
               indent: { left: 450 },
               spacing: { before: 80, after: 120 },
               children: [
@@ -2865,7 +2911,7 @@ export default function App() {
           );
         }
 
-        else if ((sec.type === 'match_following' || (q.matchPairs && q.matchPairs.length > 0)) && q.matchPairs) {
+        else if (hasMatch) {
           const columnA = q.matchPairs.map(p => {
             if (typeof p === 'string') {
               const parts = p.split('=');
@@ -2889,9 +2935,11 @@ export default function App() {
 
           const tableRows = [];
 
-          // Header row
+          // Header row with repeating tableHeader and cantSplit
           tableRows.push(
             new docx.TableRow({
+              tableHeader: true,
+              cantSplit: true,
               children: [
                 new docx.TableCell({
                   width: { size: 4275, type: docx.WidthType.DXA },
@@ -2990,6 +3038,7 @@ export default function App() {
 
             tableRows.push(
               new docx.TableRow({
+                cantSplit: true,
                 children: [
                   new docx.TableCell({
                     width: { size: 4275, type: docx.WidthType.DXA },
@@ -3034,11 +3083,11 @@ export default function App() {
           );
         }
 
-        if (sec.type === 'table' && q.tableData) {
+        if (hasTable) {
           // Build a bordered table in DOCX with bold headers and regular body
           const tblRows = [];
 
-          // Header row
+          // Header row with repeating tableHeader and cantSplit
           const headerCells = q.tableData.headers.map(h =>
             new docx.TableCell({
               shading: { fill: 'E8E8E8' },
@@ -3050,7 +3099,7 @@ export default function App() {
               ]
             })
           );
-          tblRows.push(new docx.TableRow({ children: headerCells }));
+          tblRows.push(new docx.TableRow({ tableHeader: true, cantSplit: true, children: headerCells }));
 
           // Body rows
           q.tableData.rows.forEach(row => {
@@ -3064,7 +3113,7 @@ export default function App() {
                 ]
               })
             );
-            tblRows.push(new docx.TableRow({ children: bodyCells }));
+            tblRows.push(new docx.TableRow({ cantSplit: true, children: bodyCells }));
           });
 
           headerChildren.push(
@@ -3077,10 +3126,7 @@ export default function App() {
         }
 
         // Render main question blank lines for any question type if blankLines is specified
-        if (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0)) {
-          const linesCount = (q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
-            ? Math.max(0, parseInt(q.blankLines, 10) || 0)
-            : (sec.type === 'essay' ? 4 : 0);
+        if (hasBlankLines) {
           for (let i = 0; i < linesCount; i++) {
             headerChildren.push(
               new docx.Paragraph({
