@@ -2073,7 +2073,7 @@ export default function App() {
             const firstQOverflows = firstQ && (firstQ.bottom > limit || firstQ.top > limit - 20);
 
             if ((sh.bottom + 45) > limit || firstQOverflows) {
-              return Math.max(afterY + 20, sh.top - 35);
+              return Math.max(afterY + 20, sh.top - 40);
             }
           }
         }
@@ -2082,11 +2082,11 @@ export default function App() {
         for (const q of questionBoxes) {
           if (q.top > afterY + 15 && q.top < limit - 5) {
             const hasSplittableContent = q.elem.querySelector('.paper-match-table, .paper-table-question, .paper-subquestions-list');
-            if ((q.bottom + 45) > limit && q.height <= usableHeightCSS - 25) {
+            if ((q.bottom + 120) > limit && q.height <= usableHeightCSS - 10) {
               if (hasSplittableContent && q.top < limit - 130) {
                 continue;
               }
-              return Math.max(afterY + 20, q.top - 35);
+              return Math.max(afterY + 20, q.top - 40);
             }
           }
         }
@@ -2106,10 +2106,10 @@ export default function App() {
 
         // 4. Fallback for large content: Check sub-items, paragraphs, or table rows
         const cutSub = unbreakableBoxes
-          .filter(b => b.top > afterY + 15 && b.top < limit && (b.bottom + 45) > limit && b.height <= usableHeightCSS - 25)
+          .filter(b => b.top > afterY + 15 && b.top < limit && (b.bottom + 120) > limit && b.height <= usableHeightCSS - 10)
           .sort((a, b) => a.top - b.top)[0];
         if (cutSub) {
-          return Math.max(afterY + 20, cutSub.top - 35);
+          return Math.max(afterY + 20, cutSub.top - 40);
         }
 
         return limit;
