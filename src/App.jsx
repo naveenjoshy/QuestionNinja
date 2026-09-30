@@ -74,12 +74,14 @@ const renderLatex = (latex) => {
 };
 
 // Helper: render square root with proper radical symbol and top overbar line
-const renderSquareRootHTML = (content) => {
-  const trimmed = content ? content.trim() : '';
+const renderSquareRootHTML = (inner) => {
+  if (!inner) return '<span class="math-sqrt-symbol">√</span>';
+  const trimmed = inner.trim();
   if (!trimmed) {
-    return `<span class="math-sqrt-symbol">√</span>`;
+    return '<span class="math-sqrt-symbol">√</span>';
   }
-  return `<span class="math-sqrt"><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${trimmed}</span></span>`;
+  // Instead of an overbar, just render the symbol and the content next to it
+  return '<span class="math-sqrt-symbol">√</span>' + trimmed;
 };
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt, minus) (sanitized)
@@ -109,17 +111,12 @@ const renderTextWithMath = (text) => {
   result = result.replace(/(^|\s)-([0-9a-zA-Z])/g, '$1−$2');
 
   // 3. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into styled radical + overbar content
-  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, degree, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">${degree}</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${inner}</span></span>`);
+  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, degree, inner) => `${degree}√${inner}`);
   result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√\s*\(([^)]+)\)/g, (_, inner) => renderSquareRootHTML(`(${inner})`));
-  result = result.replace(/√\s*\{([^}]+)\}/g, (_, inner) => renderSquareRootHTML(inner));
-  result = result.replace(/√\s*([0-9a-zA-Z]+)/g, (_, inner) => renderSquareRootHTML(inner));
+  // Removed √ grouping replacements per user request to treat it as a regular character
   result = result.replace(/√/g, '<span class="math-sqrt-symbol">√</span>');
 
   // 4. Convert Unicode cube root ∛ to styled span
-  result = result.replace(/∛\s*\(([^)]+)\)/g, (_, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">3</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">(${inner})</span></span>`);
-  result = result.replace(/∛\s*\{([^}]+)\}/g, (_, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">3</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${inner}</span></span>`);
-  result = result.replace(/∛\s*([0-9a-zA-Z]+)/g, (_, inner) => `<span class="math-sqrt"><sup style="font-size:0.75em;margin-right:-2px;vertical-align:0.6em;">3</sup><span class="math-sqrt-symbol">√</span><span class="math-sqrt-content">${inner}</span></span>`);
   result = result.replace(/∛/g, '<span class="math-sqrt-symbol">∛</span>');
 
   // 5. Restore rendered $...$ math blocks
@@ -140,13 +137,10 @@ const docxTextRunsWithMath = (text, defaultOptions = {}) => {
   let processedText = text;
 
   // Convert raw √ or \sqrt outside of $...$ into $...$ blocks for DOCX math rendering
-  if (!processedText.includes('$') && (processedText.includes('√') || processedText.includes('\\sqrt'))) {
+  if (!processedText.includes('$') && (processedText.includes('\\sqrt'))) {
     processedText = processedText.replace(/\\sqrt\{([^}]*)\}/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√\s*\(([^)]+)\)/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√\s*\{([^}]+)\}/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√\s*([0-9a-zA-Z]+)/g, '$\\sqrt{$1}$');
-    processedText = processedText.replace(/√/g, '$√$');
   }
+  // Removed √ grouping replacements for docx per user request
 
   const parts = processedText.split('$');
   const runs = [];
@@ -262,212 +256,60 @@ const latexToPlainText = (latex) => {
 // Formula toolbar button definitions
 const FORMULA_BUTTONS = [
   { label: 'Basic', buttons: [
-    { symbol: 'x²', latex: '^{2}', hint: 'Superscript' },
-    { symbol: 'xₙ', latex: '_{n}', hint: 'Subscript' },
-    { symbol: '⁄', latex: '\\frac{a}{b}', hint: 'Fraction', replace: true },
-    { symbol: '√', latex: '\\sqrt{x}', hint: 'Square root', replace: true },
-    { symbol: '∛', latex: '\\sqrt[3]{x}', hint: 'Cube root', replace: true },
-    { symbol: 'xⁿ', latex: '^{n}', hint: 'nth power' },
+    { symbol: 'x²', insert: '²', hint: 'Superscript 2' },
+    { symbol: 'x³', insert: '³', hint: 'Superscript 3' },
+    { symbol: 'xⁿ', insert: '^', hint: 'Power' },
+    { symbol: 'x₁', insert: '₁', hint: 'Subscript 1' },
+    { symbol: 'x₂', insert: '₂', hint: 'Subscript 2' },
+    { symbol: 'xₙ', insert: '_', hint: 'Subscript' },
+    { symbol: '½', insert: '½', hint: 'Half' },
+    { symbol: '¼', insert: '¼', hint: 'Quarter' },
+    { symbol: '¾', insert: '¾', hint: 'Three quarters' },
+    { symbol: '√', insert: '√', hint: 'Square root' },
+    { symbol: '∛', insert: '∛', hint: 'Cube root' },
   ]},
   { label: 'Greek', buttons: [
-    { symbol: 'α', latex: '\\alpha', hint: 'Alpha' },
-    { symbol: 'β', latex: '\\beta', hint: 'Beta' },
-    { symbol: 'γ', latex: '\\gamma', hint: 'Gamma' },
-    { symbol: 'δ', latex: '\\delta', hint: 'Delta' },
-    { symbol: 'θ', latex: '\\theta', hint: 'Theta' },
-    { symbol: 'λ', latex: '\\lambda', hint: 'Lambda' },
-    { symbol: 'μ', latex: '\\mu', hint: 'Mu' },
-    { symbol: 'π', latex: '\\pi', hint: 'Pi' },
-    { symbol: 'σ', latex: '\\sigma', hint: 'Sigma (lowercase)' },
-    { symbol: 'φ', latex: '\\phi', hint: 'Phi' },
-    { symbol: 'ω', latex: '\\omega', hint: 'Omega' },
-    { symbol: 'Δ', latex: '\\Delta', hint: 'Delta (uppercase)' },
-    { symbol: 'Σ', latex: '\\Sigma', hint: 'Sigma (uppercase)' },
-    { symbol: 'Π', latex: '\\Pi', hint: 'Pi (uppercase)' },
-    { symbol: 'Ω', latex: '\\Omega', hint: 'Omega (uppercase)' },
+    { symbol: 'α', insert: 'α', hint: 'Alpha' },
+    { symbol: 'β', insert: 'β', hint: 'Beta' },
+    { symbol: 'γ', insert: 'γ', hint: 'Gamma' },
+    { symbol: 'δ', insert: 'δ', hint: 'Delta' },
+    { symbol: 'θ', insert: 'θ', hint: 'Theta' },
+    { symbol: 'λ', insert: 'λ', hint: 'Lambda' },
+    { symbol: 'μ', insert: 'μ', hint: 'Mu' },
+    { symbol: 'π', insert: 'π', hint: 'Pi' },
+    { symbol: 'σ', insert: 'σ', hint: 'Sigma' },
+    { symbol: 'φ', insert: 'φ', hint: 'Phi' },
+    { symbol: 'ω', insert: 'ω', hint: 'Omega' },
+    { symbol: 'Δ', insert: 'Δ', hint: 'Delta (uppercase)' },
+    { symbol: 'Σ', insert: 'Σ', hint: 'Sigma (uppercase)' },
+    { symbol: 'Ω', insert: 'Ω', hint: 'Omega (uppercase)' },
   ]},
   { label: 'Operators', buttons: [
-    { symbol: '±', latex: '\\pm', hint: 'Plus-minus' },
-    { symbol: '×', latex: '\\times', hint: 'Multiply' },
-    { symbol: '÷', latex: '\\div', hint: 'Divide' },
-    { symbol: '·', latex: '\\cdot', hint: 'Dot product' },
-    { symbol: '≠', latex: '\\neq', hint: 'Not equal' },
-    { symbol: '≤', latex: '\\leq', hint: 'Less than or equal' },
-    { symbol: '≥', latex: '\\geq', hint: 'Greater than or equal' },
-    { symbol: '≈', latex: '\\approx', hint: 'Approximately' },
-    { symbol: '∞', latex: '\\infty', hint: 'Infinity' },
-    { symbol: '∝', latex: '\\propto', hint: 'Proportional' },
+    { symbol: '±', insert: '±', hint: 'Plus-minus' },
+    { symbol: '×', insert: '×', hint: 'Multiply' },
+    { symbol: '÷', insert: '÷', hint: 'Divide' },
+    { symbol: '·', insert: '·', hint: 'Dot product' },
+    { symbol: '≠', insert: '≠', hint: 'Not equal' },
+    { symbol: '≤', insert: '≤', hint: 'Less than or equal' },
+    { symbol: '≥', insert: '≥', hint: 'Greater than or equal' },
+    { symbol: '≈', insert: '≈', hint: 'Approximately' },
+    { symbol: '∞', insert: '∞', hint: 'Infinity' },
+    { symbol: '∝', insert: '∝', hint: 'Proportional' },
+    { symbol: '°', insert: '°', hint: 'Degree' },
   ]},
   { label: 'Calculus', buttons: [
-    { symbol: '∫', latex: '\\int_{a}^{b}', hint: 'Integral', replace: true },
-    { symbol: '∂', latex: '\\partial', hint: 'Partial derivative' },
-    { symbol: 'lim', latex: '\\lim_{x \\to \\infty}', hint: 'Limit', replace: true },
-    { symbol: 'Σ', latex: '\\sum_{i=1}^{n}', hint: 'Summation', replace: true },
-    { symbol: '∏', latex: '\\prod_{i=1}^{n}', hint: 'Product', replace: true },
-    { symbol: 'log', latex: '\\log', hint: 'Logarithm' },
-    { symbol: 'ln', latex: '\\ln', hint: 'Natural log' },
+    { symbol: '∫', insert: '∫', hint: 'Integral' },
+    { symbol: '∂', insert: '∂', hint: 'Partial derivative' },
+    { symbol: '∑', insert: '∑', hint: 'Summation' },
+    { symbol: '∏', insert: '∏', hint: 'Product' },
   ]},
-  { label: 'Trig', buttons: [
-    { symbol: 'sin', latex: '\\sin', hint: 'Sine' },
-    { symbol: 'cos', latex: '\\cos', hint: 'Cosine' },
-    { symbol: 'tan', latex: '\\tan', hint: 'Tangent' },
-  ]},
-  { label: 'Arrows', buttons: [
-    { symbol: '→', latex: '\\rightarrow', hint: 'Right arrow' },
-    { symbol: '←', latex: '\\leftarrow', hint: 'Left arrow' },
-    { symbol: '↔', latex: '\\leftrightarrow', hint: 'Double arrow' },
-  ]},
-  { label: 'Templates', buttons: [
-    { symbol: 'a/b', latex: '\\frac{a}{b}', hint: 'Fraction', replace: true },
-    { symbol: '√x', latex: '\\sqrt{x}', hint: 'Square root', replace: true },
-    { symbol: 'x²+y²', latex: 'x^{2} + y^{2}', hint: 'Sum of squares', replace: true },
-    { symbol: 'Quadratic', latex: 'x = \\frac{-b \\pm \\sqrt{b^{2}-4ac}}{2a}', hint: 'Quadratic formula', replace: true },
-    { symbol: 'E=mc²', latex: 'E = mc^{2}', hint: "Einstein's equation", replace: true },
-  ]},
-];
-
-const DEFAULT_BRANDING = {
-  logo: schoolLogo,
-  logoWidth: 65,
-  logoHeight: 65,
-  logoPos: { x: 0, y: 0 },
-  schoolName: 'Girijyothi CMI Public School',
-  schoolAddress: 'Vazhathope, Idukki',
-  fontFamily: 'Inter',
-  headerLogoOnly: false,
-  hideSchoolLogo: false
-};
-
-const normalizeLogo = (val) => {
-  if (val === null || val === undefined) return null;
-  if (typeof val === 'string') {
-    const trimmed = val.trim();
-    if (trimmed === '' || trimmed === 'null' || trimmed === 'none' || trimmed === 'undefined' || trimmed === 'false') {
-      return null;
-    }
-    const lower = trimmed.toLowerCase();
-    if (
-      lower === 'default' ||
-      lower === 'schoollogo' ||
-      lower.includes('school_logo') ||
-      lower.includes('school-logo')
-    ) {
-      return schoolLogo;
-    }
-    return trimmed;
-  }
-  return val;
-};
-
-const DEFAULT_METADATA = {
-  title: 'FIRST TERM SUMMATIVE ASSESSMENT',
-  subject: 'Computer Science & Programming',
-  classDiv: 'Class X - Division A & B',
-  maxMarks: 50,
-  duration: '90 Minutes',
-  separateAnswerSheet: true,
-  language: 'english',
-  instructions: ''
-};
-
-const DEFAULT_SECTIONS = [
-  {
-    id: 'sec-1',
-    title: 'SECTION A: OBJECTIVE TYPE QUESTIONS (MCQ)',
-    marks: 5,
-    instructions: 'Answer all the questions. Each question carries 1 mark. Select the most appropriate option.',
-    type: 'mcq',
-    questions: [
-      {
-        id: 'q-1',
-        text: 'Which of the following is NOT a high-level programming language?',
-        marks: 1,
-        options: ['Python', 'Assembly Language', 'Java', 'C++']
-      },
-      {
-        id: 'q-2',
-        text: 'Which data structure operates on a Last-In, First-Out (LIFO) basis?',
-        marks: 1,
-        options: ['Queue', 'Stack', 'Linked List', 'Array']
-      }
-    ]
-  },
-  {
-    id: 'sec-1-tf',
-    title: 'SECTION B: TRUE OR FALSE',
-    marks: 5,
-    instructions: 'State whether the following statements are True or False.',
-    type: 'true_false',
-    questions: [
-      {
-        id: 'q-2-tf-1',
-        text: 'In Python, variables are dynamically typed and do not need to be declared.',
-        marks: 1
-      },
-      {
-        id: 'q-2-tf-2',
-        text: 'HTML is a programming language used for logic execution.',
-        marks: 1
-      }
-    ]
-  },
-  {
-    id: 'sec-2',
-    title: 'SECTION C: MATCH THE COMPONENTS',
-    marks: 3,
-    instructions: 'Match the computer hardware components with their appropriate primary functions.',
-    type: 'match_following',
-    questions: [
-      {
-        id: 'q-4',
-        text: 'Associate components to functions:',
-        marks: 3,
-        matchPairs: [
-          { premise: 'CPU', response: 'Instruction execution and logic processing' },
-          { premise: 'RAM', response: 'Temporary high-speed volatile data storage' },
-          { premise: 'SSD', response: 'Persistent high-speed non-volatile storage' }
-        ],
-        shuffleB: true
-      }
-    ]
-  },
-  {
-    id: 'sec-3',
-    title: 'SECTION D: SHORT ANSWER & ESSAYS',
-    marks: 15,
-    instructions: 'Answer all questions. Assign marks based on the depth and logic of your explanation.',
-    type: 'essay',
-    questions: [
-      {
-        id: 'q-5',
-        text: 'Discuss cloud computing architectures and security:',
-        marks: 10,
-        blankLines: 12,
-        subQuestions: [
-          {
-            id: 'sq-1',
-            label: '(a)',
-            text: 'Explain the key differences between Public, Private, and Hybrid Cloud architectures.',
-            marks: 5,
-            blankLines: 6
-          },
-          {
-            id: 'sq-2',
-            label: '(b)',
-            text: 'List three critical security concerns when hosting sensitive data in public cloud servers.',
-            marks: 5,
-            blankLines: 6
-          }
-        ]
-      },
-      {
-        id: 'q-6',
-        text: 'Explain the difference between compiler and interpreter.',
-        marks: 5,
-        blankLines: 6
-      }
-    ]
-  }
+  { label: 'Trig & Log', buttons: [
+    { symbol: 'sin', insert: 'sin ', hint: 'Sine' },
+    { symbol: 'cos', insert: 'cos ', hint: 'Cosine' },
+    { symbol: 'tan', insert: 'tan ', hint: 'Tangent' },
+    { symbol: 'log', insert: 'log ', hint: 'Logarithm' },
+    { symbol: 'ln', insert: 'ln ', hint: 'Natural log' },
+  ]}
 ];
 
 const _PRESET_TEMPLATES = {
@@ -723,6 +565,11 @@ export default function App() {
 
   const handleFloatingFormulaClick = () => {
     if (!activeInputInfo) return;
+    setFormulaModal({ isOpen: true });
+  };
+
+  const handleInsertSymbol = (symbolToInsert) => {
+    if (!activeInputInfo) return;
     const elementId = activeInputInfo.id;
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -731,26 +578,19 @@ export default function App() {
     const start = el.selectionStart;
     const end = el.selectionEnd;
 
-    setFormulaModal({
-      isOpen: true,
-      latex: '',
-      onSave: (latex) => {
-        const formulaString = `$${latex}$`;
-        const newValue = currentValue.substring(0, start) + formulaString + currentValue.substring(end);
-        updateValueForId(elementId, newValue);
+    const newValue = currentValue.substring(0, start) + symbolToInsert + currentValue.substring(end);
+    updateValueForId(elementId, newValue);
 
-        // Restore focus and cursor
-        setTimeout(() => {
-          const inputEl = document.getElementById(elementId);
-          if (inputEl) {
-            inputEl.focus();
-            const newCursorPos = start + formulaString.length;
-            inputEl.setSelectionRange(newCursorPos, newCursorPos);
-            setActiveInputInfo({ id: elementId });
-          }
-        }, 50);
+    // Restore focus and update cursor position
+    setTimeout(() => {
+      const inputEl = document.getElementById(elementId);
+      if (inputEl) {
+        inputEl.focus();
+        const newCursorPos = start + symbolToInsert.length;
+        inputEl.setSelectionRange(newCursorPos, newCursorPos);
+        setActiveInputInfo({ id: elementId });
       }
-    });
+    }, 50);
   };
 
   const [theme, setTheme] = useState(() => {
