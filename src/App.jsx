@@ -1990,14 +1990,14 @@ export default function App() {
         }).filter(b => b.height > 0).sort((a, b) => a.top - b.top);
       };
 
-      const questionBoxes = getBoxes('.paper-question-item');
-      const explicitBreakBoxes = getBoxes('.page-break-before');
-      const sectionHeaderBoxes = getBoxes('.paper-section-header');
-      const sectionInstructionBoxes = getBoxes('.paper-section-instructions');
-      const paragraphBoxes = getBoxes('p, li, .paper-question-body > *, .paper-question-title, .paper-question-text, .general-instructions-render, .exam-meta-item, .school-details, .paper-section-title');
-      const tableRowBoxes = getBoxes('tr');
-      const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
-      const subItemBoxes = getBoxes('.katex-html, .katex-display, .paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line, .paper-subquestion-item, .paper-table-question tr, .paper-match-table tr, .paper-match-table .match-pair')
+      let questionBoxes = getBoxes('.paper-question-item');
+      let explicitBreakBoxes = getBoxes('.page-break-before');
+      let sectionHeaderBoxes = getBoxes('.paper-section-header');
+      let sectionInstructionBoxes = getBoxes('.paper-section-instructions');
+      let paragraphBoxes = getBoxes('p, li, .paper-question-body > *, .paper-question-title, .paper-question-text, .general-instructions-render, .exam-meta-item, .school-details, .paper-section-title');
+      let tableRowBoxes = getBoxes('tr');
+      let tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
+      let subItemBoxes = getBoxes('.katex-html, .katex-display, .paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line, .paper-subquestion-item, .paper-table-question tr, .paper-match-table tr, .paper-match-table .match-pair')
         .filter(b => !b.elem.closest('.paper-section-header'));
       const unbreakableBoxes = [
         ...sectionHeaderBoxes,
@@ -2015,7 +2015,9 @@ export default function App() {
       const freezeBoxes = [
         ...questionBoxes,
         ...sectionHeaderBoxes,
-        ...sectionInstructionBoxes
+        ...sectionInstructionBoxes,
+        ...paragraphBoxes,
+        ...subItemBoxes
       ];
       
       const headerEl = clone.querySelector('.paper-header');
@@ -2070,8 +2072,8 @@ export default function App() {
             const firstQ = questionBoxes.find(q => q.top >= sh.top && q.top <= sh.bottom + 120);
             const firstQOverflows = firstQ && (firstQ.bottom > limit || firstQ.top > limit - 20);
 
-            if ((sh.bottom + 30) > limit || firstQOverflows) {
-              return Math.max(afterY + 20, sh.top - 25);
+            if ((sh.bottom + 45) > limit || firstQOverflows) {
+              return Math.max(afterY + 20, sh.top - 35);
             }
           }
         }
@@ -2080,11 +2082,11 @@ export default function App() {
         for (const q of questionBoxes) {
           if (q.top > afterY + 15 && q.top < limit - 5) {
             const hasSplittableContent = q.elem.querySelector('.paper-match-table, .paper-table-question, .paper-subquestions-list');
-            if ((q.bottom + 30) > limit && q.height <= usableHeightCSS - 25) {
+            if ((q.bottom + 45) > limit && q.height <= usableHeightCSS - 25) {
               if (hasSplittableContent && q.top < limit - 130) {
                 continue;
               }
-              return Math.max(afterY + 20, q.top - 25);
+              return Math.max(afterY + 20, q.top - 35);
             }
           }
         }
@@ -2092,22 +2094,22 @@ export default function App() {
         // 3. Check Section Instructions independently
         for (const si of sectionInstructionBoxes) {
           if (si.top > afterY + 15 && si.top < limit - 5) {
-            if ((si.bottom + 30) > limit) {
+            if ((si.bottom + 45) > limit) {
               const parentHeader = sectionHeaderBoxes.find(sh => sh.top <= si.top && sh.bottom >= si.top);
               if (parentHeader && parentHeader.top > afterY + 15) {
-                return Math.max(afterY + 20, parentHeader.top - 25);
+                return Math.max(afterY + 20, parentHeader.top - 35);
               }
-              return Math.max(afterY + 20, si.top - 25);
+              return Math.max(afterY + 20, si.top - 35);
             }
           }
         }
 
         // 4. Fallback for large content: Check sub-items, paragraphs, or table rows
         const cutSub = unbreakableBoxes
-          .filter(b => b.top > afterY + 15 && b.top < limit && (b.bottom + 30) > limit && b.height <= usableHeightCSS - 25)
+          .filter(b => b.top > afterY + 15 && b.top < limit && (b.bottom + 45) > limit && b.height <= usableHeightCSS - 25)
           .sort((a, b) => a.top - b.top)[0];
         if (cutSub) {
-          return Math.max(afterY + 20, cutSub.top - 25);
+          return Math.max(afterY + 20, cutSub.top - 35);
         }
 
         return limit;
@@ -2136,11 +2138,11 @@ export default function App() {
         // Double-check: if breakY was not set by a question/section break, ensure no paragraph/row is cut
         if (breakY === maxTargetY) {
           const cutElem = unbreakableBoxes
-            .filter(el => el.top >= currentY + 15 && el.top < breakY && (el.bottom + 30) > breakY && el.height <= usableHeightCSS - 30)
+            .filter(el => el.top >= currentY + 15 && el.top < breakY && (el.bottom + 45) > breakY && el.height <= usableHeightCSS - 30)
             .sort((a, b) => a.top - b.top)[0];
 
           if (cutElem) {
-            breakY = Math.max(currentY + 20, cutElem.top - 25);
+            breakY = Math.max(currentY + 20, cutElem.top - 35);
           }
         }
 
