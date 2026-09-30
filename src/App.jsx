@@ -1971,7 +1971,7 @@ export default function App() {
         const descendants = elem.getElementsByTagName('*');
         for (let i = 0; i < descendants.length; i++) {
           const dRect = descendants[i].getBoundingClientRect();
-          if (dRect.height > 0 && dRect.width > 0) {
+          if (dRect.height > 0) {
             if (dRect.top < minTop) minTop = dRect.top;
             if (dRect.bottom > maxBottom) maxBottom = dRect.bottom;
           }
@@ -1997,7 +1997,7 @@ export default function App() {
       const paragraphBoxes = getBoxes('p, li, .paper-question-body > *, .paper-question-title, .paper-question-text, .general-instructions-render, .exam-meta-item, .school-details, .paper-section-title');
       const tableRowBoxes = getBoxes('tr');
       const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
-      const subItemBoxes = getBoxes('.paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line')
+      const subItemBoxes = getBoxes('.katex-html, .katex-display, .paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line')
         .filter(b => !b.elem.closest('.paper-section-header'));
       const unbreakableBoxes = [
         ...sectionHeaderBoxes,
@@ -2047,8 +2047,8 @@ export default function App() {
             const firstQ = questionBoxes.find(q => q.top >= sh.top && q.top <= sh.bottom + 120);
             const firstQOverflows = firstQ && (firstQ.bottom > limit || firstQ.top > limit - 20);
 
-            if (sh.bottom > limit || firstQOverflows) {
-              return Math.max(afterY + 20, sh.top - 10);
+            if ((sh.bottom + 30) > limit || firstQOverflows) {
+              return Math.max(afterY + 20, sh.top - 25);
             }
           }
         }
@@ -2057,11 +2057,11 @@ export default function App() {
         for (const q of questionBoxes) {
           if (q.top > afterY + 15 && q.top < limit - 5) {
             const hasSplittableContent = q.elem.querySelector('.paper-match-table, .paper-table-question, .paper-subquestions-list');
-            if (q.bottom > limit && q.height <= usableHeightCSS - 25) {
+            if ((q.bottom + 30) > limit && q.height <= usableHeightCSS - 25) {
               if (hasSplittableContent && q.top < limit - 130) {
                 continue;
               }
-              return Math.max(afterY + 20, q.top - 10);
+              return Math.max(afterY + 20, q.top - 25);
             }
           }
         }
@@ -2069,22 +2069,22 @@ export default function App() {
         // 3. Check Section Instructions independently
         for (const si of sectionInstructionBoxes) {
           if (si.top > afterY + 15 && si.top < limit - 5) {
-            if (si.bottom > limit) {
+            if ((si.bottom + 30) > limit) {
               const parentHeader = sectionHeaderBoxes.find(sh => sh.top <= si.top && sh.bottom >= si.top);
               if (parentHeader && parentHeader.top > afterY + 15) {
-                return Math.max(afterY + 20, parentHeader.top - 10);
+                return Math.max(afterY + 20, parentHeader.top - 25);
               }
-              return Math.max(afterY + 20, si.top - 10);
+              return Math.max(afterY + 20, si.top - 25);
             }
           }
         }
 
         // 4. Fallback for large content: Check sub-items, paragraphs, or table rows
         const cutSub = unbreakableBoxes
-          .filter(b => b.top > afterY + 15 && b.top < limit && b.bottom > limit && b.height <= usableHeightCSS - 25)
+          .filter(b => b.top > afterY + 15 && b.top < limit && (b.bottom + 30) > limit && b.height <= usableHeightCSS - 25)
           .sort((a, b) => a.top - b.top)[0];
         if (cutSub) {
-          return Math.max(afterY + 20, cutSub.top - 10);
+          return Math.max(afterY + 20, cutSub.top - 25);
         }
 
         return limit;
@@ -2113,11 +2113,11 @@ export default function App() {
         // Double-check: if breakY was not set by a question/section break, ensure no paragraph/row is cut
         if (breakY === maxTargetY) {
           const cutElem = unbreakableBoxes
-            .filter(el => el.top >= currentY + 15 && el.top < breakY && el.bottom > breakY && el.height <= usableHeightCSS - 30)
+            .filter(el => el.top >= currentY + 15 && el.top < breakY && (el.bottom + 30) > breakY && el.height <= usableHeightCSS - 30)
             .sort((a, b) => a.top - b.top)[0];
 
           if (cutElem) {
-            breakY = Math.max(currentY + 20, cutElem.top - 10);
+            breakY = Math.max(currentY + 20, cutElem.top - 25);
           }
         }
 
