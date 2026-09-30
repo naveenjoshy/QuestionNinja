@@ -56,23 +56,6 @@ const loadExportDependencies = async () => {
   return exportDependenciesPromise;
 };
 
-// Helper: render LaTeX to HTML string (sanitized)
-const renderLatex = (latex) => {
-  try {
-    const rawHtml = katex.renderToString(latex, {
-      throwOnError: false,
-      displayMode: true,
-      output: 'html'
-    });
-    return DOMPurify.sanitize(rawHtml, {
-      ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub'],
-      ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
-    });
-  } catch {
-    return `<span style="color:red;">Invalid formula</span>`;
-  }
-};
-
 // Helper: render square root with proper radical symbol and top overbar line
 const renderSquareRootHTML = (inner) => {
   if (!inner) return '<span class="math-sqrt-symbol">√</span>';
@@ -453,8 +436,7 @@ export default function App() {
   const [previewZoom, setPreviewZoom] = useState(0.85);
   const [showLivePreview, setShowLivePreview] = useState(true);
   const paperSheetRef = useRef(null);
-  const formulaInputRef = useRef(null);
-
+  
   // Hook to track focus on formula-enabled text inputs
   useEffect(() => {
     const handleFocus = (e) => {
@@ -5588,16 +5570,15 @@ export default function App() {
 
       {/* Formula Editor Modal */}
       {formulaModal.isOpen && (
-        <div className="modal-overlay" onClick={() => setFormulaModal({ ...formulaModal, isOpen: false })} style={{ zIndex: 10000 }}>
-          <div className="modal-content formula-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setFormulaModal({ isOpen: false })} style={{ zIndex: 10000 }}>
+          <div className="modal-content formula-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontStyle: 'italic', fontWeight: 'bold', fontSize: '20px' }}>𝑓(x)</span> Formula Editor
+                <span style={{ fontStyle: 'italic', fontWeight: 'bold', fontSize: '20px' }}>𝑓(x)</span> Insert Math Symbol
               </h3>
             </div>
 
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
-              {/* Toolbar */}
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto', padding: '16px' }}>
               <div className="formula-toolbar">
                 {FORMULA_BUTTONS.map((group) => (
                   <div key={group.label} className="formula-toolbar-group">
@@ -5608,14 +5589,7 @@ export default function App() {
                           key={bIdx}
                           className="formula-btn"
                           title={btn.hint}
-                          onClick={() => {
-                            if (btn.replace) {
-                              setFormulaModal(prev => ({ ...prev, latex: btn.latex }));
-                            } else {
-                              setFormulaModal(prev => ({ ...prev, latex: prev.latex + ' ' + btn.latex }));
-                            }
-                            formulaInputRef.current?.focus();
-                          }}
+                          onClick={() => handleInsertSymbol(btn.insert)}
                         >
                           {btn.symbol}
                         </button>
@@ -5624,46 +5598,11 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
-              {/* LaTeX Input */}
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>LaTeX Formula</label>
-                <textarea
-                  ref={formulaInputRef}
-                  value={formulaModal.latex}
-                  onChange={(e) => setFormulaModal(prev => ({ ...prev, latex: e.target.value }))}
-                  placeholder="Type LaTeX here, e.g. x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}"
-                  style={{ minHeight: '80px', fontSize: '14px', fontFamily: 'monospace' }}
-                />
-              </div>
-
-              {/* Live Preview */}
-              <div className="formula-live-preview">
-                <label style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', display: 'block' }}>Live Preview</label>
-                <div className="formula-preview-box">
-                  {formulaModal.latex ? (
-                    <div dangerouslySetInnerHTML={{ __html: renderLatex(formulaModal.latex) }} />
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Formula preview will appear here...</span>
-                  )}
-                </div>
-              </div>
             </div>
 
             <div className="modal-footer" style={{ gap: '8px' }}>
-              <button className="btn btn-secondary" onClick={() => setFormulaModal({ isOpen: false, latex: '', onSave: null })}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  if (formulaModal.onSave) {
-                    formulaModal.onSave(formulaModal.latex);
-                  }
-                  setFormulaModal({ isOpen: false, latex: '', onSave: null });
-                }}
-              >
-                Insert Formula
+              <button className="btn btn-primary" onClick={() => setFormulaModal({ isOpen: false })}>
+                Done
               </button>
             </div>
           </div>
