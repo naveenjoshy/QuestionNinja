@@ -207,8 +207,9 @@ const latexToPlainText = (latex) => {
     '\\Gamma':'Γ','\\Delta':'Δ','\\Theta':'Θ','\\Lambda':'Λ','\\Xi':'Ξ','\\Pi':'Π',
     '\\Sigma':'Σ','\\Upsilon':'Υ','\\Phi':'Φ','\\Psi':'Ψ','\\Omega':'Ω'
   };
-  for (const [k, v] of Object.entries(greeks)) {
-    text = text.replaceAll(k, v);
+  const sortedGreeks = Object.keys(greeks).sort((a, b) => b.length - a.length);
+  for (const k of sortedGreeks) {
+    text = text.replaceAll(k, greeks[k]);
   }
   // Comprehensive Math, Arithmetic, Calculus & Logic operators
   const ops = {
@@ -225,8 +226,9 @@ const latexToPlainText = (latex) => {
     '\\Rightarrow':'⇒','\\Leftarrow':'⇐','\\Leftrightarrow':'⇔','\\angle':'∠','\\measuredangle':'∡',
     '\\degree':'°','\\ldots':'…','\\cdots':'⋯','\\vdots':'⋮','\\ddots':'⋱'
   };
-  for (const [k, v] of Object.entries(ops)) {
-    text = text.replaceAll(k, v);
+  const sortedOps = Object.keys(ops).sort((a, b) => b.length - a.length);
+  for (const k of sortedOps) {
+    text = text.replaceAll(k, ops[k]);
   }
   // Clean remaining commands
   text = text.replace(/\\(lim|log|sin|cos|tan|cot|sec|csc|ln|max|min|deg)/g, '$1');
