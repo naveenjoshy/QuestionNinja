@@ -1997,7 +1997,7 @@ export default function App() {
       const paragraphBoxes = getBoxes('p, li, .paper-question-body > *, .paper-question-title, .paper-question-text, .general-instructions-render, .exam-meta-item, .school-details, .paper-section-title');
       const tableRowBoxes = getBoxes('tr');
       const tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
-      const subItemBoxes = getBoxes('.katex-html, .katex-display, .paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line')
+      const subItemBoxes = getBoxes('.katex-html, .katex-display, .paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line, .paper-subquestion-item, .paper-table-question tr, .paper-match-table tr, .paper-match-table .match-pair')
         .filter(b => !b.elem.closest('.paper-section-header'));
       const unbreakableBoxes = [
         ...sectionHeaderBoxes,
@@ -2008,6 +2008,29 @@ export default function App() {
         ...tableBoxes,
         ...subItemBoxes
       ];
+
+      // FREEZE HEIGHTS TO PREVENT HTML2CANVAS VERTICAL DRIFT
+      // html2canvas text wrapping differences accumulate over 5000px, causing elements to be drawn
+      // far lower than their DOM bounds. Freezing heights mathematically eliminates this drift.
+      const freezeBoxes = [
+        ...questionBoxes,
+        ...sectionHeaderBoxes,
+        ...sectionInstructionBoxes
+      ];
+      
+      const headerEl = clone.querySelector('.paper-header');
+      if (headerEl) {
+        const headerBounds = getTrueBounds(headerEl);
+        headerEl.style.height = Math.ceil(headerBounds.height + 2) + 'px';
+        headerEl.style.overflow = 'visible';
+      }
+
+      for (const b of freezeBoxes) {
+        if (b.elem) {
+          b.elem.style.height = Math.ceil(b.height + 2) + 'px';
+          b.elem.style.overflow = 'visible';
+        }
+      }
 
       // Render full element to single hires canvas
       const canvas = await html2canvas(clone, {
@@ -4948,7 +4971,7 @@ export default function App() {
                                 <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+                                  <p style={{ fontWeight: '500', textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
                                   {/* Question Image render */}
                                   {q.image && sec.type !== 'match_following' && (
@@ -5007,7 +5030,7 @@ export default function App() {
                                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                                                 <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
                                                   <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
-                                                  <span style={{ flex: 1, textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                  <span style={{ flex: 1, textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
                                                 </div>
                                                 <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
                                               </div>
@@ -5405,7 +5428,7 @@ export default function App() {
                                 <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
                                 <span className="paper-question-number">Q{globalNum}.</span>
                                 <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+                                  <p style={{ fontWeight: '500', textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
                                   {/* Question Image render - positioned directly below Question Text */}
                                   {q.image && sec.type !== 'match_following' && (
@@ -5464,7 +5487,7 @@ export default function App() {
                                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                                                 <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
                                                   <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
-                                                  <span style={{ flex: 1, textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                  <span style={{ flex: 1, textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
                                                 </div>
                                                 <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
                                               </div>
