@@ -35,22 +35,17 @@ import {
 } from 'lucide-react';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
+import html2pdf from 'html2pdf.js';
 
 let docx;
-let jsPDF;
-let html2canvas;
 let exportDependenciesPromise;
 
 const loadExportDependencies = async () => {
   if (!exportDependenciesPromise) {
     exportDependenciesPromise = Promise.all([
-      import('docx'),
-      import('jspdf'),
-      import('html2canvas-pro')
-    ]).then(([docxModule, jspdfModule, html2canvasModule]) => {
+      import('docx')
+    ]).then(([docxModule]) => {
       docx = docxModule;
-      jsPDF = jspdfModule.jsPDF;
-      html2canvas = html2canvasModule.default;
     });
   }
   return exportDependenciesPromise;
@@ -107,7 +102,10 @@ const renderTextWithMath = (text) => {
     result = result.replace(`___MATH_BLOCK_${i}___`, html);
   });
 
-  result = result.replace(/\n/g, '<br>');
+  // Convert newlines to block lines for precise page-break slicing in PDF
+  const lines = result.split('\n');
+  result = lines.map(line => `<span class="paper-text-line" style="display: block; min-height: 1.2rem;">${line || '&nbsp;'}</span>`).join('');
+
   return DOMPurify.sanitize(result, {
     ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub', 'br'],
     ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
@@ -181,31 +179,31 @@ const latexToPlainText = (latex) => {
   text = text.replace(/\\bar\{([^}]*)\}/g, (_, v) => `${v}̄`);
   // Superscript
   text = text.replace(/\^\{([^}]*)\}/g, (_, p) => {
-    const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ','+':'⁺','-':'⁻','=':'⁼','(':'⁽',')':'⁾','a':'ᵃ','b':'ᵇ','c':'ᶜ','x':'ˣ','y':'ʸ' };
+    const supMap = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ', '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'x': 'ˣ', 'y': 'ʸ' };
     return p.split('').map(c => supMap[c] || `^${c}`).join('');
   });
   text = text.replace(/\^([0-9n])/g, (_, c) => {
-    const supMap = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','n':'ⁿ' };
+    const supMap = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ' };
     return supMap[c] || `^${c}`;
   });
   // Subscript
   text = text.replace(/_\{([^}]*)\}/g, (_, p) => {
-    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','+':'₊','-':'₋','=':'₌','(':'₍',')':'₎','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ' };
+    const subMap = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', 'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'x': 'ₓ' };
     return p.split('').map(c => subMap[c] || `_${c}`).join('');
   });
   text = text.replace(/_([0-9a-zA-Z])/g, (_, c) => {
-    const subMap = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ' };
+    const subMap = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', 'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'x': 'ₓ' };
     return subMap[c] || `_${c}`;
   });
   // Full Greek alphabet (lowercase & uppercase)
   const greeks = {
-    '\\alpha':'α','\\beta':'β','\\gamma':'γ','\\delta':'δ','\\epsilon':'ε','\\varepsilon':'ϵ',
-    '\\zeta':'ζ','\\eta':'η','\\theta':'θ','\\vartheta':'ϑ','\\iota':'ι','\\kappa':'κ',
-    '\\lambda':'λ','\\mu':'μ','\\nu':'ν','\\xi':'ξ','\\pi':'π','\\varpi':'ϖ',
-    '\\rho':'ρ','\\varrho':'ϱ','\\sigma':'σ','\\varsigma':'ς','\\tau':'τ','\\upsilon':'υ',
-    '\\phi':'φ','\\varphi':'ϕ','\\chi':'χ','\\psi':'ψ','\\omega':'ω',
-    '\\Gamma':'Γ','\\Delta':'Δ','\\Theta':'Θ','\\Lambda':'Λ','\\Xi':'Ξ','\\Pi':'Π',
-    '\\Sigma':'Σ','\\Upsilon':'Υ','\\Phi':'Φ','\\Psi':'Ψ','\\Omega':'Ω'
+    '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ', '\\epsilon': 'ε', '\\varepsilon': 'ϵ',
+    '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ', '\\vartheta': 'ϑ', '\\iota': 'ι', '\\kappa': 'κ',
+    '\\lambda': 'λ', '\\mu': 'μ', '\\nu': 'ν', '\\xi': 'ξ', '\\pi': 'π', '\\varpi': 'ϖ',
+    '\\rho': 'ρ', '\\varrho': 'ϱ', '\\sigma': 'σ', '\\varsigma': 'ς', '\\tau': 'τ', '\\upsilon': 'υ',
+    '\\phi': 'φ', '\\varphi': 'ϕ', '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
+    '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ', '\\Xi': 'Ξ', '\\Pi': 'Π',
+    '\\Sigma': 'Σ', '\\Upsilon': 'Υ', '\\Phi': 'Φ', '\\Psi': 'Ψ', '\\Omega': 'Ω'
   };
   const sortedGreeks = Object.keys(greeks).sort((a, b) => b.length - a.length);
   for (const k of sortedGreeks) {
@@ -213,18 +211,18 @@ const latexToPlainText = (latex) => {
   }
   // Comprehensive Math, Arithmetic, Calculus & Logic operators
   const ops = {
-    '\\pm':'±','\\mp':'∓','\\times':'×','\\div':'÷','\\cdot':'·','\\star':'⋆','\\circ':'∘',
-    '\\bullet':'•','\\cap':'∩','\\cup':'∪','\\uplus':'⊎','\\sqcap':'⊓','\\sqcup':'⊔',
-    '\\vee':'∨','\\wedge':'∧','\\setminus':'∖','\\diamond':'⋄',
-    '\\leq':'≤','\\geq':'≥','\\neq':'≠','\\equiv':'≡','\\approx':'≈','\\sim':'∼',
-    '\\simeq':'≃','\\asymp':'≍','\\propto':'∝','\\perp':'⊥','\\parallel':'∥',
-    '\\in':'∈','\\notin':'∉','\\subset':'⊂','\\supset':'⊃','\\subseteq':'⊆','\\supseteq':'⊇',
-    '\\forall':'∀','\\exists':'∃','\\nexists':'∄','\\emptyset':'∅','\\nabla':'∇',
-    '\\partial':'∂','\\int':'∫','\\iint':'∬','\\iiint':'∭','\\oint':'∮','\\sum':'∑',
-    '\\prod':'∏','\\coprod':'∐','\\infty':'∞','\\therefore':'∴','\\because':'∵',
-    '\\implies':'⇒','\\iff':'⇔','\\rightarrow':'→','\\leftarrow':'←','\\leftrightarrow':'↔',
-    '\\Rightarrow':'⇒','\\Leftarrow':'⇐','\\Leftrightarrow':'⇔','\\angle':'∠','\\measuredangle':'∡',
-    '\\degree':'°','\\ldots':'…','\\cdots':'⋯','\\vdots':'⋮','\\ddots':'⋱'
+    '\\pm': '±', '\\mp': '∓', '\\times': '×', '\\div': '÷', '\\cdot': '·', '\\star': '⋆', '\\circ': '∘',
+    '\\bullet': '•', '\\cap': '∩', '\\cup': '∪', '\\uplus': '⊎', '\\sqcap': '⊓', '\\sqcup': '⊔',
+    '\\vee': '∨', '\\wedge': '∧', '\\setminus': '∖', '\\diamond': '⋄',
+    '\\leq': '≤', '\\geq': '≥', '\\neq': '≠', '\\equiv': '≡', '\\approx': '≈', '\\sim': '∼',
+    '\\simeq': '≃', '\\asymp': '≍', '\\propto': '∝', '\\perp': '⊥', '\\parallel': '∥',
+    '\\in': '∈', '\\notin': '∉', '\\subset': '⊂', '\\supset': '⊃', '\\subseteq': '⊆', '\\supseteq': '⊇',
+    '\\forall': '∀', '\\exists': '∃', '\\nexists': '∄', '\\emptyset': '∅', '\\nabla': '∇',
+    '\\partial': '∂', '\\int': '∫', '\\iint': '∬', '\\iiint': '∭', '\\oint': '∮', '\\sum': '∑',
+    '\\prod': '∏', '\\coprod': '∐', '\\infty': '∞', '\\therefore': '∴', '\\because': '∵',
+    '\\implies': '⇒', '\\iff': '⇔', '\\rightarrow': '→', '\\leftarrow': '←', '\\leftrightarrow': '↔',
+    '\\Rightarrow': '⇒', '\\Leftarrow': '⇐', '\\Leftrightarrow': '⇔', '\\angle': '∠', '\\measuredangle': '∡',
+    '\\degree': '°', '\\ldots': '…', '\\cdots': '⋯', '\\vdots': '⋮', '\\ddots': '⋱'
   };
   const sortedOps = Object.keys(ops).sort((a, b) => b.length - a.length);
   for (const k of sortedOps) {
@@ -240,61 +238,71 @@ const latexToPlainText = (latex) => {
 
 // Formula toolbar button definitions
 const FORMULA_BUTTONS = [
-  { label: 'Basic', buttons: [
-    { symbol: 'x²', insert: '²', hint: 'Superscript 2' },
-    { symbol: 'x³', insert: '³', hint: 'Superscript 3' },
-    { symbol: 'xⁿ', insert: '^', hint: 'Power' },
-    { symbol: 'x₁', insert: '₁', hint: 'Subscript 1' },
-    { symbol: 'x₂', insert: '₂', hint: 'Subscript 2' },
-    { symbol: 'xₙ', insert: '_', hint: 'Subscript' },
-    { symbol: '½', insert: '½', hint: 'Half' },
-    { symbol: '¼', insert: '¼', hint: 'Quarter' },
-    { symbol: '¾', insert: '¾', hint: 'Three quarters' },
-    { symbol: '√', insert: '√', hint: 'Square root' },
-    { symbol: '∛', insert: '∛', hint: 'Cube root' },
-  ]},
-  { label: 'Greek', buttons: [
-    { symbol: 'α', insert: 'α', hint: 'Alpha' },
-    { symbol: 'β', insert: 'β', hint: 'Beta' },
-    { symbol: 'γ', insert: 'γ', hint: 'Gamma' },
-    { symbol: 'δ', insert: 'δ', hint: 'Delta' },
-    { symbol: 'θ', insert: 'θ', hint: 'Theta' },
-    { symbol: 'λ', insert: 'λ', hint: 'Lambda' },
-    { symbol: 'μ', insert: 'μ', hint: 'Mu' },
-    { symbol: 'π', insert: 'π', hint: 'Pi' },
-    { symbol: 'σ', insert: 'σ', hint: 'Sigma' },
-    { symbol: 'φ', insert: 'φ', hint: 'Phi' },
-    { symbol: 'ω', insert: 'ω', hint: 'Omega' },
-    { symbol: 'Δ', insert: 'Δ', hint: 'Delta (uppercase)' },
-    { symbol: 'Σ', insert: 'Σ', hint: 'Sigma (uppercase)' },
-    { symbol: 'Ω', insert: 'Ω', hint: 'Omega (uppercase)' },
-  ]},
-  { label: 'Operators', buttons: [
-    { symbol: '±', insert: '±', hint: 'Plus-minus' },
-    { symbol: '×', insert: '×', hint: 'Multiply' },
-    { symbol: '÷', insert: '÷', hint: 'Divide' },
-    { symbol: '·', insert: '·', hint: 'Dot product' },
-    { symbol: '≠', insert: '≠', hint: 'Not equal' },
-    { symbol: '≤', insert: '≤', hint: 'Less than or equal' },
-    { symbol: '≥', insert: '≥', hint: 'Greater than or equal' },
-    { symbol: '≈', insert: '≈', hint: 'Approximately' },
-    { symbol: '∞', insert: '∞', hint: 'Infinity' },
-    { symbol: '∝', insert: '∝', hint: 'Proportional' },
-    { symbol: '°', insert: '°', hint: 'Degree' },
-  ]},
-  { label: 'Calculus', buttons: [
-    { symbol: '∫', insert: '∫', hint: 'Integral' },
-    { symbol: '∂', insert: '∂', hint: 'Partial derivative' },
-    { symbol: '∑', insert: '∑', hint: 'Summation' },
-    { symbol: '∏', insert: '∏', hint: 'Product' },
-  ]},
-  { label: 'Trig & Log', buttons: [
-    { symbol: 'sin', insert: 'sin ', hint: 'Sine' },
-    { symbol: 'cos', insert: 'cos ', hint: 'Cosine' },
-    { symbol: 'tan', insert: 'tan ', hint: 'Tangent' },
-    { symbol: 'log', insert: 'log ', hint: 'Logarithm' },
-    { symbol: 'ln', insert: 'ln ', hint: 'Natural log' },
-  ]}
+  {
+    label: 'Basic', buttons: [
+      { symbol: 'x²', insert: '²', hint: 'Superscript 2' },
+      { symbol: 'x³', insert: '³', hint: 'Superscript 3' },
+      { symbol: 'xⁿ', insert: '^', hint: 'Power' },
+      { symbol: 'x₁', insert: '₁', hint: 'Subscript 1' },
+      { symbol: 'x₂', insert: '₂', hint: 'Subscript 2' },
+      { symbol: 'xₙ', insert: '_', hint: 'Subscript' },
+      { symbol: '½', insert: '½', hint: 'Half' },
+      { symbol: '¼', insert: '¼', hint: 'Quarter' },
+      { symbol: '¾', insert: '¾', hint: 'Three quarters' },
+      { symbol: '√', insert: '√', hint: 'Square root' },
+      { symbol: '∛', insert: '∛', hint: 'Cube root' },
+    ]
+  },
+  {
+    label: 'Greek', buttons: [
+      { symbol: 'α', insert: 'α', hint: 'Alpha' },
+      { symbol: 'β', insert: 'β', hint: 'Beta' },
+      { symbol: 'γ', insert: 'γ', hint: 'Gamma' },
+      { symbol: 'δ', insert: 'δ', hint: 'Delta' },
+      { symbol: 'θ', insert: 'θ', hint: 'Theta' },
+      { symbol: 'λ', insert: 'λ', hint: 'Lambda' },
+      { symbol: 'μ', insert: 'μ', hint: 'Mu' },
+      { symbol: 'π', insert: 'π', hint: 'Pi' },
+      { symbol: 'σ', insert: 'σ', hint: 'Sigma' },
+      { symbol: 'φ', insert: 'φ', hint: 'Phi' },
+      { symbol: 'ω', insert: 'ω', hint: 'Omega' },
+      { symbol: 'Δ', insert: 'Δ', hint: 'Delta (uppercase)' },
+      { symbol: 'Σ', insert: 'Σ', hint: 'Sigma (uppercase)' },
+      { symbol: 'Ω', insert: 'Ω', hint: 'Omega (uppercase)' },
+    ]
+  },
+  {
+    label: 'Operators', buttons: [
+      { symbol: '±', insert: '±', hint: 'Plus-minus' },
+      { symbol: '×', insert: '×', hint: 'Multiply' },
+      { symbol: '÷', insert: '÷', hint: 'Divide' },
+      { symbol: '·', insert: '·', hint: 'Dot product' },
+      { symbol: '≠', insert: '≠', hint: 'Not equal' },
+      { symbol: '≤', insert: '≤', hint: 'Less than or equal' },
+      { symbol: '≥', insert: '≥', hint: 'Greater than or equal' },
+      { symbol: '≈', insert: '≈', hint: 'Approximately' },
+      { symbol: '∞', insert: '∞', hint: 'Infinity' },
+      { symbol: '∝', insert: '∝', hint: 'Proportional' },
+      { symbol: '°', insert: '°', hint: 'Degree' },
+    ]
+  },
+  {
+    label: 'Calculus', buttons: [
+      { symbol: '∫', insert: '∫', hint: 'Integral' },
+      { symbol: '∂', insert: '∂', hint: 'Partial derivative' },
+      { symbol: '∑', insert: '∑', hint: 'Summation' },
+      { symbol: '∏', insert: '∏', hint: 'Product' },
+    ]
+  },
+  {
+    label: 'Trig & Log', buttons: [
+      { symbol: 'sin', insert: 'sin ', hint: 'Sine' },
+      { symbol: 'cos', insert: 'cos ', hint: 'Cosine' },
+      { symbol: 'tan', insert: 'tan ', hint: 'Tangent' },
+      { symbol: 'log', insert: 'log ', hint: 'Logarithm' },
+      { symbol: 'ln', insert: 'ln ', hint: 'Natural log' },
+    ]
+  }
 ];
 
 const DEFAULT_BRANDING = {
@@ -583,6 +591,7 @@ export default function App() {
   const [showLivePreview, setShowLivePreview] = useState(true);
   const paperSheetRef = useRef(null);
   
+
   // Hook to track focus on formula-enabled text inputs
   useEffect(() => {
     const handleFocus = (e) => {
@@ -1912,322 +1921,43 @@ export default function App() {
         return;
       }
     }
-    const el = paperSheetRef.current;
-    if (!el) {
-      alert('Please open the preview first.');
+    
+    if (activeTab !== 'preview') {
+      setActiveTab('preview');
+      await new Promise(r => setTimeout(r, 200));
+    }
+    
+    const element = paperSheetRef.current;
+    if (!element) {
+      alert("Could not find the question paper preview.");
       return;
     }
+    
     setIsPdfExporting(true);
-    await loadExportDependencies();
-
-    let tempContainer = null;
+    
     try {
-      const filename = generateExportFilename('pdf');
+      const originalTransform = element.style.transform;
+      element.style.transform = 'none';
 
-      // Create an in-viewport container with opacity 0 so browser computes exact layout geometry
-      tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.left = '0px';
-      tempContainer.style.top = '0px';
-      tempContainer.style.width = '794px';
-      tempContainer.style.background = '#ffffff';
-      tempContainer.style.color = '#000000';
-      tempContainer.style.opacity = '0';
-      tempContainer.style.pointerEvents = 'none';
-      tempContainer.style.zIndex = '-99999';
+      const opt = {
+        margin:       0,
+        filename:     generateExportFilename('pdf'),
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+      };
 
-      const clone = el.cloneNode(true);
-      clone.style.boxShadow = 'none';
-      clone.style.margin = '0';
-      clone.style.width = '794px';
-      clone.style.boxSizing = 'border-box';
-      clone.style.position = 'relative'; // Must be positioned so it's an offsetParent for getElemTop traversal
-
-      // Hide footer in clone if present
-      const cloneFooter = clone.querySelector('.paper-footer');
-      if (cloneFooter) cloneFooter.style.display = 'none';
-
-      // Hide print-hide elements (visual page break indicators, action buttons) in clone
-      const printHideElements = clone.querySelectorAll('.print-hide');
-      printHideElements.forEach(item => item.style.display = 'none');
-
-      tempContainer.appendChild(clone);
-      document.body.appendChild(tempContainer);
-
-      // Ensure all web fonts and KaTeX math formulas are completely rendered
-      if (document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-      }
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      // Use getBoundingClientRect for absolute pixel-perfect accuracy
-      const cloneRect = clone.getBoundingClientRect();
+      await html2pdf().set(opt).from(element).save();
       
-      const getTrueBounds = (elem) => {
-        let rect = elem.getBoundingClientRect();
-        let minTop = rect.top;
-        let maxBottom = rect.bottom;
-        
-        const descendants = elem.getElementsByTagName('*');
-        for (let i = 0; i < descendants.length; i++) {
-          const dRect = descendants[i].getBoundingClientRect();
-          if (dRect.height > 0) {
-            if (dRect.top < minTop) minTop = dRect.top;
-            if (dRect.bottom > maxBottom) maxBottom = dRect.bottom;
-          }
-        }
-        return {
-          top: minTop - cloneRect.top,
-          bottom: maxBottom - cloneRect.top,
-          height: maxBottom - minTop
-        };
-      };
-
-      const getBoxes = (selector) => {
-        return Array.from(clone.querySelectorAll(selector)).map(elem => {
-          const bounds = getTrueBounds(elem);
-          return { elem, top: bounds.top, bottom: bounds.bottom, height: bounds.height };
-        }).filter(b => b.height > 0).sort((a, b) => a.top - b.top);
-      };
-
-      let questionBoxes = getBoxes('.paper-question-item');
-      let explicitBreakBoxes = getBoxes('.page-break-before');
-      let sectionHeaderBoxes = getBoxes('.paper-section-header');
-      let sectionInstructionBoxes = getBoxes('.paper-section-instructions');
-      let paragraphBoxes = getBoxes('p, li, .paper-question-body > *, .paper-question-title, .paper-question-text, .general-instructions-render, .exam-meta-item, .school-details, .paper-section-title');
-      let tableRowBoxes = getBoxes('tr');
-      let tableBoxes = getBoxes('table, .paper-match-table, .paper-table-question');
-      let subItemBoxes = getBoxes('.katex-html, .katex-display, .paper-mcq-option, .math-line, .paper-mcq-options, .paper-image-container, .paper-formula-block, .paper-blank-line, .paper-subquestion-item, .paper-table-question tr, .paper-match-table tr, .paper-match-table .match-pair')
-        .filter(b => !b.elem.closest('.paper-section-header'));
-      const unbreakableBoxes = [
-        ...sectionHeaderBoxes,
-        ...sectionInstructionBoxes,
-        ...questionBoxes,
-        ...paragraphBoxes,
-        ...tableRowBoxes,
-        ...tableBoxes,
-        ...subItemBoxes
-      ];
-
-      // FREEZE HEIGHTS TO PREVENT HTML2CANVAS VERTICAL DRIFT
-      // html2canvas text wrapping differences accumulate over 5000px, causing elements to be drawn
-      // far lower than their DOM bounds. Freezing heights mathematically eliminates this drift.
-      const freezeBoxes = [
-        ...questionBoxes,
-        ...sectionHeaderBoxes,
-        ...sectionInstructionBoxes,
-        ...paragraphBoxes,
-        ...subItemBoxes
-      ];
-      
-      const headerEl = clone.querySelector('.paper-header');
-      if (headerEl) {
-        const headerBounds = getTrueBounds(headerEl);
-        headerEl.style.height = Math.ceil(headerBounds.height + 2) + 'px';
-        headerEl.style.overflow = 'visible';
-      }
-
-      for (const b of freezeBoxes) {
-        if (b.elem) {
-          b.elem.style.height = Math.ceil(b.height + 2) + 'px';
-          b.elem.style.overflow = 'visible';
-        }
-      }
-
-      // Render full element to single hires canvas
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollY: 0,
-        scrollX: 0,
-        windowWidth: 794,
-        windowHeight: clone.offsetHeight
-      });
-
-      // A4 PDF Dimensions: 210mm x 297mm
-      const totalHeightCSS = clone.offsetHeight;
-      const pdfWidth = 210; // mm
-      const pdfHeight = 297; // mm
-      const topMarginMM = 10; // mm
-      const bottomMarginMM = 14; // mm
-      const usableHeightMM = pdfHeight - (topMarginMM + bottomMarginMM); // 273mm
-      const usableHeightCSS = (usableHeightMM / pdfWidth) * 794; // approx 1031.8px CSS
-
-      // Collect ALL explicit break positions (sorted)
-      const explicitYPositions = [...new Set(
-        explicitBreakBoxes
-          .map(eb => Math.max(0, Math.round(eb.top - 8)))
-          .filter(y => Number.isFinite(y))
-          .sort((a, b) => a - b)
-      )];
-
-      // Helper: find the safest break point at or before `limit` that doesn't cut through any element
-      const findSafeBreakBefore = (limit, afterY) => {
-        // 1. Check Section Header Groups: Section Header (title + instructions) MUST stay together with its first question as an unbreakable unit
-        for (const sh of sectionHeaderBoxes) {
-          if (sh.top > afterY + 15 && sh.top < limit - 5) {
-            const firstQ = questionBoxes.find(q => q.top >= sh.top && q.top <= sh.bottom + 120);
-            const firstQOverflows = firstQ && (firstQ.bottom > limit || firstQ.top > limit - 20);
-
-            if ((sh.bottom + 45) > limit || firstQOverflows) {
-              return Math.max(afterY + 20, sh.top - 40);
-            }
-          }
-        }
-
-        // 2. Check Question Items: ENTIRE question item (text + options/blank lines/subquestions/match tables) must stay intact
-        for (const q of questionBoxes) {
-          if (q.top > afterY + 15 && q.top < limit - 5) {
-            const hasSplittableContent = q.elem.querySelector('.paper-match-table, .paper-table-question, .paper-subquestions-list');
-            if ((q.bottom + 120) > limit && q.height <= usableHeightCSS - 10) {
-              if (hasSplittableContent && q.top < limit - 130) {
-                continue;
-              }
-              return Math.max(afterY + 20, q.top - 40);
-            }
-          }
-        }
-
-        // 3. Check Section Instructions independently
-        for (const si of sectionInstructionBoxes) {
-          if (si.top > afterY + 15 && si.top < limit - 5) {
-            if ((si.bottom + 45) > limit) {
-              const parentHeader = sectionHeaderBoxes.find(sh => sh.top <= si.top && sh.bottom >= si.top);
-              if (parentHeader && parentHeader.top > afterY + 15) {
-                return Math.max(afterY + 20, parentHeader.top - 35);
-              }
-              return Math.max(afterY + 20, si.top - 35);
-            }
-          }
-        }
-
-        // 4. Fallback for large content: Check sub-items, paragraphs, or table rows
-        const cutSub = unbreakableBoxes
-          .filter(b => b.top > afterY + 15 && b.top < limit && (b.bottom + 120) > limit && b.height <= usableHeightCSS - 10)
-          .sort((a, b) => a.top - b.top)[0];
-        if (cutSub) {
-          return Math.max(afterY + 20, cutSub.top - 40);
-        }
-
-        return limit;
-      };
-
-      // Single-pass greedy page break computation
-      const pageBreaks = [0];
-      let currentY = 0;
-
-      while (currentY < totalHeightCSS - 10) {
-        const maxTargetY = Math.min(currentY + usableHeightCSS, totalHeightCSS);
-        if (maxTargetY >= totalHeightCSS - 10) {
-          pageBreaks.push(totalHeightCSS);
-          break;
-        }
-
-        const nextExplicit = explicitYPositions.find(pos => pos > currentY + 10 && pos <= maxTargetY + 10);
-
-        let breakY;
-        if (nextExplicit) {
-          breakY = Math.min(nextExplicit - 5, maxTargetY);
-        } else {
-          breakY = findSafeBreakBefore(maxTargetY, currentY);
-        }
-
-        // Double-check: if breakY was not set by a question/section break, ensure no paragraph/row is cut
-        if (breakY === maxTargetY) {
-          const cutElem = unbreakableBoxes
-            .filter(el => el.top >= currentY + 15 && el.top < breakY && (el.bottom + 45) > breakY && el.height <= usableHeightCSS - 30)
-            .sort((a, b) => a.top - b.top)[0];
-
-          if (cutElem) {
-            breakY = Math.max(currentY + 20, cutElem.top - 35);
-          }
-        }
-
-        // Safety fallback: avoid infinite loops if breakY is too close to currentY
-        if (!Number.isFinite(breakY) || breakY <= currentY + 15) {
-          breakY = Math.min(maxTargetY, currentY + Math.max(40, usableHeightCSS * 0.5));
-        }
-
-        if (breakY >= totalHeightCSS - 10) {
-          pageBreaks.push(totalHeightCSS);
-          break;
-        }
-
-        pageBreaks.push(breakY);
-        currentY = breakY;
-      }
-
-      // Generate jsPDF document using cleanly sliced canvas sections
-      const pdf = new jsPDF({
-        unit: 'mm',
-        format: 'a4',
-        orientation: 'portrait',
-        compress: true
-      });
-
-      const scale = canvas.width / clone.offsetWidth;
-      let pagesAdded = 0;
-
-      for (let i = 0; i < pageBreaks.length - 1; i++) {
-        const startY = pageBreaks[i];
-        const endY = pageBreaks[i + 1];
-        const sliceHeightCSS = endY - startY;
-
-        if (sliceHeightCSS < 5) continue;
-
-        if (pagesAdded > 0) {
-          pdf.addPage();
-        }
-        pagesAdded++;
-
-        const canvasSliceHeight = Math.max(1, Math.round(sliceHeightCSS * scale));
-
-        // Create canvas slice
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = canvasSliceHeight;
-
-        const ctx = sliceCanvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-
-        ctx.drawImage(
-          canvas,
-          0, Math.round(startY * scale), canvas.width, canvasSliceHeight,
-          0, 0, canvas.width, canvasSliceHeight
-        );
-
-        const sliceImgData = sliceCanvas.toDataURL('image/jpeg', 0.95);
-        const slicePdfHeight = (sliceHeightCSS / 794) * pdfWidth; // in mm
-
-        pdf.addImage(sliceImgData, 'JPEG', 0, topMarginMM, pdfWidth, slicePdfHeight);
-      }
-
-      // Stamp dynamic page numbers
-      const totalPages = pdf.internal.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(10);
-        pdf.setTextColor(120, 120, 120);
-        pdf.text(`Page ${i} of ${totalPages}`, 198, 287, { align: 'right' });
-      }
-
-      pdf.save(filename);
-    } catch (err) {
-      console.error('PDF export failed:', err);
-      alert(`PDF export failed (${err?.message || err}). Please try again or use Print instead.`);
+      element.style.transform = originalTransform;
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+      alert("Failed to generate PDF. Check console for details.");
     } finally {
-      if (tempContainer && tempContainer.parentNode) {
-        tempContainer.parentNode.removeChild(tempContainer);
-      }
       setIsPdfExporting(false);
     }
   };
-
-  // Helper to convert Data URL to Uint8Array for docx ImageRun
   const dataURLToUint8Array = (dataURL) => {
     if (!dataURL) return null;
     const parts = dataURL.split(';base64,');
@@ -2265,22 +1995,41 @@ export default function App() {
     if (!src) return null;
     const resolvedSrc = normalizeLogo(src);
     if (!resolvedSrc) return null;
-    if (resolvedSrc.startsWith('data:')) {
-      const uint8 = dataURLToUint8Array(resolvedSrc);
-      if (uint8) return uint8;
-    }
-    try {
-      const response = await fetch(resolvedSrc);
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      return new Uint8Array(arrayBuffer);
-    } catch (e) {
-      console.error("Failed to fetch image from URL for docx export", e);
-      if (resolvedSrc !== schoolLogo) {
-        return imageToUint8Array(schoolLogo);
-      }
-      return null;
-    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL('image/png');
+          const parts = dataUrl.split(';base64,');
+          if (parts.length < 2) {
+            resolve(null);
+            return;
+          }
+          const base64 = parts[1];
+          const raw = window.atob(base64);
+          const array = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i++) {
+            array[i] = raw.charCodeAt(i);
+          }
+          resolve(array);
+        } catch (e) {
+          console.error("Canvas PNG conversion failed", e);
+          resolve(null);
+        }
+      };
+      img.onerror = () => {
+        console.error("Failed to load image for DOCX export");
+        resolve(null);
+      };
+      img.src = resolvedSrc;
+    });
   };
 
   // DOCX Export Implementation
@@ -2336,8 +2085,8 @@ export default function App() {
       const logoRun = new docx.ImageRun({
         data: logoData,
         transformation: {
-          width: branding.logoWidth || 100,
-          height: branding.logoHeight || 100
+          width: Number(branding.logoWidth) || 100,
+          height: Number(branding.logoHeight) || 100
         }
       });
 
@@ -2346,7 +2095,7 @@ export default function App() {
           new docx.Paragraph({
             alignment: docx.AlignmentType.CENTER,
             children: [logoRun],
-            spacing: { before: -200, after: 200 }
+            spacing: { before: 0, after: 200 }
           })
         );
       } else {
@@ -2355,12 +2104,12 @@ export default function App() {
           width: { size: 9000, type: docx.WidthType.DXA },
           columnWidths: [1800, 7200],
           borders: {
-            top: { style: docx.BorderStyle.NONE, size: 0 },
-            bottom: { style: docx.BorderStyle.NONE, size: 0 },
-            left: { style: docx.BorderStyle.NONE, size: 0 },
-            right: { style: docx.BorderStyle.NONE, size: 0 },
-            insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
-            insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+            top: { style: docx.BorderStyle.NONE },
+            bottom: { style: docx.BorderStyle.NONE },
+            left: { style: docx.BorderStyle.NONE },
+            right: { style: docx.BorderStyle.NONE },
+            insideHorizontal: { style: docx.BorderStyle.NONE },
+            insideVertical: { style: docx.BorderStyle.NONE }
           },
           rows: [
             new docx.TableRow({
@@ -2368,10 +2117,10 @@ export default function App() {
                 new docx.TableCell({
                   width: { size: 1800, type: docx.WidthType.DXA },
                   borders: {
-                    top: { style: docx.BorderStyle.NONE, size: 0 },
-                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                    left: { style: docx.BorderStyle.NONE, size: 0 },
-                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                    top: { style: docx.BorderStyle.NONE },
+                    bottom: { style: docx.BorderStyle.NONE },
+                    left: { style: docx.BorderStyle.NONE },
+                    right: { style: docx.BorderStyle.NONE }
                   },
                   children: [
                     new docx.Paragraph({
@@ -2383,10 +2132,10 @@ export default function App() {
                 new docx.TableCell({
                   width: { size: 7200, type: docx.WidthType.DXA },
                   borders: {
-                    top: { style: docx.BorderStyle.NONE, size: 0 },
-                    bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                    left: { style: docx.BorderStyle.NONE, size: 0 },
-                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                    top: { style: docx.BorderStyle.NONE },
+                    bottom: { style: docx.BorderStyle.NONE },
+                    left: { style: docx.BorderStyle.NONE },
+                    right: { style: docx.BorderStyle.NONE }
                   },
                   children: schoolDetailsParagraphs
                 })
@@ -2571,8 +2320,8 @@ export default function App() {
 
         const linesCount = (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0))
           ? ((q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
-              ? Math.max(0, parseInt(q.blankLines, 10) || 0)
-              : (sec.type === 'essay' ? 4 : 0))
+            ? Math.max(0, parseInt(q.blankLines, 10) || 0)
+            : (sec.type === 'essay' ? 4 : 0))
           : 0;
 
         const hasImage = Boolean(q.image && sec.type !== 'match_following');
@@ -2642,8 +2391,8 @@ export default function App() {
                   new docx.ImageRun({
                     data: imageBytes,
                     transformation: {
-                      width: q.imageWidth || 300,
-                      height: q.imageHeight || 200
+                      width: Number(q.imageWidth) || 300,
+                      height: Number(q.imageHeight) || 200
                     }
                   })
                 ]
@@ -2690,7 +2439,7 @@ export default function App() {
                     children: [
                       new docx.ImageRun({
                         data: imgBytes,
-                        transformation: { width: imgW, height: imgH }
+                        transformation: { width: Number(imgW) || 150, height: Number(imgH) || 100 }
                       })
                     ]
                   })
@@ -2711,10 +2460,10 @@ export default function App() {
               return new docx.TableCell({
                 width: { size: colWidth, type: docx.WidthType.DXA },
                 borders: {
-                  top: { style: docx.BorderStyle.NONE, size: 0 },
-                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                  left: { style: docx.BorderStyle.NONE, size: 0 },
-                  right: { style: docx.BorderStyle.NONE, size: 0 }
+                  top: { style: docx.BorderStyle.NONE },
+                  bottom: { style: docx.BorderStyle.NONE },
+                  left: { style: docx.BorderStyle.NONE },
+                  right: { style: docx.BorderStyle.NONE }
                 },
                 children: createOptionParagraphs(letter, opt)
               });
@@ -2726,12 +2475,12 @@ export default function App() {
                 indent: { size: 450, type: docx.WidthType.DXA },
                 columnWidths: Array(numOpts).fill(colWidth),
                 borders: {
-                  top: { style: docx.BorderStyle.NONE, size: 0 },
-                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                  left: { style: docx.BorderStyle.NONE, size: 0 },
-                  right: { style: docx.BorderStyle.NONE, size: 0 },
-                  insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
-                  insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+                  top: { style: docx.BorderStyle.NONE },
+                  bottom: { style: docx.BorderStyle.NONE },
+                  left: { style: docx.BorderStyle.NONE },
+                  right: { style: docx.BorderStyle.NONE },
+                  insideHorizontal: { style: docx.BorderStyle.NONE },
+                  insideVertical: { style: docx.BorderStyle.NONE }
                 },
                 rows: [new docx.TableRow({ cantSplit: true, children: cells })]
               })
@@ -2754,20 +2503,20 @@ export default function App() {
                     new docx.TableCell({
                       width: { size: 4275, type: docx.WidthType.DXA },
                       borders: {
-                        top: { style: docx.BorderStyle.NONE, size: 0 },
-                        bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                        left: { style: docx.BorderStyle.NONE, size: 0 },
-                        right: { style: docx.BorderStyle.NONE, size: 0 }
+                        top: { style: docx.BorderStyle.NONE },
+                        bottom: { style: docx.BorderStyle.NONE },
+                        left: { style: docx.BorderStyle.NONE },
+                        right: { style: docx.BorderStyle.NONE }
                       },
                       children: leftChildren
                     }),
                     new docx.TableCell({
                       width: { size: 4275, type: docx.WidthType.DXA },
                       borders: {
-                        top: { style: docx.BorderStyle.NONE, size: 0 },
-                        bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                        left: { style: docx.BorderStyle.NONE, size: 0 },
-                        right: { style: docx.BorderStyle.NONE, size: 0 }
+                        top: { style: docx.BorderStyle.NONE },
+                        bottom: { style: docx.BorderStyle.NONE },
+                        left: { style: docx.BorderStyle.NONE },
+                        right: { style: docx.BorderStyle.NONE }
                       },
                       children: rightChildren
                     })
@@ -2782,12 +2531,12 @@ export default function App() {
                 indent: { size: 450, type: docx.WidthType.DXA },
                 columnWidths: [4275, 4275],
                 borders: {
-                  top: { style: docx.BorderStyle.NONE, size: 0 },
-                  bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                  left: { style: docx.BorderStyle.NONE, size: 0 },
-                  right: { style: docx.BorderStyle.NONE, size: 0 },
-                  insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
-                  insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+                  top: { style: docx.BorderStyle.NONE },
+                  bottom: { style: docx.BorderStyle.NONE },
+                  left: { style: docx.BorderStyle.NONE },
+                  right: { style: docx.BorderStyle.NONE },
+                  insideHorizontal: { style: docx.BorderStyle.NONE },
+                  insideVertical: { style: docx.BorderStyle.NONE }
                 },
                 rows: optRows
               })
@@ -2803,8 +2552,8 @@ export default function App() {
             const sqLinesText = sqCleanText ? sqCleanText.split('\n') : [''];
             const sqLinesCount = (!metadata.separateAnswerSheet)
               ? ((sq.blankLines !== undefined && sq.blankLines !== '' && sq.blankLines !== null)
-                  ? Math.max(0, parseInt(sq.blankLines, 10) || 0)
-                  : 4)
+                ? Math.max(0, parseInt(sq.blankLines, 10) || 0)
+                : 4)
               : 0;
             const sqHasImage = Boolean(sq.image);
             const sqHasFollowup = sqHasImage || sqLinesCount > 0;
@@ -2865,8 +2614,8 @@ export default function App() {
                       new docx.ImageRun({
                         data: sqImageBytes,
                         transformation: {
-                          width: sq.imageWidth || 300,
-                          height: sq.imageHeight || 200
+                          width: Number(sq.imageWidth) || 300,
+                          height: Number(sq.imageHeight) || 200
                         }
                       })
                     ]
@@ -2953,10 +2702,10 @@ export default function App() {
                 new docx.TableCell({
                   width: { size: 4275, type: docx.WidthType.DXA },
                   borders: {
-                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    top: { style: docx.BorderStyle.NONE },
                     bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
-                    left: { style: docx.BorderStyle.NONE, size: 0 },
-                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                    left: { style: docx.BorderStyle.NONE },
+                    right: { style: docx.BorderStyle.NONE }
                   },
                   children: [
                     new docx.Paragraph({
@@ -2968,10 +2717,10 @@ export default function App() {
                 new docx.TableCell({
                   width: { size: 4275, type: docx.WidthType.DXA },
                   borders: {
-                    top: { style: docx.BorderStyle.NONE, size: 0 },
+                    top: { style: docx.BorderStyle.NONE },
                     bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
-                    left: { style: docx.BorderStyle.NONE, size: 0 },
-                    right: { style: docx.BorderStyle.NONE, size: 0 }
+                    left: { style: docx.BorderStyle.NONE },
+                    right: { style: docx.BorderStyle.NONE }
                   },
                   children: [
                     new docx.Paragraph({
@@ -3052,20 +2801,20 @@ export default function App() {
                   new docx.TableCell({
                     width: { size: 4275, type: docx.WidthType.DXA },
                     borders: {
-                      top: { style: docx.BorderStyle.NONE, size: 0 },
-                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                      left: { style: docx.BorderStyle.NONE, size: 0 },
-                      right: { style: docx.BorderStyle.NONE, size: 0 }
+                      top: { style: docx.BorderStyle.NONE },
+                      bottom: { style: docx.BorderStyle.NONE },
+                      left: { style: docx.BorderStyle.NONE },
+                      right: { style: docx.BorderStyle.NONE }
                     },
                     children: cellAChildren
                   }),
                   new docx.TableCell({
                     width: { size: 4275, type: docx.WidthType.DXA },
                     borders: {
-                      top: { style: docx.BorderStyle.NONE, size: 0 },
-                      bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                      left: { style: docx.BorderStyle.NONE, size: 0 },
-                      right: { style: docx.BorderStyle.NONE, size: 0 }
+                      top: { style: docx.BorderStyle.NONE },
+                      bottom: { style: docx.BorderStyle.NONE },
+                      left: { style: docx.BorderStyle.NONE },
+                      right: { style: docx.BorderStyle.NONE }
                     },
                     children: cellBChildren
                   })
@@ -3080,12 +2829,12 @@ export default function App() {
               indent: { size: 450, type: docx.WidthType.DXA },
               columnWidths: [4275, 4275],
               borders: {
-                top: { style: docx.BorderStyle.NONE, size: 0 },
-                bottom: { style: docx.BorderStyle.NONE, size: 0 },
-                left: { style: docx.BorderStyle.NONE, size: 0 },
-                right: { style: docx.BorderStyle.NONE, size: 0 },
-                insideHorizontal: { style: docx.BorderStyle.NONE, size: 0 },
-                insideVertical: { style: docx.BorderStyle.NONE, size: 0 }
+                top: { style: docx.BorderStyle.NONE },
+                bottom: { style: docx.BorderStyle.NONE },
+                left: { style: docx.BorderStyle.NONE },
+                right: { style: docx.BorderStyle.NONE },
+                insideHorizontal: { style: docx.BorderStyle.NONE },
+                insideVertical: { style: docx.BorderStyle.NONE }
               },
               rows: tableRows
             })
@@ -3368,632 +3117,423 @@ export default function App() {
             </button>
           </div>
 
-        <div className="editor-content">
-          {/* TAB 1: SCHOOL DETAILS */}
-          {activeTab === 'branding' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="editor-content">
+            {/* TAB 1: SCHOOL DETAILS */}
+            {activeTab === 'branding' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="editor-card">
+                  <div className="editor-card-header">
+                    <div className="editor-card-title">School Details</div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Upload Logo</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
+                    />
+                    {branding.logo && (
+                      <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '14px', background: 'var(--bg-card, #f8fafc)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color, #e2e8f0)' }}>
+                        <div style={{
+                          width: '64px',
+                          height: '64px',
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          padding: '4px',
+                          background: '#ffffff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                        }}>
+                          <img
+                            src={branding.logo}
+                            alt="Logo Preview"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              if (branding.logo !== schoolLogo) {
+                                setBranding(prev => ({ ...prev, logo: schoolLogo }));
+                              }
+                            }}
+                            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Active Logo</span>
+                          <button className="btn btn-sm btn-danger" onClick={removeLogo} style={{ alignSelf: 'flex-start' }}>
+                            Remove Logo
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="form-group">
+                    <label>Institution Name</label>
+                    <input
+                      type="text"
+                      value={branding.schoolName}
+                      onChange={(e) => setBranding({ ...branding, schoolName: e.target.value })}
+                      placeholder="e.g. Greenwood High School"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Address / Sub-header</label>
+                    <textarea
+                      value={branding.schoolAddress}
+                      onChange={(e) => setBranding({ ...branding, schoolAddress: e.target.value })}
+                      placeholder="Enter institution address and contacts..."
+                    />
+                  </div>
+
+
+
+
+                </div>
+
+                <div className="warning-badge" style={{ padding: '12px' }}>
+                  <Move size={16} />
+                  <span>Tip: You can click & drag the school logo directly on the A4 page preview to position it, or drag the bottom-right handle to scale it!</span>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: EXAM DETAILS */}
+            {activeTab === 'metadata' && (
               <div className="editor-card">
                 <div className="editor-card-header">
-                  <div className="editor-card-title">School Details</div>
+                  <div className="editor-card-title">Exam Details</div>
                 </div>
 
                 <div className="form-group">
-                  <label>Upload Logo</label>
+                  <label>Examination Title</label>
                   <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    style={{ fontSize: '13px', color: 'var(--text-secondary)' }}
+                    type="text"
+                    value={metadata.title}
+                    onChange={(e) => setMetadata({ ...metadata, title: e.target.value })}
+                    placeholder="e.g. Term 1 Summative Assessment"
                   />
-                  {branding.logo && (
-                    <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '14px', background: 'var(--bg-card, #f8fafc)', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color, #e2e8f0)' }}>
-                      <div style={{
-                        width: '64px',
-                        height: '64px',
-                        borderRadius: '6px',
-                        border: '1px solid #cbd5e1',
-                        padding: '4px',
-                        background: '#ffffff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                      }}>
-                        <img
-                          src={branding.logo}
-                          alt="Logo Preview"
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            if (branding.logo !== schoolLogo) {
-                              setBranding(prev => ({ ...prev, logo: schoolLogo }));
-                            }
-                          }}
-                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>Active Logo</span>
-                        <button className="btn btn-sm btn-danger" onClick={removeLogo} style={{ alignSelf: 'flex-start' }}>
-                          Remove Logo
-                        </button>
-                      </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Subject Name</label>
+                  <input
+                    type="text"
+                    value={metadata.subject}
+                    onChange={(e) => setMetadata({ ...metadata, subject: e.target.value })}
+                    placeholder="e.g. Computer Science"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Class & Division</label>
+                  <input
+                    type="text"
+                    value={metadata.classDiv}
+                    onChange={(e) => setMetadata({ ...metadata, classDiv: e.target.value })}
+                    placeholder="e.g. Class X - Div A"
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Max Marks</label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={metadata.maxMarks}
+                      onChange={(e) => setMetadata({ ...metadata, maxMarks: Math.max(0, Number(e.target.value)) })}
+                      onBlur={(e) => setMetadata({ ...metadata, maxMarks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Time Duration</label>
+                    <input
+                      type="text"
+                      value={metadata.duration}
+                      onChange={(e) => setMetadata({ ...metadata, duration: e.target.value })}
+                      placeholder="e.g. 2 Hours"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>General Instructions</label>
+                  <textarea
+                    value={metadata.instructions || ''}
+                    onChange={(e) => setMetadata({ ...metadata, instructions: e.target.value })}
+                    placeholder="e.g. Answer all questions. Each question carries 1 mark."
+                  />
+                </div>              {/* Validation Badges */}
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
+                    <div className="warning-badge">
+                      <AlertTriangle size={14} />
+                      <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
+                    </div>
+                  ) : (
+                    <div className="warning-badge" style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
+                      <CheckCircle size={14} />
+                      <span>Perfect: Sum of all questions matches targets!</span>
+                    </div>
+                  )}
+                  {hasZeroMarkQuestions() && (
+                    <div className="warning-badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                      <AlertTriangle size={14} />
+                      <span>Warning: One or more questions have 0 marks.</span>
                     </div>
                   )}
                 </div>
-
-                <div className="form-group">
-                  <label>Institution Name</label>
-                  <input
-                    type="text"
-                    value={branding.schoolName}
-                    onChange={(e) => setBranding({ ...branding, schoolName: e.target.value })}
-                    placeholder="e.g. Greenwood High School"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Address / Sub-header</label>
-                  <textarea
-                    value={branding.schoolAddress}
-                    onChange={(e) => setBranding({ ...branding, schoolAddress: e.target.value })}
-                    placeholder="Enter institution address and contacts..."
-                  />
-                </div>
-
-
-
-
               </div>
+            )}
 
-              <div className="warning-badge" style={{ padding: '12px' }}>
-                <Move size={16} />
-                <span>Tip: You can click & drag the school logo directly on the A4 page preview to position it, or drag the bottom-right handle to scale it!</span>
-              </div>
-            </div>
-          )}
+            {/* TAB 3: SECTIONS & QUESTIONS MANAGEMENT */}
+            {activeTab === 'sections' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {sections.map((sec, sIdx) => {
+                  const secTotal = getSectionTotalMarks(sec);
+                  const isOverProvisioned = secTotal > sec.marks;
+                  const isUnderProvisioned = secTotal < sec.marks;
 
-          {/* TAB 2: EXAM DETAILS */}
-          {activeTab === 'metadata' && (
-            <div className="editor-card">
-              <div className="editor-card-header">
-                <div className="editor-card-title">Exam Details</div>
-              </div>
+                  return (
+                    <div key={sec.id} className="editor-card" style={{ borderLeft: `4px solid var(--accent)` }}>
+                      <div className="editor-card-header" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                          <div
+                            onClick={() => toggleSectionCollapse(sec.id)}
+                            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                          >
+                            <Layers size={16} style={{ color: 'var(--accent)' }} />
+                            <span style={{ fontSize: '15.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                              Section {String.fromCharCode(65 + sIdx)}
+                            </span>
+                            {sec.pageBreakBefore && (
+                              <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                                ✂ Page Break
+                              </span>
+                            )}
+                            {collapsedSections[sec.id] && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: '6px' }}>
+                                ({sec.questions.length} questions, {secTotal}M)
+                              </span>
+                            )}
+                          </div>
 
-              <div className="form-group">
-                <label>Examination Title</label>
-                <input
-                  type="text"
-                  value={metadata.title}
-                  onChange={(e) => setMetadata({ ...metadata, title: e.target.value })}
-                  placeholder="e.g. Term 1 Summative Assessment"
-                />
-              </div>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <button className="btn-icon-only" onClick={() => toggleSectionCollapse(sec.id)} title={collapsedSections[sec.id] ? "Expand Section" : "Collapse Section"}>
+                              {collapsedSections[sec.id] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                            </button>
+                            <button className="btn-icon-only" onClick={() => moveSection(sIdx, 'up')} disabled={sIdx === 0}>
+                              <ArrowUp size={14} />
+                            </button>
+                            <button className="btn-icon-only" onClick={() => moveSection(sIdx, 'down')} disabled={sIdx === sections.length - 1}>
+                              <ArrowDown size={14} />
+                            </button>
+                            <button className="btn-icon-only" style={{ color: 'var(--danger)' }} onClick={() => deleteSection(sec.id)}>
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
 
-              <div className="form-group">
-                <label>Subject Name</label>
-                <input
-                  type="text"
-                  value={metadata.subject}
-                  onChange={(e) => setMetadata({ ...metadata, subject: e.target.value })}
-                  placeholder="e.g. Computer Science"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Class & Division</label>
-                <input
-                  type="text"
-                  value={metadata.classDiv}
-                  onChange={(e) => setMetadata({ ...metadata, classDiv: e.target.value })}
-                  placeholder="e.g. Class X - Div A"
-                />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Max Marks</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    value={metadata.maxMarks}
-                    onChange={(e) => setMetadata({ ...metadata, maxMarks: Math.max(0, Number(e.target.value)) })}
-                    onBlur={(e) => setMetadata({ ...metadata, maxMarks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Time Duration</label>
-                  <input
-                    type="text"
-                    value={metadata.duration}
-                    onChange={(e) => setMetadata({ ...metadata, duration: e.target.value })}
-                    placeholder="e.g. 2 Hours"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>General Instructions</label>
-                <textarea
-                  value={metadata.instructions || ''}
-                  onChange={(e) => setMetadata({ ...metadata, instructions: e.target.value })}
-                  placeholder="e.g. Answer all questions. Each question carries 1 mark."
-                />
-              </div>              {/* Validation Badges */}
-              <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
-                  <div className="warning-badge">
-                    <AlertTriangle size={14} />
-                    <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
-                  </div>
-                ) : (
-                  <div className="warning-badge" style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
-                    <CheckCircle size={14} />
-                    <span>Perfect: Sum of all questions matches targets!</span>
-                  </div>
-                )}
-                {hasZeroMarkQuestions() && (
-                  <div className="warning-badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                    <AlertTriangle size={14} />
-                    <span>Warning: One or more questions have 0 marks.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: SECTIONS & QUESTIONS MANAGEMENT */}
-          {activeTab === 'sections' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {sections.map((sec, sIdx) => {
-                const secTotal = getSectionTotalMarks(sec);
-                const isOverProvisioned = secTotal > sec.marks;
-                const isUnderProvisioned = secTotal < sec.marks;
-
-                return (
-                  <div key={sec.id} className="editor-card" style={{ borderLeft: `4px solid var(--accent)` }}>
-                    <div className="editor-card-header" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                         <div
                           onClick={() => toggleSectionCollapse(sec.id)}
-                          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                          style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}
                         >
-                          <Layers size={16} style={{ color: 'var(--accent)' }} />
-                          <span style={{ fontSize: '15.5px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                            Section {String.fromCharCode(65 + sIdx)}
+                          {sec.title && (
+                            <span style={{ fontWeight: '600', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{sec.title}</span>
+                          )}
+                          <span style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: '500', backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
+                            {sec.type === 'mcq' ? 'Multiple Choice (MCQ)' :
+                              sec.type === 'match_following' ? 'Match the Following' :
+                                sec.type === 'true_false' ? 'True / False' :
+                                  sec.type === 'table' ? 'Table Question' :
+                                    'Short Answer / Essay'}
                           </span>
-                          {sec.pageBreakBefore && (
-                            <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-                              ✂ Page Break
-                            </span>
-                          )}
-                          {collapsedSections[sec.id] && (
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal', marginLeft: '6px' }}>
-                              ({sec.questions.length} questions, {secTotal}M)
-                            </span>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <button className="btn-icon-only" onClick={() => toggleSectionCollapse(sec.id)} title={collapsedSections[sec.id] ? "Expand Section" : "Collapse Section"}>
-                            {collapsedSections[sec.id] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                          </button>
-                          <button className="btn-icon-only" onClick={() => moveSection(sIdx, 'up')} disabled={sIdx === 0}>
-                            <ArrowUp size={14} />
-                          </button>
-                          <button className="btn-icon-only" onClick={() => moveSection(sIdx, 'down')} disabled={sIdx === sections.length - 1}>
-                            <ArrowDown size={14} />
-                          </button>
-                          <button className="btn-icon-only" style={{ color: 'var(--danger)' }} onClick={() => deleteSection(sec.id)}>
-                            <Trash2 size={14} />
-                          </button>
                         </div>
                       </div>
 
-                      <div
-                        onClick={() => toggleSectionCollapse(sec.id)}
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}
-                      >
-                        {sec.title && (
-                          <span style={{ fontWeight: '600', color: 'var(--text-primary)', letterSpacing: '0.2px' }}>{sec.title}</span>
-                        )}
-                        <span style={{ color: 'var(--accent)', fontSize: '11px', fontWeight: '500', backgroundColor: 'rgba(99, 102, 241, 0.08)', padding: '2px 8px', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.15)' }}>
-                          {sec.type === 'mcq' ? 'Multiple Choice (MCQ)' :
-                           sec.type === 'match_following' ? 'Match the Following' :
-                           sec.type === 'true_false' ? 'True / False' :
-                           sec.type === 'table' ? 'Table Question' :
-                           'Short Answer / Essay'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {!collapsedSections[sec.id] && (
-                      <>
-                        <div className="form-group">
-                          <label>Section Title</label>
-                          <input
-                            type="text"
-                            value={(sec.title || '').toUpperCase()}
-                            onChange={(e) => updateSectionMeta(sec.id, 'title', e.target.value.toUpperCase())}
-                            style={{ textTransform: 'uppercase' }}
-                          />
-                        </div>
-
-                        <div className="form-row">
+                      {!collapsedSections[sec.id] && (
+                        <>
                           <div className="form-group">
-                            <label>Declared Section Marks</label>
+                            <label>Section Title</label>
                             <input
-                              type="number"
-                              step="any"
-                              min="0"
-                              value={sec.marks}
-                              onChange={(e) => updateSectionMeta(sec.id, 'marks', Math.max(0, Number(e.target.value)))}
-                              onBlur={(e) => updateSectionMeta(sec.id, 'marks', Math.max(0, Math.round(Number(e.target.value) * 100) / 100))}
+                              type="text"
+                              value={(sec.title || '').toUpperCase()}
+                              onChange={(e) => updateSectionMeta(sec.id, 'title', e.target.value.toUpperCase())}
+                              style={{ textTransform: 'uppercase' }}
                             />
                           </div>
-                          <div className="form-group">
-                            <label>Current Questions Total</label>
-                            <div style={{
-                              padding: '10px 14px',
-                              backgroundColor: 'rgba(0,0,0,0.2)',
-                              borderRadius: 'var(--radius-sm)',
-                              fontSize: '14px',
-                              fontWeight: 'bold',
-                              color: isOverProvisioned ? 'var(--warning)' : isUnderProvisioned ? 'var(--danger)' : 'var(--success)'
-                            }}>
-                              {formatMarks(secTotal)} / {formatMarks(sec.marks)} Marks
+
+                          <div className="form-row">
+                            <div className="form-group">
+                              <label>Declared Section Marks</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={sec.marks}
+                                onChange={(e) => updateSectionMeta(sec.id, 'marks', Math.max(0, Number(e.target.value)))}
+                                onBlur={(e) => updateSectionMeta(sec.id, 'marks', Math.max(0, Math.round(Number(e.target.value) * 100) / 100))}
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label>Current Questions Total</label>
+                              <div style={{
+                                padding: '10px 14px',
+                                backgroundColor: 'rgba(0,0,0,0.2)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: '14px',
+                                fontWeight: 'bold',
+                                color: isOverProvisioned ? 'var(--warning)' : isUnderProvisioned ? 'var(--danger)' : 'var(--success)'
+                              }}>
+                                {formatMarks(secTotal)} / {formatMarks(sec.marks)} Marks
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="form-group">
-                          <label>Notes / Section Instructions</label>
-                          <textarea
-                            value={sec.instructions}
-                            onChange={(e) => updateSectionMeta(sec.id, 'instructions', e.target.value)}
-                            placeholder="e.g. Answer any 5 of the following 7 questions&#10;Each question carries equal marks"
-                            rows={3}
-                            style={{ minHeight: '65px', resize: 'vertical' }}
-                          />
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', marginBottom: '8px' }}>
-                          <input
-                            type="checkbox"
-                            id={`sec-pagebreak-${sec.id}`}
-                            checked={!!sec.pageBreakBefore}
-                            onChange={(e) => updateSectionMeta(sec.id, 'pageBreakBefore', e.target.checked)}
-                            style={{ cursor: 'pointer', margin: 0, width: 'auto' }}
-                          />
-                          <label
-                            htmlFor={`sec-pagebreak-${sec.id}`}
-                            style={{ fontSize: '12px', fontWeight: '500', cursor: 'pointer', margin: 0, userSelect: 'none', color: 'var(--text-primary)' }}
-                          >
-                            Insert Page Break before this section
-                          </label>
-                        </div>
-
-                        <div className="form-group">
-                          <label>Section Question Type</label>
-                          <select
-                            value={sec.type || 'essay'}
-                            onChange={(e) => updateSectionType(sec.id, e.target.value)}
-                          >
-                            <option value="essay">Short Answer / Essay / Fill Blank</option>
-                            <option value="mcq">Multiple Choice (MCQ)</option>
-                            <option value="true_false">True / False</option>
-                            <option value="match_following">Match the Following</option>
-                            <option value="table">Table Question</option>
-                          </select>
-                        </div>
-
-                        {isOverProvisioned && (
-                          <div className="warning-badge" style={{ fontSize: '11px' }}>
-                            <AlertTriangle size={12} />
-                            <span>Choice Provisioning: Question total ({formatMarks(secTotal)}) exceeds Declared section marks ({formatMarks(sec.marks)}). Permitted for optional choices.</span>
-                          </div>
-                        )}
-
-                        {/* Questions Area */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h4 style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Questions ({sec.questions.length})</h4>
+                          <div className="form-group">
+                            <label>Notes / Section Instructions</label>
+                            <textarea
+                              value={sec.instructions}
+                              onChange={(e) => updateSectionMeta(sec.id, 'instructions', e.target.value)}
+                              placeholder="e.g. Answer any 5 of the following 7 questions&#10;Each question carries equal marks"
+                              rows={3}
+                              style={{ minHeight: '65px', resize: 'vertical' }}
+                            />
                           </div>
 
-                          {sec.questions.map((q, qIdx) => (
-                            <div key={q.id} onPaste={(e) => handlePasteImage(e, sec.id, q.id)} style={{ padding: '12px', backgroundColor: 'var(--bg-editor)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color)' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--accent)' }}>
-                                    Q{qIdx + 1} ({(sec.type || 'essay').toUpperCase()})
-                                  </span>
-                                  {q.pageBreakBefore && (
-                                    <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
-                                      ✂ Page Break
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', marginBottom: '8px' }}>
+                            <input
+                              type="checkbox"
+                              id={`sec-pagebreak-${sec.id}`}
+                              checked={!!sec.pageBreakBefore}
+                              onChange={(e) => updateSectionMeta(sec.id, 'pageBreakBefore', e.target.checked)}
+                              style={{ cursor: 'pointer', margin: 0, width: 'auto' }}
+                            />
+                            <label
+                              htmlFor={`sec-pagebreak-${sec.id}`}
+                              style={{ fontSize: '12px', fontWeight: '500', cursor: 'pointer', margin: 0, userSelect: 'none', color: 'var(--text-primary)' }}
+                            >
+                              Insert Page Break before this section
+                            </label>
+                          </div>
+
+                          <div className="form-group">
+                            <label>Section Question Type</label>
+                            <select
+                              value={sec.type || 'essay'}
+                              onChange={(e) => updateSectionType(sec.id, e.target.value)}
+                            >
+                              <option value="essay">Short Answer / Essay / Fill Blank</option>
+                              <option value="mcq">Multiple Choice (MCQ)</option>
+                              <option value="true_false">True / False</option>
+                              <option value="match_following">Match the Following</option>
+                              <option value="table">Table Question</option>
+                            </select>
+                          </div>
+
+                          {isOverProvisioned && (
+                            <div className="warning-badge" style={{ fontSize: '11px' }}>
+                              <AlertTriangle size={12} />
+                              <span>Choice Provisioning: Question total ({formatMarks(secTotal)}) exceeds Declared section marks ({formatMarks(sec.marks)}). Permitted for optional choices.</span>
+                            </div>
+                          )}
+
+                          {/* Questions Area */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <h4 style={{ fontSize: '13px', fontWeight: 'bold', textTransform: 'uppercase' }}>Questions ({sec.questions.length})</h4>
+                            </div>
+
+                            {sec.questions.map((q, qIdx) => (
+                              <div key={q.id} onPaste={(e) => handlePasteImage(e, sec.id, q.id)} style={{ padding: '12px', backgroundColor: 'var(--bg-editor)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px', border: '1px solid var(--border-color)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--accent)' }}>
+                                      Q{qIdx + 1} ({(sec.type || 'essay').toUpperCase()})
                                     </span>
-                                  )}
-                                </div>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  <button className="btn-icon-only" style={{ padding: '4px' }} onClick={() => moveQuestion(sec.id, qIdx, 'up')} disabled={qIdx === 0}>
-                                    <ArrowUp size={12} />
-                                  </button>
-                                  <button className="btn-icon-only" style={{ padding: '4px' }} onClick={() => moveQuestion(sec.id, qIdx, 'down')} disabled={qIdx === sec.questions.length - 1}>
-                                    <ArrowDown size={12} />
-                                  </button>
-                                  <button className="btn-icon-only" style={{ padding: '4px', color: 'var(--danger)' }} onClick={() => deleteQuestion(sec.id, q.id)}>
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              </div>
-
-                              <div className="form-group">
-                                <label style={{ fontSize: '10px' }}>Question Text</label>
-                                <textarea
-                                  id={`q__text__${sec.id}__${q.id}`}
-                                  value={q.text}
-                                  placeholder="Enter question details here..."
-                                  style={{
-                                    minHeight: '60px',
-                                    fontSize: '13px',
-                                    borderColor: (!q.text || !q.text.trim()) ? 'var(--danger)' : 'var(--border-color)'
-                                  }}
-                                  onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
-                                  onFocus={(e) => {
-                                    if (e.target.value === 'New Question details here...') {
-                                      updateQuestion(sec.id, q.id, { text: '' });
-                                    }
-                                  }}
-                                />
-                                {(!q.text || !q.text.trim()) && (
-                                  <span style={{ color: 'var(--danger)', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <AlertTriangle size={12} /> Please enter the question text.
-                                  </span>
-                                )}
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                                  <input
-                                    type="checkbox"
-                                    id={`pagebreak-${sec.id}-${q.id}`}
-                                    checked={!!q.pageBreakBefore}
-                                    onChange={(e) => updateQuestion(sec.id, q.id, { pageBreakBefore: e.target.checked })}
-                                    style={{ cursor: 'pointer', margin: 0, width: 'auto' }}
-                                  />
-                                  <label
-                                    htmlFor={`pagebreak-${sec.id}-${q.id}`}
-                                    style={{ fontSize: '11px', fontWeight: '500', cursor: 'pointer', margin: 0, userSelect: 'none', color: 'var(--text-primary)' }}
-                                  >
-                                    Insert Page Break before this question
-                                  </label>
-                                </div>
-
-                                {/* Question Image Fields - positioned directly below Question Text */}
-                                {sec.type !== 'match_following' && (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image (Optional)</label>
-                                    {q.image ? (
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <div 
-                                          className="editor-image-preview-container"
-                                          onDragOver={handleDragOver}
-                                          onDragLeave={handleDragLeave}
-                                          onDrop={(e) => handleDropImage(e, sec.id, q.id)}
-                                        >
-                                          <img
-                                            src={q.image}
-                                            alt="Question"
-                                            style={{
-                                              maxWidth: '100%',
-                                              maxHeight: '150px',
-                                              objectFit: 'contain',
-                                              borderRadius: 'var(--radius-sm)',
-                                              border: '1px solid var(--border-color)',
-                                              padding: '2px'
-                                            }}
-                                          />
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '6px' }}>
-                                          <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
-                                            Change Image
-                                            <input
-                                              type="file"
-                                              accept="image/*"
-                                              style={{ display: 'none' }}
-                                              onChange={(e) => {
-                                                const file = e.target.files[0];
-                                                if (file) {
-                                                  const reader = new FileReader();
-                                                  reader.onload = (uploadEvent) => {
-                                                    updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
-                                                  };
-                                                  reader.readAsDataURL(file);
-                                                }
-                                              }}
-                                            />
-                                          </label>
-                                          <button
-                                            className="btn btn-danger btn-sm"
-                                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                                            onClick={() => updateQuestion(sec.id, q.id, { image: '' })}
-                                          >
-                                            Remove Image
-                                          </button>
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                          <div className="form-group" style={{ margin: 0 }}>
-                                            <label style={{ fontSize: '9px' }}>Width (px)</label>
-                                            <input
-                                              type="number"
-                                              value={q.imageWidth || 300}
-                                              style={{ padding: '2px 6px', fontSize: '11px' }}
-                                              onChange={(e) => updateQuestion(sec.id, q.id, { imageWidth: Number(e.target.value) || 0 })}
-                                            />
-                                          </div>
-                                          <div className="form-group" style={{ margin: 0 }}>
-                                            <label style={{ fontSize: '9px' }}>Height (px)</label>
-                                            <input
-                                              type="number"
-                                              value={q.imageHeight || 200}
-                                              style={{ padding: '2px 6px', fontSize: '11px' }}
-                                              onChange={(e) => updateQuestion(sec.id, q.id, { imageHeight: Number(e.target.value) || 0 })}
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <label 
-                                        className="image-upload-dashed-zone"
-                                        style={{ padding: '8px 12px', gap: '4px' }}
-                                        onDragOver={handleDragOver}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDropImage(e, sec.id, q.id)}
-                                      >
-                                        <ImageIcon size={14} className="text-secondary" />
-                                        <span style={{ fontSize: '10px' }}>Upload Question Image (click, drag, or Ctrl+V)</span>
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          style={{ display: 'none' }}
-                                          onChange={(e) => {
-                                            const file = e.target.files[0];
-                                            if (file) {
-                                              const reader = new FileReader();
-                                              reader.onload = (uploadEvent) => {
-                                                updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                        />
-                                      </label>
+                                    {q.pageBreakBefore && (
+                                      <span style={{ fontSize: '10px', fontWeight: '600', backgroundColor: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.3)' }}>
+                                        ✂ Page Break
+                                      </span>
                                     )}
                                   </div>
-                                )}
-
-                                {/* Match the Following Specific Fields */}
-                                {sec.type === 'match_following' && q.matchPairs && (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-                                    {/* ... rest of logic */}
-                                  </div>
-                                )}
-                                {(sec.type === 'essay') && (
-                                  <button
-                                    className="btn btn-secondary btn-sm"
-                                    style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
-                                    onClick={() => {
-                                      const text = q.text + ' _______';
-                                      updateQuestion(sec.id, q.id, { text });
-                                    }}
-                                  >
-                                    Insert Blank
-                                  </button>
-                                )}
-                              </div>
-
-                              <div className="form-group">
-                                <label style={{ fontSize: '10px' }}>Question Marks</label>
-                                {q.subQuestions && q.subQuestions.length > 0 ? (
-                                  <div style={{
-                                    padding: '6px 10px',
-                                    fontSize: '13px',
-                                    fontWeight: 'bold',
-                                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    border: '1px solid var(--accent)',
-                                    color: 'var(--accent)'
-                                  }}>
-                                    {formatMarks(getQuestionMarks(q))} Marks (Calculated from sub-questions)
-                                  </div>
-                                ) : (
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    min="0"
-                                    value={q.marks}
-                                    style={{ padding: '6px 10px', fontSize: '13px' }}
-                                    onChange={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Number(e.target.value)) })}
-                                    onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
-                                  />
-                                )}
-                              </div>
-
-                              {/* MCQ Specific Fields */}
-                              {sec.type === 'mcq' && q.options && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
-                                    <button
-                                      type="button"
-                                      className="btn-secondary"
-                                      style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
-                                      onClick={() => {
-                                        const newOpts = [...q.options, ''];
-                                        updateQuestion(sec.id, q.id, { options: newOpts });
-                                      }}
-                                    >
-                                      + Add Option
+                                  <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button className="btn-icon-only" style={{ padding: '4px' }} onClick={() => moveQuestion(sec.id, qIdx, 'up')} disabled={qIdx === 0}>
+                                      <ArrowUp size={12} />
+                                    </button>
+                                    <button className="btn-icon-only" style={{ padding: '4px' }} onClick={() => moveQuestion(sec.id, qIdx, 'down')} disabled={qIdx === sec.questions.length - 1}>
+                                      <ArrowDown size={12} />
+                                    </button>
+                                    <button className="btn-icon-only" style={{ padding: '4px', color: 'var(--danger)' }} onClick={() => deleteQuestion(sec.id, q.id)}>
+                                      <Trash2 size={12} />
                                     </button>
                                   </div>
-                                  {q.options.map((opt, oIdx) => (
-                                    <div key={oIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
-                                      <div style={{ display: 'flex', gap: '6px', width: '100%', alignItems: 'flex-start' }}>
-                                        <span style={{ fontSize: '13px', fontWeight: 'bold', paddingTop: '6px', minWidth: '18px' }}>
-                                          {String.fromCharCode(65 + oIdx)}.
-                                        </span>
-                                        <textarea
-                                          id={`q__opt__${sec.id}__${q.id}__${oIdx}`}
-                                          value={getOptionText(opt)}
-                                          rows={getOptionText(opt) && getOptionText(opt).includes('\n') ? Math.max(2, getOptionText(opt).split('\n').length) : 1}
-                                          placeholder={`Option ${String.fromCharCode(65 + oIdx)} text...`}
-                                          className="mcq-option-textarea"
-                                          style={{
-                                            padding: '6px 8px',
-                                            fontSize: '12px',
-                                            flex: 1,
-                                            minHeight: '34px',
-                                            resize: 'vertical',
-                                            fontFamily: 'inherit'
-                                          }}
-                                          onChange={(e) => updateOptionText(sec.id, q.id, oIdx, e.target.value)}
-                                        />
-                                        {q.options.length > 2 && (
-                                          <button
-                                            type="button"
-                                            title="Remove Option"
-                                            style={{
-                                              background: 'none',
-                                              border: 'none',
-                                              color: 'var(--danger, #ef4444)',
-                                              cursor: 'pointer',
-                                              fontSize: '14px',
-                                              padding: '6px 4px',
-                                              lineHeight: 1
-                                            }}
-                                            onClick={() => {
-                                              const newOpts = q.options.filter((_, idx) => idx !== oIdx);
-                                              updateQuestion(sec.id, q.id, { options: newOpts });
-                                            }}
-                                          >
-                                            ✕
-                                          </button>
-                                        )}
-                                      </div>
+                                </div>
 
-                                      {/* Option Image Controls */}
-                                      {getOptionImage(opt) ? (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '24px', marginTop: '2px' }}>
-                                          <div 
+                                <div className="form-group">
+                                  <label style={{ fontSize: '10px' }}>Question Text</label>
+                                  <textarea
+                                    id={`q__text__${sec.id}__${q.id}`}
+                                    value={q.text}
+                                    placeholder="Enter question details here..."
+                                    style={{
+                                      minHeight: '60px',
+                                      fontSize: '13px',
+                                      borderColor: (!q.text || !q.text.trim()) ? 'var(--danger)' : 'var(--border-color)'
+                                    }}
+                                    onChange={(e) => updateQuestion(sec.id, q.id, { text: e.target.value })}
+                                    onFocus={(e) => {
+                                      if (e.target.value === 'New Question details here...') {
+                                        updateQuestion(sec.id, q.id, { text: '' });
+                                      }
+                                    }}
+                                  />
+                                  {(!q.text || !q.text.trim()) && (
+                                    <span style={{ color: 'var(--danger)', fontSize: '11px', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <AlertTriangle size={12} /> Please enter the question text.
+                                    </span>
+                                  )}
+
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                                    <input
+                                      type="checkbox"
+                                      id={`pagebreak-${sec.id}-${q.id}`}
+                                      checked={!!q.pageBreakBefore}
+                                      onChange={(e) => updateQuestion(sec.id, q.id, { pageBreakBefore: e.target.checked })}
+                                      style={{ cursor: 'pointer', margin: 0, width: 'auto' }}
+                                    />
+                                    <label
+                                      htmlFor={`pagebreak-${sec.id}-${q.id}`}
+                                      style={{ fontSize: '11px', fontWeight: '500', cursor: 'pointer', margin: 0, userSelect: 'none', color: 'var(--text-primary)' }}
+                                    >
+                                      Insert Page Break before this question
+                                    </label>
+                                  </div>
+
+                                  {/* Question Image Fields - positioned directly below Question Text */}
+                                  {sec.type !== 'match_following' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                                      <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Question Image (Optional)</label>
+                                      {q.image ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                          <div
                                             className="editor-image-preview-container"
                                             onDragOver={handleDragOver}
                                             onDragLeave={handleDragLeave}
-                                            onDrop={(e) => handleDropImage(e, sec.id, q.id, null, oIdx)}
+                                            onDrop={(e) => handleDropImage(e, sec.id, q.id)}
                                           >
                                             <img
-                                              src={getOptionImage(opt)}
-                                              alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                              src={q.image}
+                                              alt="Question"
                                               style={{
                                                 maxWidth: '100%',
-                                                maxHeight: '100px',
+                                                maxHeight: '150px',
                                                 objectFit: 'contain',
                                                 borderRadius: 'var(--radius-sm)',
                                                 border: '1px solid var(--border-color)',
@@ -4013,7 +3553,7 @@ export default function App() {
                                                   if (file) {
                                                     const reader = new FileReader();
                                                     reader.onload = (uploadEvent) => {
-                                                      updateOptionImage(sec.id, q.id, oIdx, { image: uploadEvent.target.result });
+                                                      updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
                                                     };
                                                     reader.readAsDataURL(file);
                                                   }
@@ -4021,10 +3561,9 @@ export default function App() {
                                               />
                                             </label>
                                             <button
-                                              type="button"
                                               className="btn btn-danger btn-sm"
                                               style={{ padding: '2px 6px', fontSize: '10px' }}
-                                              onClick={() => updateOptionImage(sec.id, q.id, oIdx, { image: '' })}
+                                              onClick={() => updateQuestion(sec.id, q.id, { image: '' })}
                                             >
                                               Remove Image
                                             </button>
@@ -4034,742 +3573,952 @@ export default function App() {
                                               <label style={{ fontSize: '9px' }}>Width (px)</label>
                                               <input
                                                 type="number"
-                                                value={getOptionImageWidth(opt)}
+                                                value={q.imageWidth || 300}
                                                 style={{ padding: '2px 6px', fontSize: '11px' }}
-                                                onChange={(e) => updateOptionImage(sec.id, q.id, oIdx, { imageWidth: Number(e.target.value) || 0 })}
+                                                onChange={(e) => updateQuestion(sec.id, q.id, { imageWidth: Number(e.target.value) || 0 })}
                                               />
                                             </div>
                                             <div className="form-group" style={{ margin: 0 }}>
                                               <label style={{ fontSize: '9px' }}>Height (px)</label>
                                               <input
                                                 type="number"
-                                                value={getOptionImageHeight(opt)}
+                                                value={q.imageHeight || 200}
                                                 style={{ padding: '2px 6px', fontSize: '11px' }}
-                                                onChange={(e) => updateOptionImage(sec.id, q.id, oIdx, { imageHeight: Number(e.target.value) || 0 })}
+                                                onChange={(e) => updateQuestion(sec.id, q.id, { imageHeight: Number(e.target.value) || 0 })}
                                               />
                                             </div>
                                           </div>
                                         </div>
                                       ) : (
-                                        <div style={{ marginLeft: '24px' }}>
-                                          <label 
-                                            className="image-upload-dashed-zone"
-                                            style={{ padding: '4px 8px', gap: '4px', fontSize: '10px' }}
-                                            onDragOver={handleDragOver}
-                                            onDragLeave={handleDragLeave}
-                                            onDrop={(e) => handleDropImage(e, sec.id, q.id, null, oIdx)}
-                                          >
-                                            <ImageIcon size={12} className="text-secondary" />
-                                            <span>Upload Option Image (click, drag, or Ctrl+V)</span>
-                                            <input
-                                              type="file"
-                                              accept="image/*"
-                                              style={{ display: 'none' }}
-                                              onChange={(e) => {
-                                                const file = e.target.files[0];
-                                                if (file) {
-                                                  const reader = new FileReader();
-                                                  reader.onload = (uploadEvent) => {
-                                                    updateOptionImage(sec.id, q.id, oIdx, { image: uploadEvent.target.result });
-                                                  };
-                                                  reader.readAsDataURL(file);
-                                                }
-                                              }}
-                                            />
-                                          </label>
-                                        </div>
+                                        <label
+                                          className="image-upload-dashed-zone"
+                                          style={{ padding: '8px 12px', gap: '4px' }}
+                                          onDragOver={handleDragOver}
+                                          onDragLeave={handleDragLeave}
+                                          onDrop={(e) => handleDropImage(e, sec.id, q.id)}
+                                        >
+                                          <ImageIcon size={14} className="text-secondary" />
+                                          <span style={{ fontSize: '10px' }}>Upload Question Image (click, drag, or Ctrl+V)</span>
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            style={{ display: 'none' }}
+                                            onChange={(e) => {
+                                              const file = e.target.files[0];
+                                              if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (uploadEvent) => {
+                                                  updateQuestion(sec.id, q.id, { image: uploadEvent.target.result });
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }
+                                            }}
+                                          />
+                                        </label>
                                       )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Essay Specific Fields & Sub-Questions */}
-                              {sec.type === 'essay' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                  {(!q.subQuestions || q.subQuestions.length === 0) && (
-                                    <div className="form-group">
-                                      <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={q.blankLines}
-                                        style={{ padding: '6px 10px', fontSize: '13px' }}
-                                        onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
-                                      />
                                     </div>
                                   )}
 
-                                  {/* Sub-Questions Management Area */}
-                                  <div style={{
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    padding: '10px',
-                                    backgroundColor: 'rgba(0,0,0,0.15)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '10px'
-                                  }}>
+                                  {/* Match the Following Specific Fields */}
+                                  {sec.type === 'match_following' && q.matchPairs && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                                      {/* ... rest of logic */}
+                                    </div>
+                                  )}
+                                  {(sec.type === 'essay') && (
+                                    <button
+                                      className="btn btn-secondary btn-sm"
+                                      style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
+                                      onClick={() => {
+                                        const text = q.text + ' _______';
+                                        updateQuestion(sec.id, q.id, { text });
+                                      }}
+                                    >
+                                      Insert Blank
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="form-group">
+                                  <label style={{ fontSize: '10px' }}>Question Marks</label>
+                                  {q.subQuestions && q.subQuestions.length > 0 ? (
+                                    <div style={{
+                                      padding: '6px 10px',
+                                      fontSize: '13px',
+                                      fontWeight: 'bold',
+                                      backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                      borderRadius: 'var(--radius-sm)',
+                                      border: '1px solid var(--accent)',
+                                      color: 'var(--accent)'
+                                    }}>
+                                      {formatMarks(getQuestionMarks(q))} Marks (Calculated from sub-questions)
+                                    </div>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      value={q.marks}
+                                      style={{ padding: '6px 10px', fontSize: '13px' }}
+                                      onChange={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Number(e.target.value)) })}
+                                      onBlur={(e) => updateQuestion(sec.id, q.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
+                                    />
+                                  )}
+                                </div>
+
+                                {/* MCQ Specific Fields */}
+                                {sec.type === 'mcq' && q.options && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                      <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
-                                        Sub-Questions {q.subQuestions && q.subQuestions.length > 0 ? `(${q.subQuestions.length})` : ''}
-                                      </span>
-                                      {(!q.subQuestions || q.subQuestions.length === 0) && (
+                                      <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
+                                      <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
+                                        onClick={() => {
+                                          const newOpts = [...q.options, ''];
+                                          updateQuestion(sec.id, q.id, { options: newOpts });
+                                        }}
+                                      >
+                                        + Add Option
+                                      </button>
+                                    </div>
+                                    {q.options.map((opt, oIdx) => (
+                                      <div key={oIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                                        <div style={{ display: 'flex', gap: '6px', width: '100%', alignItems: 'flex-start' }}>
+                                          <span style={{ fontSize: '13px', fontWeight: 'bold', paddingTop: '6px', minWidth: '18px' }}>
+                                            {String.fromCharCode(65 + oIdx)}.
+                                          </span>
+                                          <textarea
+                                            id={`q__opt__${sec.id}__${q.id}__${oIdx}`}
+                                            value={getOptionText(opt)}
+                                            rows={getOptionText(opt) && getOptionText(opt).includes('\n') ? Math.max(2, getOptionText(opt).split('\n').length) : 1}
+                                            placeholder={`Option ${String.fromCharCode(65 + oIdx)} text...`}
+                                            className="mcq-option-textarea"
+                                            style={{
+                                              padding: '6px 8px',
+                                              fontSize: '12px',
+                                              flex: 1,
+                                              minHeight: '34px',
+                                              resize: 'vertical',
+                                              fontFamily: 'inherit'
+                                            }}
+                                            onChange={(e) => updateOptionText(sec.id, q.id, oIdx, e.target.value)}
+                                          />
+                                          {q.options.length > 2 && (
+                                            <button
+                                              type="button"
+                                              title="Remove Option"
+                                              style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                color: 'var(--danger, #ef4444)',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                padding: '6px 4px',
+                                                lineHeight: 1
+                                              }}
+                                              onClick={() => {
+                                                const newOpts = q.options.filter((_, idx) => idx !== oIdx);
+                                                updateQuestion(sec.id, q.id, { options: newOpts });
+                                              }}
+                                            >
+                                              ✕
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Option Image Controls */}
+                                        {getOptionImage(opt) ? (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginLeft: '24px', marginTop: '2px' }}>
+                                            <div
+                                              className="editor-image-preview-container"
+                                              onDragOver={handleDragOver}
+                                              onDragLeave={handleDragLeave}
+                                              onDrop={(e) => handleDropImage(e, sec.id, q.id, null, oIdx)}
+                                            >
+                                              <img
+                                                src={getOptionImage(opt)}
+                                                alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                style={{
+                                                  maxWidth: '100%',
+                                                  maxHeight: '100px',
+                                                  objectFit: 'contain',
+                                                  borderRadius: 'var(--radius-sm)',
+                                                  border: '1px solid var(--border-color)',
+                                                  padding: '2px'
+                                                }}
+                                              />
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                              <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
+                                                Change Image
+                                                <input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  style={{ display: 'none' }}
+                                                  onChange={(e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                      const reader = new FileReader();
+                                                      reader.onload = (uploadEvent) => {
+                                                        updateOptionImage(sec.id, q.id, oIdx, { image: uploadEvent.target.result });
+                                                      };
+                                                      reader.readAsDataURL(file);
+                                                    }
+                                                  }}
+                                                />
+                                              </label>
+                                              <button
+                                                type="button"
+                                                className="btn btn-danger btn-sm"
+                                                style={{ padding: '2px 6px', fontSize: '10px' }}
+                                                onClick={() => updateOptionImage(sec.id, q.id, oIdx, { image: '' })}
+                                              >
+                                                Remove Image
+                                              </button>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                              <div className="form-group" style={{ margin: 0 }}>
+                                                <label style={{ fontSize: '9px' }}>Width (px)</label>
+                                                <input
+                                                  type="number"
+                                                  value={getOptionImageWidth(opt)}
+                                                  style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                  onChange={(e) => updateOptionImage(sec.id, q.id, oIdx, { imageWidth: Number(e.target.value) || 0 })}
+                                                />
+                                              </div>
+                                              <div className="form-group" style={{ margin: 0 }}>
+                                                <label style={{ fontSize: '9px' }}>Height (px)</label>
+                                                <input
+                                                  type="number"
+                                                  value={getOptionImageHeight(opt)}
+                                                  style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                  onChange={(e) => updateOptionImage(sec.id, q.id, oIdx, { imageHeight: Number(e.target.value) || 0 })}
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div style={{ marginLeft: '24px' }}>
+                                            <label
+                                              className="image-upload-dashed-zone"
+                                              style={{ padding: '4px 8px', gap: '4px', fontSize: '10px' }}
+                                              onDragOver={handleDragOver}
+                                              onDragLeave={handleDragLeave}
+                                              onDrop={(e) => handleDropImage(e, sec.id, q.id, null, oIdx)}
+                                            >
+                                              <ImageIcon size={12} className="text-secondary" />
+                                              <span>Upload Option Image (click, drag, or Ctrl+V)</span>
+                                              <input
+                                                type="file"
+                                                accept="image/*"
+                                                style={{ display: 'none' }}
+                                                onChange={(e) => {
+                                                  const file = e.target.files[0];
+                                                  if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (uploadEvent) => {
+                                                      updateOptionImage(sec.id, q.id, oIdx, { image: uploadEvent.target.result });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                  }
+                                                }}
+                                              />
+                                            </label>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Essay Specific Fields & Sub-Questions */}
+                                {sec.type === 'essay' && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {(!q.subQuestions || q.subQuestions.length === 0) && (
+                                      <div className="form-group">
+                                        <label style={{ fontSize: '10px' }}>Blank lines for printing</label>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={q.blankLines}
+                                          style={{ padding: '6px 10px', fontSize: '13px' }}
+                                          onChange={(e) => updateQuestion(sec.id, q.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* Sub-Questions Management Area */}
+                                    <div style={{
+                                      border: '1px solid var(--border-color)',
+                                      borderRadius: 'var(--radius-sm)',
+                                      padding: '10px',
+                                      backgroundColor: 'rgba(0,0,0,0.15)',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '10px'
+                                    }}>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-primary)' }}>
+                                          Sub-Questions {q.subQuestions && q.subQuestions.length > 0 ? `(${q.subQuestions.length})` : ''}
+                                        </span>
+                                        {(!q.subQuestions || q.subQuestions.length === 0) && (
+                                          <button
+                                            className="btn btn-secondary btn-sm"
+                                            style={{ padding: '3px 8px', fontSize: '11px' }}
+                                            onClick={() => addSubQuestion(sec.id, q.id)}
+                                          >
+                                            + Add Sub-Question
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {q.subQuestions && q.subQuestions.map((sq, sqIdx) => (
+                                        <div
+                                          key={sq.id}
+                                          style={{
+                                            padding: '10px',
+                                            backgroundColor: 'var(--bg-card)',
+                                            borderRadius: 'var(--radius-sm)',
+                                            border: '1px solid var(--border-color)',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '8px'
+                                          }}
+                                        >
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent)' }}>
+                                              Sub-Question {sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}
+                                            </span>
+                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                              <button
+                                                className="btn-icon-only"
+                                                style={{ padding: '2px 4px' }}
+                                                onClick={() => moveSubQuestion(sec.id, q.id, sqIdx, 'up')}
+                                                disabled={sqIdx === 0}
+                                                title="Move Up"
+                                              >
+                                                <ArrowUp size={12} />
+                                              </button>
+                                              <button
+                                                className="btn-icon-only"
+                                                style={{ padding: '2px 4px' }}
+                                                onClick={() => moveSubQuestion(sec.id, q.id, sqIdx, 'down')}
+                                                disabled={sqIdx === q.subQuestions.length - 1}
+                                                title="Move Down"
+                                              >
+                                                <ArrowDown size={12} />
+                                              </button>
+                                              <button
+                                                className="btn-icon-only"
+                                                style={{ padding: '2px 4px', color: 'var(--danger)' }}
+                                                onClick={() => deleteSubQuestion(sec.id, q.id, sq.id)}
+                                                title="Delete Sub-Question"
+                                              >
+                                                <Trash2 size={12} />
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '8px' }}>
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                              <label style={{ fontSize: '9px' }}>Label</label>
+                                              <input
+                                                type="text"
+                                                value={sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}
+                                                style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { label: e.target.value })}
+                                              />
+                                            </div>
+
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                              <label style={{ fontSize: '9px' }}>Sub-Question Text</label>
+                                              <textarea
+                                                id={`q__sqtext__${sec.id}__${q.id}__${sq.id}`}
+                                                value={sq.text}
+                                                placeholder="Enter sub-question text..."
+                                                style={{
+                                                  minHeight: '45px',
+                                                  fontSize: '12px',
+                                                  borderColor: (!sq.text || !sq.text.trim()) ? 'var(--danger)' : 'var(--border-color)'
+                                                }}
+                                                onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { text: e.target.value })}
+                                              />
+                                              {(!sq.text || !sq.text.trim()) && (
+                                                <span style={{ color: 'var(--danger)', fontSize: '10px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                  <AlertTriangle size={10} /> Please enter sub-question text.
+                                                </span>
+                                              )}
+                                              <button
+                                                className="btn btn-secondary btn-sm"
+                                                style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '10px', padding: '2px 6px' }}
+                                                onClick={() => {
+                                                  const text = sq.text + ' _______';
+                                                  updateSubQuestion(sec.id, q.id, sq.id, { text });
+                                                }}
+                                              >
+                                                Insert Blank
+                                              </button>
+
+                                              {/* Sub-Question Image Controls - positioned directly below text */}
+                                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                                                <label style={{ fontSize: '9px', fontWeight: 'bold' }}>Sub-Question Image (Optional)</label>
+                                                {sq.image ? (
+                                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                    <div
+                                                      className="editor-image-preview-container"
+                                                      onDragOver={handleDragOver}
+                                                      onDragLeave={handleDragLeave}
+                                                      onDrop={(e) => handleDropImage(e, sec.id, q.id, sq.id)}
+                                                    >
+                                                      <img
+                                                        src={sq.image}
+                                                        alt="Sub-question diagram"
+                                                        style={{
+                                                          maxWidth: '100%',
+                                                          maxHeight: '120px',
+                                                          objectFit: 'contain',
+                                                          borderRadius: 'var(--radius-sm)',
+                                                          border: '1px solid var(--border-color)',
+                                                          padding: '2px'
+                                                        }}
+                                                      />
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                      <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
+                                                        Change Image
+                                                        <input
+                                                          type="file"
+                                                          accept="image/*"
+                                                          style={{ display: 'none' }}
+                                                          onChange={(e) => {
+                                                            const file = e.target.files[0];
+                                                            if (file) {
+                                                              const reader = new FileReader();
+                                                              reader.onload = (uploadEvent) => {
+                                                                updateSubQuestion(sec.id, q.id, sq.id, { image: uploadEvent.target.result });
+                                                              };
+                                                              reader.readAsDataURL(file);
+                                                            }
+                                                          }}
+                                                        />
+                                                      </label>
+                                                      <button
+                                                        className="btn btn-danger btn-sm"
+                                                        style={{ padding: '2px 6px', fontSize: '10px' }}
+                                                        onClick={() => updateSubQuestion(sec.id, q.id, sq.id, { image: '' })}
+                                                      >
+                                                        Remove Image
+                                                      </button>
+                                                    </div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                      <div className="form-group" style={{ margin: 0 }}>
+                                                        <label style={{ fontSize: '9px' }}>Width (px)</label>
+                                                        <input
+                                                          type="number"
+                                                          value={sq.imageWidth || 300}
+                                                          style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                          onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { imageWidth: Number(e.target.value) || 0 })}
+                                                        />
+                                                      </div>
+                                                      <div className="form-group" style={{ margin: 0 }}>
+                                                        <label style={{ fontSize: '9px' }}>Height (px)</label>
+                                                        <input
+                                                          type="number"
+                                                          value={sq.imageHeight || 200}
+                                                          style={{ padding: '2px 6px', fontSize: '11px' }}
+                                                          onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { imageHeight: Number(e.target.value) || 0 })}
+                                                        />
+                                                      </div>
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <label
+                                                    className="image-upload-dashed-zone"
+                                                    style={{ padding: '8px 12px', gap: '4px' }}
+                                                    onDragOver={handleDragOver}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={(e) => handleDropImage(e, sec.id, q.id, sq.id)}
+                                                  >
+                                                    <ImageIcon size={14} className="text-secondary" />
+                                                    <span style={{ fontSize: '10px' }}>Upload Sub-Question Image (click, drag, or Ctrl+V)</span>
+                                                    <input
+                                                      type="file"
+                                                      accept="image/*"
+                                                      style={{ display: 'none' }}
+                                                      onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                          const reader = new FileReader();
+                                                          reader.onload = (uploadEvent) => {
+                                                            updateSubQuestion(sec.id, q.id, sq.id, { image: uploadEvent.target.result });
+                                                          };
+                                                          reader.readAsDataURL(file);
+                                                        }
+                                                      }}
+                                                    />
+                                                  </label>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                              <label style={{ fontSize: '9px' }}>Sub-Question Marks</label>
+                                              <input
+                                                type="number"
+                                                step="any"
+                                                min="0"
+                                                value={sq.marks}
+                                                style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { marks: Math.max(0, Number(e.target.value)) })}
+                                                onBlur={(e) => updateSubQuestion(sec.id, q.id, sq.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
+                                              />
+                                            </div>
+                                            <div className="form-group" style={{ margin: 0 }}>
+                                              <label style={{ fontSize: '9px' }}>Blank Lines for printing</label>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={sq.blankLines !== undefined ? sq.blankLines : 4}
+                                                style={{ padding: '4px 6px', fontSize: '12px' }}
+                                                onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={!!q.pageBreakBefore}
+                                          onChange={(e) => updateQuestion(sec.id, q.id, { pageBreakBefore: e.target.checked })}
+                                        />
+                                        <label style={{ fontSize: '11px' }}>Page break before question</label>
+                                      </div>
+                                      {q.subQuestions && q.subQuestions.length > 0 && (
                                         <button
                                           className="btn btn-secondary btn-sm"
-                                          style={{ padding: '3px 8px', fontSize: '11px' }}
+                                          style={{ alignSelf: 'flex-end', padding: '4px 10px', fontSize: '11px' }}
                                           onClick={() => addSubQuestion(sec.id, q.id)}
                                         >
                                           + Add Sub-Question
                                         </button>
                                       )}
                                     </div>
+                                  </div>
+                                )}
 
-                                    {q.subQuestions && q.subQuestions.map((sq, sqIdx) => (
-                                      <div
-                                        key={sq.id}
-                                        style={{
-                                          padding: '10px',
-                                          backgroundColor: 'var(--bg-card)',
-                                          borderRadius: 'var(--radius-sm)',
-                                          border: '1px solid var(--border-color)',
-                                          display: 'flex',
-                                          flexDirection: 'column',
-                                          gap: '8px'
-                                        }}
-                                      >
+                                {/* Match the Following Specific Fields */}
+                                {sec.type === 'match_following' && q.matchPairs && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs (Column A & Column B)</label>
+                                    </div>
+
+                                    {/* Column Headings Banner */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '4px 8px', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                                      <span>Column A</span>
+                                      <span>Column B</span>
+                                    </div>
+
+                                    {q.matchPairs.map((pair, pIdx) => (
+                                      <div key={pIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid var(--border-color)', padding: '8px', borderRadius: '6px', backgroundColor: 'rgba(0,0,0,0.05)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent)' }}>
-                                            Sub-Question {sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}
-                                          </span>
-                                          <div style={{ display: 'flex', gap: '4px' }}>
+                                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent)' }}>Pair {pIdx + 1}</span>
+                                          {q.matchPairs.length > 1 && (
                                             <button
-                                              className="btn-icon-only"
-                                              style={{ padding: '2px 4px' }}
-                                              onClick={() => moveSubQuestion(sec.id, q.id, sqIdx, 'up')}
-                                              disabled={sqIdx === 0}
-                                              title="Move Up"
-                                            >
-                                              <ArrowUp size={12} />
-                                            </button>
-                                            <button
-                                              className="btn-icon-only"
-                                              style={{ padding: '2px 4px' }}
-                                              onClick={() => moveSubQuestion(sec.id, q.id, sqIdx, 'down')}
-                                              disabled={sqIdx === q.subQuestions.length - 1}
-                                              title="Move Down"
-                                            >
-                                              <ArrowDown size={12} />
-                                            </button>
-                                            <button
-                                              className="btn-icon-only"
-                                              style={{ padding: '2px 4px', color: 'var(--danger)' }}
-                                              onClick={() => deleteSubQuestion(sec.id, q.id, sq.id)}
-                                              title="Delete Sub-Question"
-                                            >
-                                              <Trash2 size={12} />
-                                            </button>
-                                          </div>
-                                        </div>
-
-                                        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '8px' }}>
-                                          <div className="form-group" style={{ margin: 0 }}>
-                                            <label style={{ fontSize: '9px' }}>Label</label>
-                                            <input
-                                              type="text"
-                                              value={sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}
-                                              style={{ padding: '4px 6px', fontSize: '12px' }}
-                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { label: e.target.value })}
-                                            />
-                                          </div>
-
-                                          <div className="form-group" style={{ margin: 0 }}>
-                                            <label style={{ fontSize: '9px' }}>Sub-Question Text</label>
-                                            <textarea
-                                              id={`q__sqtext__${sec.id}__${q.id}__${sq.id}`}
-                                              value={sq.text}
-                                              placeholder="Enter sub-question text..."
-                                              style={{
-                                                minHeight: '45px',
-                                                fontSize: '12px',
-                                                borderColor: (!sq.text || !sq.text.trim()) ? 'var(--danger)' : 'var(--border-color)'
-                                              }}
-                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { text: e.target.value })}
-                                            />
-                                            {(!sq.text || !sq.text.trim()) && (
-                                              <span style={{ color: 'var(--danger)', fontSize: '10px', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                <AlertTriangle size={10} /> Please enter sub-question text.
-                                              </span>
-                                            )}
-                                            <button
-                                              className="btn btn-secondary btn-sm"
-                                              style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '10px', padding: '2px 6px' }}
+                                              type="button"
+                                              className="btn btn-danger btn-sm"
+                                              style={{ padding: '2px 6px', fontSize: '10px' }}
                                               onClick={() => {
-                                                const text = sq.text + ' _______';
-                                                updateSubQuestion(sec.id, q.id, sq.id, { text });
+                                                updateQuestion(sec.id, q.id, {
+                                                  matchPairs: q.matchPairs.filter((_, idx) => idx !== pIdx),
+                                                  _shuffledB: null
+                                                });
                                               }}
                                             >
-                                              Insert Blank
+                                              <Trash2 size={12} /> Remove
                                             </button>
-
-                                            {/* Sub-Question Image Controls - positioned directly below text */}
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                                              <label style={{ fontSize: '9px', fontWeight: 'bold' }}>Sub-Question Image (Optional)</label>
-                                              {sq.image ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                  <div 
-                                                    className="editor-image-preview-container"
-                                                    onDragOver={handleDragOver}
-                                                    onDragLeave={handleDragLeave}
-                                                    onDrop={(e) => handleDropImage(e, sec.id, q.id, sq.id)}
-                                                  >
-                                                    <img
-                                                      src={sq.image}
-                                                      alt="Sub-question diagram"
-                                                      style={{
-                                                        maxWidth: '100%',
-                                                        maxHeight: '120px',
-                                                        objectFit: 'contain',
-                                                        borderRadius: 'var(--radius-sm)',
-                                                        border: '1px solid var(--border-color)',
-                                                        padding: '2px'
-                                                      }}
-                                                    />
-                                                  </div>
-                                                  <div style={{ display: 'flex', gap: '6px' }}>
-                                                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0, padding: '2px 6px', fontSize: '10px' }}>
-                                                      Change Image
-                                                      <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        style={{ display: 'none' }}
-                                                        onChange={(e) => {
-                                                          const file = e.target.files[0];
-                                                          if (file) {
-                                                            const reader = new FileReader();
-                                                            reader.onload = (uploadEvent) => {
-                                                              updateSubQuestion(sec.id, q.id, sq.id, { image: uploadEvent.target.result });
-                                                            };
-                                                            reader.readAsDataURL(file);
-                                                          }
-                                                        }}
-                                                      />
-                                                    </label>
-                                                    <button
-                                                      className="btn btn-danger btn-sm"
-                                                      style={{ padding: '2px 6px', fontSize: '10px' }}
-                                                      onClick={() => updateSubQuestion(sec.id, q.id, sq.id, { image: '' })}
-                                                    >
-                                                      Remove Image
-                                                    </button>
-                                                  </div>
-                                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                                    <div className="form-group" style={{ margin: 0 }}>
-                                                      <label style={{ fontSize: '9px' }}>Width (px)</label>
-                                                      <input
-                                                        type="number"
-                                                        value={sq.imageWidth || 300}
-                                                        style={{ padding: '2px 6px', fontSize: '11px' }}
-                                                        onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { imageWidth: Number(e.target.value) || 0 })}
-                                                      />
-                                                    </div>
-                                                    <div className="form-group" style={{ margin: 0 }}>
-                                                      <label style={{ fontSize: '9px' }}>Height (px)</label>
-                                                      <input
-                                                        type="number"
-                                                        value={sq.imageHeight || 200}
-                                                        style={{ padding: '2px 6px', fontSize: '11px' }}
-                                                        onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { imageHeight: Number(e.target.value) || 0 })}
-                                                      />
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              ) : (
-                                                <label 
-                                                  className="image-upload-dashed-zone"
-                                                  style={{ padding: '8px 12px', gap: '4px' }}
-                                                  onDragOver={handleDragOver}
-                                                  onDragLeave={handleDragLeave}
-                                                  onDrop={(e) => handleDropImage(e, sec.id, q.id, sq.id)}
-                                                >
-                                                  <ImageIcon size={14} className="text-secondary" />
-                                                  <span style={{ fontSize: '10px' }}>Upload Sub-Question Image (click, drag, or Ctrl+V)</span>
-                                                  <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    style={{ display: 'none' }}
-                                                    onChange={(e) => {
-                                                      const file = e.target.files[0];
-                                                      if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onload = (uploadEvent) => {
-                                                          updateSubQuestion(sec.id, q.id, sq.id, { image: uploadEvent.target.result });
-                                                        };
-                                                        reader.readAsDataURL(file);
-                                                      }
-                                                    }}
-                                                  />
-                                                </label>
-                                              )}
-                                            </div>
-                                          </div>
+                                          )}
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                          <div className="form-group" style={{ margin: 0 }}>
-                                            <label style={{ fontSize: '9px' }}>Sub-Question Marks</label>
+                                          {/* Column A Item */}
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Col A ({pIdx + 1})</span>
                                             <input
-                                              type="number"
-                                              step="any"
-                                              min="0"
-                                              value={sq.marks}
-                                              style={{ padding: '4px 6px', fontSize: '12px' }}
-                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { marks: Math.max(0, Number(e.target.value)) })}
-                                              onBlur={(e) => updateSubQuestion(sec.id, q.id, sq.id, { marks: Math.max(0, Math.round(Number(e.target.value) * 100) / 100) })}
+                                              id={`q__matcha__${sec.id}__${q.id}__${pIdx}`}
+                                              type="text"
+                                              placeholder="Premise text"
+                                              value={pair.premise || ''}
+                                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                                              onChange={(e) => {
+                                                const newPairs = [...q.matchPairs];
+                                                newPairs[pIdx] = { ...newPairs[pIdx], premise: e.target.value };
+                                                updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                              }}
                                             />
+                                            {pair.premiseImage ? (
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                <img
+                                                  src={pair.premiseImage}
+                                                  alt="Col A Preview"
+                                                  style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#fff' }}
+                                                />
+                                                <button
+                                                  type="button"
+                                                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '11px' }}
+                                                  onClick={() => {
+                                                    const newPairs = [...q.matchPairs];
+                                                    newPairs[pIdx] = { ...newPairs[pIdx], premiseImage: '' };
+                                                    updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                  }}
+                                                >
+                                                  ✕ Remove Image
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
+                                                <ImageIcon size={13} />
+                                                <span>Add Image</span>
+                                                <input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  style={{ display: 'none' }}
+                                                  onChange={(e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                      const reader = new FileReader();
+                                                      reader.onload = (uploadEvent) => {
+                                                        const newPairs = [...q.matchPairs];
+                                                        newPairs[pIdx] = { ...newPairs[pIdx], premiseImage: uploadEvent.target.result };
+                                                        updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                      };
+                                                      reader.readAsDataURL(file);
+                                                    }
+                                                  }}
+                                                />
+                                              </label>
+                                            )}
                                           </div>
-                                          <div className="form-group" style={{ margin: 0 }}>
-                                            <label style={{ fontSize: '9px' }}>Blank Lines for printing</label>
+
+                                          {/* Column B Item */}
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Col B ({String.fromCharCode(97 + (pIdx % 26))})</span>
                                             <input
-                                              type="number"
-                                              min="0"
-                                              value={sq.blankLines !== undefined ? sq.blankLines : 4}
-                                              style={{ padding: '4px 6px', fontSize: '12px' }}
-                                              onChange={(e) => updateSubQuestion(sec.id, q.id, sq.id, { blankLines: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                                              id={`q__matchb__${sec.id}__${q.id}__${pIdx}`}
+                                              type="text"
+                                              placeholder="Response text"
+                                              value={pair.response || ''}
+                                              style={{ padding: '4px 8px', fontSize: '12px' }}
+                                              onChange={(e) => {
+                                                const newPairs = [...q.matchPairs];
+                                                newPairs[pIdx] = { ...newPairs[pIdx], response: e.target.value };
+                                                updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                              }}
                                             />
+                                            {pair.responseImage ? (
+                                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                <img
+                                                  src={pair.responseImage}
+                                                  alt="Col B Preview"
+                                                  style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#fff' }}
+                                                />
+                                                <button
+                                                  type="button"
+                                                  style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '11px' }}
+                                                  onClick={() => {
+                                                    const newPairs = [...q.matchPairs];
+                                                    newPairs[pIdx] = { ...newPairs[pIdx], responseImage: '' };
+                                                    updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                  }}
+                                                >
+                                                  ✕ Remove Image
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
+                                                <ImageIcon size={13} />
+                                                <span>Add Image</span>
+                                                <input
+                                                  type="file"
+                                                  accept="image/*"
+                                                  style={{ display: 'none' }}
+                                                  onChange={(e) => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                      const reader = new FileReader();
+                                                      reader.onload = (uploadEvent) => {
+                                                        const newPairs = [...q.matchPairs];
+                                                        newPairs[pIdx] = { ...newPairs[pIdx], responseImage: uploadEvent.target.result };
+                                                        updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
+                                                      };
+                                                      reader.readAsDataURL(file);
+                                                    }
+                                                  }}
+                                                />
+                                              </label>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
                                     ))}
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary btn-sm"
+                                      style={{ width: '100%', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}
+                                      onClick={() => {
+                                        updateQuestion(sec.id, q.id, {
+                                          matchPairs: [...q.matchPairs, { premise: '', premiseImage: '', response: '', responseImage: '' }],
+                                          _shuffledB: null
+                                        });
+                                      }}
+                                    >
+                                      <Plus size={13} /> Add Pair
+                                    </button>
+
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
                                       <input
                                         type="checkbox"
-                                        checked={!!q.pageBreakBefore}
-                                        onChange={(e) => updateQuestion(sec.id, q.id, { pageBreakBefore: e.target.checked })}
+                                        id={`shuffle-${q.id}`}
+                                        checked={q.shuffleB}
+                                        onChange={(e) => updateQuestion(sec.id, q.id, { shuffleB: e.target.checked, _shuffledB: null })}
                                       />
-                                      <label style={{ fontSize: '11px' }}>Page break before question</label>
-                                    </div>
-                                    {q.subQuestions && q.subQuestions.length > 0 && (
-                                      <button
-                                        className="btn btn-secondary btn-sm"
-                                        style={{ alignSelf: 'flex-end', padding: '4px 10px', fontSize: '11px' }}
-                                        onClick={() => addSubQuestion(sec.id, q.id)}
-                                      >
-                                        + Add Sub-Question
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Match the Following Specific Fields */}
-                              {sec.type === 'match_following' && q.matchPairs && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Match Pairs (Column A & Column B)</label>
-                                  </div>
-
-                                  {/* Column Headings Banner */}
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', padding: '4px 8px', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-                                    <span>Column A</span>
-                                    <span>Column B</span>
-                                  </div>
-
-                                  {q.matchPairs.map((pair, pIdx) => (
-                                    <div key={pIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', border: '1px solid var(--border-color)', padding: '8px', borderRadius: '6px', backgroundColor: 'rgba(0,0,0,0.05)' }}>
-                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent)' }}>Pair {pIdx + 1}</span>
-                                        {q.matchPairs.length > 1 && (
-                                          <button
-                                            type="button"
-                                            className="btn btn-danger btn-sm"
-                                            style={{ padding: '2px 6px', fontSize: '10px' }}
-                                            onClick={() => {
-                                              updateQuestion(sec.id, q.id, {
-                                                matchPairs: q.matchPairs.filter((_, idx) => idx !== pIdx),
-                                                _shuffledB: null
-                                              });
-                                            }}
-                                          >
-                                            <Trash2 size={12} /> Remove
-                                          </button>
-                                        )}
-                                      </div>
-
-                                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                        {/* Column A Item */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Col A ({pIdx + 1})</span>
-                                          <input
-                                            id={`q__matcha__${sec.id}__${q.id}__${pIdx}`}
-                                            type="text"
-                                            placeholder="Premise text"
-                                            value={pair.premise || ''}
-                                            style={{ padding: '4px 8px', fontSize: '12px' }}
-                                            onChange={(e) => {
-                                              const newPairs = [...q.matchPairs];
-                                              newPairs[pIdx] = { ...newPairs[pIdx], premise: e.target.value };
-                                              updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
-                                            }}
-                                          />
-                                          {pair.premiseImage ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                                              <img
-                                                src={pair.premiseImage}
-                                                alt="Col A Preview"
-                                                style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#fff' }}
-                                              />
-                                              <button
-                                                type="button"
-                                                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '11px' }}
-                                                onClick={() => {
-                                                  const newPairs = [...q.matchPairs];
-                                                  newPairs[pIdx] = { ...newPairs[pIdx], premiseImage: '' };
-                                                  updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
-                                                }}
-                                              >
-                                                ✕ Remove Image
-                                              </button>
-                                            </div>
-                                          ) : (
-                                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
-                                              <ImageIcon size={13} />
-                                              <span>Add Image</span>
-                                              <input
-                                                type="file"
-                                                accept="image/*"
-                                                style={{ display: 'none' }}
-                                                onChange={(e) => {
-                                                  const file = e.target.files[0];
-                                                  if (file) {
-                                                    const reader = new FileReader();
-                                                    reader.onload = (uploadEvent) => {
-                                                      const newPairs = [...q.matchPairs];
-                                                      newPairs[pIdx] = { ...newPairs[pIdx], premiseImage: uploadEvent.target.result };
-                                                      updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
-                                                    };
-                                                    reader.readAsDataURL(file);
-                                                  }
-                                                }}
-                                              />
-                                            </label>
-                                          )}
-                                        </div>
-
-                                        {/* Column B Item */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Col B ({String.fromCharCode(97 + (pIdx % 26))})</span>
-                                          <input
-                                            id={`q__matchb__${sec.id}__${q.id}__${pIdx}`}
-                                            type="text"
-                                            placeholder="Response text"
-                                            value={pair.response || ''}
-                                            style={{ padding: '4px 8px', fontSize: '12px' }}
-                                            onChange={(e) => {
-                                              const newPairs = [...q.matchPairs];
-                                              newPairs[pIdx] = { ...newPairs[pIdx], response: e.target.value };
-                                              updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
-                                            }}
-                                          />
-                                          {pair.responseImage ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-                                              <img
-                                                src={pair.responseImage}
-                                                alt="Col B Preview"
-                                                style={{ width: '40px', height: '40px', objectFit: 'contain', border: '1px solid var(--border-color)', borderRadius: '4px', backgroundColor: '#fff' }}
-                                              />
-                                              <button
-                                                type="button"
-                                                style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '11px' }}
-                                                onClick={() => {
-                                                  const newPairs = [...q.matchPairs];
-                                                  newPairs[pIdx] = { ...newPairs[pIdx], responseImage: '' };
-                                                  updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
-                                                }}
-                                              >
-                                                ✕ Remove Image
-                                              </button>
-                                            </div>
-                                          ) : (
-                                            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '11px', color: 'var(--accent)', marginTop: '2px' }}>
-                                              <ImageIcon size={13} />
-                                              <span>Add Image</span>
-                                              <input
-                                                type="file"
-                                                accept="image/*"
-                                                style={{ display: 'none' }}
-                                                onChange={(e) => {
-                                                  const file = e.target.files[0];
-                                                  if (file) {
-                                                    const reader = new FileReader();
-                                                    reader.onload = (uploadEvent) => {
-                                                      const newPairs = [...q.matchPairs];
-                                                      newPairs[pIdx] = { ...newPairs[pIdx], responseImage: uploadEvent.target.result };
-                                                      updateQuestion(sec.id, q.id, { matchPairs: newPairs, _shuffledB: null });
-                                                    };
-                                                    reader.readAsDataURL(file);
-                                                  }
-                                                }}
-                                              />
-                                            </label>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm"
-                                    style={{ width: '100%', padding: '6px 12px', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginTop: '2px' }}
-                                    onClick={() => {
-                                      updateQuestion(sec.id, q.id, {
-                                        matchPairs: [...q.matchPairs, { premise: '', premiseImage: '', response: '', responseImage: '' }],
-                                        _shuffledB: null
-                                      });
-                                    }}
-                                  >
-                                    <Plus size={13} /> Add Pair
-                                  </button>
-
-                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px' }}>
-                                    <input
-                                      type="checkbox"
-                                      id={`shuffle-${q.id}`}
-                                      checked={q.shuffleB}
-                                      onChange={(e) => updateQuestion(sec.id, q.id, { shuffleB: e.target.checked, _shuffledB: null })}
-                                    />
-                                    <label htmlFor={`shuffle-${q.id}`} style={{ fontSize: '11px', textTransform: 'none' }}>
-                                      Shuffle Column B in preview/exports
-                                    </label>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Table Question Specific Fields */}
-                              {sec.type === 'table' && q.tableData && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Table Configuration</label>
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                    <div className="form-group" style={{ margin: 0 }}>
-                                      <label style={{ fontSize: '10px' }}>Rows (excl. header)</label>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        max="20"
-                                        value={q.tableRows - 1}
-                                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                                        onChange={(e) => {
-                                          const bodyRows = Math.max(1, Math.min(20, Number(e.target.value) || 1));
-                                          const totalRows = bodyRows + 1;
-                                          const cols = q.tableCols || 3;
-                                          const newData = { ...q.tableData };
-                                          const currentBodyRows = newData.rows || [];
-                                          const newBodyRows = [];
-                                          for (let r = 0; r < bodyRows; r++) {
-                                            if (r < currentBodyRows.length) {
-                                              const existingRow = [...currentBodyRows[r]];
-                                              while (existingRow.length < cols) existingRow.push('');
-                                              newBodyRows.push(existingRow.slice(0, cols));
-                                            } else {
-                                              newBodyRows.push(Array(cols).fill(''));
-                                            }
-                                          }
-                                          newData.rows = newBodyRows;
-                                          updateQuestion(sec.id, q.id, { tableRows: totalRows, tableData: newData });
-                                        }}
-                                      />
-                                    </div>
-                                    <div className="form-group" style={{ margin: 0 }}>
-                                      <label style={{ fontSize: '10px' }}>Columns</label>
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        max="10"
-                                        value={q.tableCols}
-                                        style={{ padding: '4px 8px', fontSize: '12px' }}
-                                        onChange={(e) => {
-                                          const cols = Math.max(1, Math.min(10, Number(e.target.value) || 1));
-                                          const newData = { ...q.tableData };
-                                          const oldHeaders = newData.headers || [];
-                                          const newHeaders = [];
-                                          for (let c = 0; c < cols; c++) {
-                                            newHeaders.push(c < oldHeaders.length ? oldHeaders[c] : `Column ${c + 1}`);
-                                          }
-                                          newData.headers = newHeaders;
-                                          newData.rows = (newData.rows || []).map(row => {
-                                            const newRow = [];
-                                            for (let c = 0; c < cols; c++) {
-                                              newRow.push(c < row.length ? row[c] : '');
-                                            }
-                                            return newRow;
-                                          });
-                                          updateQuestion(sec.id, q.id, { tableCols: cols, tableData: newData });
-                                        }}
-                                      />
+                                      <label htmlFor={`shuffle-${q.id}`} style={{ fontSize: '11px', textTransform: 'none' }}>
+                                        Shuffle Column B in preview/exports
+                                      </label>
                                     </div>
                                   </div>
+                                )}
 
-                                  {/* Table header cells */}
-                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Header Row (Bold)</label>
-                                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
-                                    {q.tableData.headers.map((h, hIdx) => (
-                                      <input
-                                        key={hIdx}
-                                        id={`q__tblh__${sec.id}__${q.id}__${hIdx}`}
-                                        type="text"
-                                        value={h}
-                                        placeholder={`Header ${hIdx + 1}`}
-                                        style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold' }}
-                                        onChange={(e) => {
-                                          const newData = { ...q.tableData };
-                                          const newHeaders = [...newData.headers];
-                                          newHeaders[hIdx] = e.target.value;
-                                          newData.headers = newHeaders;
-                                          updateQuestion(sec.id, q.id, { tableData: newData });
-                                        }}
-                                      />
-                                    ))}
-                                  </div>
-
-                                  {/* Table body cells */}
-                                  <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Body Rows (Regular)</label>
-                                  {q.tableData.rows.map((row, rIdx) => (
-                                    <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
-                                      {row.map((cell, cIdx) => (
+                                {/* Table Question Specific Fields */}
+                                {sec.type === 'table' && q.tableData && (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Table Configuration</label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                      <div className="form-group" style={{ margin: 0 }}>
+                                        <label style={{ fontSize: '10px' }}>Rows (excl. header)</label>
                                         <input
-                                          key={cIdx}
-                                          id={`q__tblc__${sec.id}__${q.id}__${rIdx}__${cIdx}`}
+                                          type="number"
+                                          min="1"
+                                          max="20"
+                                          value={q.tableRows - 1}
+                                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                                          onChange={(e) => {
+                                            const bodyRows = Math.max(1, Math.min(20, Number(e.target.value) || 1));
+                                            const totalRows = bodyRows + 1;
+                                            const cols = q.tableCols || 3;
+                                            const newData = { ...q.tableData };
+                                            const currentBodyRows = newData.rows || [];
+                                            const newBodyRows = [];
+                                            for (let r = 0; r < bodyRows; r++) {
+                                              if (r < currentBodyRows.length) {
+                                                const existingRow = [...currentBodyRows[r]];
+                                                while (existingRow.length < cols) existingRow.push('');
+                                                newBodyRows.push(existingRow.slice(0, cols));
+                                              } else {
+                                                newBodyRows.push(Array(cols).fill(''));
+                                              }
+                                            }
+                                            newData.rows = newBodyRows;
+                                            updateQuestion(sec.id, q.id, { tableRows: totalRows, tableData: newData });
+                                          }}
+                                        />
+                                      </div>
+                                      <div className="form-group" style={{ margin: 0 }}>
+                                        <label style={{ fontSize: '10px' }}>Columns</label>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max="10"
+                                          value={q.tableCols}
+                                          style={{ padding: '4px 8px', fontSize: '12px' }}
+                                          onChange={(e) => {
+                                            const cols = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+                                            const newData = { ...q.tableData };
+                                            const oldHeaders = newData.headers || [];
+                                            const newHeaders = [];
+                                            for (let c = 0; c < cols; c++) {
+                                              newHeaders.push(c < oldHeaders.length ? oldHeaders[c] : `Column ${c + 1}`);
+                                            }
+                                            newData.headers = newHeaders;
+                                            newData.rows = (newData.rows || []).map(row => {
+                                              const newRow = [];
+                                              for (let c = 0; c < cols; c++) {
+                                                newRow.push(c < row.length ? row[c] : '');
+                                              }
+                                              return newRow;
+                                            });
+                                            updateQuestion(sec.id, q.id, { tableCols: cols, tableData: newData });
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Table header cells */}
+                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Header Row (Bold)</label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
+                                      {q.tableData.headers.map((h, hIdx) => (
+                                        <input
+                                          key={hIdx}
+                                          id={`q__tblh__${sec.id}__${q.id}__${hIdx}`}
                                           type="text"
-                                          value={cell}
-                                          placeholder={`R${rIdx + 1}C${cIdx + 1}`}
-                                          style={{ padding: '4px 6px', fontSize: '11px' }}
+                                          value={h}
+                                          placeholder={`Header ${hIdx + 1}`}
+                                          style={{ padding: '4px 6px', fontSize: '11px', fontWeight: 'bold' }}
                                           onChange={(e) => {
                                             const newData = { ...q.tableData };
-                                            const newRows = newData.rows.map(r => [...r]);
-                                            newRows[rIdx][cIdx] = e.target.value;
-                                            newData.rows = newRows;
+                                            const newHeaders = [...newData.headers];
+                                            newHeaders[hIdx] = e.target.value;
+                                            newData.headers = newHeaders;
                                             updateQuestion(sec.id, q.id, { tableData: newData });
                                           }}
                                         />
                                       ))}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
 
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              fontSize: '12px',
-                              fontWeight: 'bold'
-                            }}>
-                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                Current Section Total:
-                              </span>
-                              <span style={{
-                                padding: '4px 10px',
-                                backgroundColor: 'rgba(0,0,0,0.2)',
-                                borderRadius: 'var(--radius-sm)',
-                                fontSize: '13px',
-                                color: isOverProvisioned ? 'var(--warning)' : isUnderProvisioned ? 'var(--danger)' : 'var(--success)'
+                                    {/* Table body cells */}
+                                    <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Body Rows (Regular)</label>
+                                    {q.tableData.rows.map((row, rIdx) => (
+                                      <div key={rIdx} style={{ display: 'grid', gridTemplateColumns: `repeat(${q.tableCols}, 1fr)`, gap: '6px' }}>
+                                        {row.map((cell, cIdx) => (
+                                          <input
+                                            key={cIdx}
+                                            id={`q__tblc__${sec.id}__${q.id}__${rIdx}__${cIdx}`}
+                                            type="text"
+                                            value={cell}
+                                            placeholder={`R${rIdx + 1}C${cIdx + 1}`}
+                                            style={{ padding: '4px 6px', fontSize: '11px' }}
+                                            onChange={(e) => {
+                                              const newData = { ...q.tableData };
+                                              const newRows = newData.rows.map(r => [...r]);
+                                              newRows[rIdx][cIdx] = e.target.value;
+                                              newData.rows = newRows;
+                                              updateQuestion(sec.id, q.id, { tableData: newData });
+                                            }}
+                                          />
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '12px',
+                                fontWeight: 'bold'
                               }}>
-                                {formatMarks(secTotal)} / {formatMarks(sec.marks)} Marks
-                              </span>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                  Current Section Total:
+                                </span>
+                                <span style={{
+                                  padding: '4px 10px',
+                                  backgroundColor: 'rgba(0,0,0,0.2)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  fontSize: '13px',
+                                  color: isOverProvisioned ? 'var(--warning)' : isUnderProvisioned ? 'var(--danger)' : 'var(--success)'
+                                }}>
+                                  {formatMarks(secTotal)} / {formatMarks(sec.marks)} Marks
+                                </span>
+                              </div>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => addQuestion(sec.id)}
+                              >
+                                + Add Question
+                              </button>
                             </div>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => addQuestion(sec.id)}
-                            >
-                              + Add Question
-                            </button>
                           </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
 
-              <button className="btn btn-secondary" onClick={addSection}>
-                <Plus size={16} /> Add New Section
-              </button>
+                <button className="btn btn-secondary" onClick={addSection}>
+                  <Plus size={16} /> Add New Section
+                </button>
 
-              {/* Validation Badges */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-                {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
-                  <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start' }}>
-                    <AlertTriangle size={14} />
-                    <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
-                  </div>
-                ) : (
-                  <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
-                    <CheckCircle size={14} />
-                    <span>Perfect: Sum of all questions matches targets!</span>
-                  </div>
-                )}
-                {hasZeroMarkQuestions() && (
-                  <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                    <AlertTriangle size={14} />
-                    <span>Warning: One or more questions have 0 marks.</span>
-                  </div>
-                )}
+                {/* Validation Badges */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                  {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
+                    <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start' }}>
+                      <AlertTriangle size={14} />
+                      <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
+                    </div>
+                  ) : (
+                    <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
+                      <CheckCircle size={14} />
+                      <span>Perfect: Sum of all questions matches targets!</span>
+                    </div>
+                  )}
+                  {hasZeroMarkQuestions() && (
+                    <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                      <AlertTriangle size={14} />
+                      <span>Warning: One or more questions have 0 marks.</span>
+                    </div>
+                  )}
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* Global Action Bar */}
+          <div className="action-bar studio-action-bar">
+            {/* Wizard Navigation */}
+            <div className="action-bar-group action-bar-wizard">
+              {activeTab !== 'branding' && (
+                <button
+                  className="btn btn-secondary btn-sm action-bar-btn"
+                  onClick={() => {
+                    if (activeTab === 'metadata') setActiveTab('branding');
+                    else if (activeTab === 'sections') setActiveTab('metadata');
+                  }}
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+              )}
+              {activeTab !== 'sections' && (
+                <button
+                  className="btn btn-primary btn-sm action-bar-btn"
+                  onClick={() => {
+                    if (activeTab === 'branding') setActiveTab('metadata');
+                    else if (activeTab === 'metadata') setActiveTab('sections');
+                  }}
+                >
+                  Next <ArrowRight size={14} />
+                </button>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Global Action Bar */}
-        <div className="action-bar studio-action-bar">
-          {/* Wizard Navigation */}
-          <div className="action-bar-group action-bar-wizard">
-            {activeTab !== 'branding' && (
-              <button
-                className="btn btn-secondary btn-sm action-bar-btn"
-                onClick={() => {
-                  if (activeTab === 'metadata') setActiveTab('branding');
-                  else if (activeTab === 'sections') setActiveTab('metadata');
-                }}
-              >
-                <ArrowLeft size={14} /> Back
+            <div className="action-bar-group action-bar-demo">
+              <button className="btn btn-secondary btn-sm action-bar-btn" onClick={loadDemo}>
+                Demo Data
               </button>
-            )}
-            {activeTab !== 'sections' && (
-              <button
-                className="btn btn-primary btn-sm action-bar-btn"
-                onClick={() => {
-                  if (activeTab === 'branding') setActiveTab('metadata');
-                  else if (activeTab === 'metadata') setActiveTab('sections');
-                }}
-              >
-                Next <ArrowRight size={14} />
+              <button className="btn btn-danger btn-sm action-bar-btn" onClick={resetAll}>
+                Clear Draft
               </button>
-            )}
-          </div>
-
-          <div className="action-bar-group action-bar-demo">
-            <button className="btn btn-secondary btn-sm action-bar-btn" onClick={loadDemo}>
-              Demo Data
-            </button>
-            <button className="btn btn-danger btn-sm action-bar-btn" onClick={resetAll}>
-              Clear Draft
-            </button>
-          </div>
-          <div className="action-bar-group action-bar-data">
-            <button className="btn btn-primary btn-sm action-bar-btn" onClick={exportToCSV}>
-              <Download size={12} /> Export CSV
-            </button>
-            <label className="btn btn-secondary btn-sm action-bar-btn" style={{ cursor: 'pointer', margin: 0 }}>
-              <Plus size={12} /> Import CSV
-              <input type="file" accept=".csv" onChange={importFromCSV} style={{ display: 'none' }} />
-            </label>
+            </div>
+            <div className="action-bar-group action-bar-data">
+              <button className="btn btn-primary btn-sm action-bar-btn" onClick={exportToCSV}>
+                <Download size={12} /> Export CSV
+              </button>
+              <label className="btn btn-secondary btn-sm action-bar-btn" style={{ cursor: 'pointer', margin: 0 }}>
+                <Plus size={12} /> Import CSV
+                <input type="file" accept=".csv" onChange={importFromCSV} style={{ display: 'none' }} />
+              </label>
+            </div>
           </div>
         </div>
-      </div>
 
         {/* Right Column: Real-Time Side-by-Side Live A4 Paper Sheet View */}
         <div className={`studio-preview-column ${!showLivePreview ? 'hidden' : ''}`}>
@@ -4891,7 +4640,11 @@ export default function App() {
                   {metadata.instructions && (
                     <div className="exam-meta-item full-width" style={{ marginTop: '8px', display: 'block', fontSize: '15px', fontWeight: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                       <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>General Instructions:</div>
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{metadata.instructions}</div>
+                      <div className="general-instructions-render" style={{ whiteSpace: 'pre-wrap' }}>
+                        {(metadata.instructions || '').split('\n').map((line, idx) => (
+                          <span key={idx} className="paper-text-line" style={{ display: 'block', minHeight: '1.2rem' }}>{line || ' '}</span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -4907,271 +4660,275 @@ export default function App() {
                       const firstQHasBreak = sec.questions && sec.questions[0] && sec.questions[0].pageBreakBefore;
                       const hasSecBreak = sec.pageBreakBefore || firstQHasBreak;
                       return (
-                      <React.Fragment key={sec.id}>
-                        {hasSecBreak && (
-                          <div className="preview-page-break-indicator print-hide" style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            margin: '20px 0 14px 0',
-                            padding: '6px 12px',
-                            borderTop: '2px dashed var(--accent)',
-                            borderBottom: '2px dashed var(--accent)',
-                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                            color: 'var(--accent)',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            borderRadius: '4px',
-                            letterSpacing: '0.5px'
-                          }}>
-                            <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
-                          </div>
-                        )}
-                        <div className={`paper-section ${hasSecBreak ? 'page-break-before' : ''}`}>
-                        <div className="paper-section-header">
-                          <div className="paper-section-title-row">
-                            <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
-                            <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
-                          </div>
-                          {sec.instructions && (
-                            <div className="paper-section-instructions">{sec.instructions}</div>
+                        <React.Fragment key={sec.id}>
+                          {hasSecBreak && (
+                            <div className="preview-page-break-indicator print-hide" style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              margin: '20px 0 14px 0',
+                              padding: '6px 12px',
+                              borderTop: '2px dashed var(--accent)',
+                              borderBottom: '2px dashed var(--accent)',
+                              backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                              color: 'var(--accent)',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              borderRadius: '4px',
+                              letterSpacing: '0.5px'
+                            }}>
+                              <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
+                            </div>
                           )}
-                        </div>
+                          <div className={`paper-section ${hasSecBreak ? 'page-break-before' : ''}`}>
+                            <div className="paper-section-header">
+                              <div className="paper-section-title-row">
+                                <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
+                                <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
+                              </div>
+                              {sec.instructions && (
+                                <div className="paper-section-instructions" style={{ whiteSpace: 'pre-wrap' }}>
+                                  {(sec.instructions || '').split('\n').map((line, idx) => (
+                                    <span key={idx} className="paper-text-line" style={{ display: 'block', minHeight: '1.2rem' }}>{line || ' '}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                        <div className="paper-questions-list">
-                          {sec.questions.map((q, qIdx) => {
-                            let previousQuestionsCount = 0;
-                            for (let i = 0; i < sIdx; i++) {
-                              previousQuestionsCount += sections[i].questions.length;
-                            }
-                            const globalNum = previousQuestionsCount + qIdx + 1;
-                            const showQBreak = q.pageBreakBefore && qIdx > 0;
+                            <div className="paper-questions-list">
+                              {sec.questions.map((q, qIdx) => {
+                                let previousQuestionsCount = 0;
+                                for (let i = 0; i < sIdx; i++) {
+                                  previousQuestionsCount += sections[i].questions.length;
+                                }
+                                const globalNum = previousQuestionsCount + qIdx + 1;
+                                const showQBreak = q.pageBreakBefore && qIdx > 0;
 
-                            return (
-                              <React.Fragment key={q.id}>
-                                {showQBreak && (
-                                  <div className="preview-page-break-indicator print-hide" style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    margin: '16px 0 12px 0',
-                                    padding: '6px 12px',
-                                    borderTop: '2px dashed var(--accent)',
-                                    borderBottom: '2px dashed var(--accent)',
-                                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
-                                    color: 'var(--accent)',
-                                    fontSize: '11px',
-                                    fontWeight: 'bold',
-                                    borderRadius: '4px',
-                                    letterSpacing: '0.5px'
-                                  }}>
-                                    <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
-                                  </div>
-                                )}
-                                <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
-                                <span className="paper-question-number">Q{globalNum}.</span>
-                                <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500', textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+                                return (
+                                  <React.Fragment key={q.id}>
+                                    {showQBreak && (
+                                      <div className="preview-page-break-indicator print-hide" style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        margin: '16px 0 12px 0',
+                                        padding: '6px 12px',
+                                        borderTop: '2px dashed var(--accent)',
+                                        borderBottom: '2px dashed var(--accent)',
+                                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                        color: 'var(--accent)',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '4px',
+                                        letterSpacing: '0.5px'
+                                      }}>
+                                        <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
+                                      </div>
+                                    )}
+                                    <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
+                                      <span className="paper-question-number">Q{globalNum}.</span>
+                                      <div className="paper-question-body">
+                                        <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
-                                  {/* Question Image render */}
-                                  {q.image && sec.type !== 'match_following' && (
-                                    <div className="paper-image-container" style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-start' }}>
-                                      <img
-                                        src={q.image}
-                                        alt={`Question ${globalNum}`}
-                                        style={{
-                                          width: `${q.imageWidth || 300}px`,
-                                          height: `${q.imageHeight || 200}px`,
-                                          objectFit: 'contain',
-                                          maxWidth: '100%'
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-
-                                  {/* MCQ Options */}
-                                  {sec.type === 'mcq' && q.options && (
-                                    <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
-                                      {q.options.map((opt, oIdx) => (
-                                        <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                                            <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
-                                            {getOptionText(opt) && (
-                                              <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
-                                            )}
+                                        {/* Question Image render */}
+                                        {q.image && sec.type !== 'match_following' && (
+                                          <div className="paper-image-container" style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-start' }}>
+                                            <img
+                                              src={q.image}
+                                              alt={`Question ${globalNum}`}
+                                              style={{
+                                                width: `${q.imageWidth || 300}px`,
+                                                height: `${q.imageHeight || 200}px`,
+                                                objectFit: 'contain',
+                                                maxWidth: '100%'
+                                              }}
+                                            />
                                           </div>
-                                          {getOptionImage(opt) && (
-                                            <div style={{ marginTop: '4px', marginLeft: '22px' }}>
-                                              <img
-                                                src={getOptionImage(opt)}
-                                                alt={`Option ${String.fromCharCode(65 + oIdx)}`}
-                                                style={{
-                                                  width: getOptionImageWidth(opt) ? `${getOptionImageWidth(opt)}px` : 'auto',
-                                                  height: getOptionImageHeight(opt) ? `${getOptionImageHeight(opt)}px` : 'auto',
-                                                  maxWidth: '100%',
-                                                  maxHeight: '180px',
-                                                  objectFit: 'contain'
-                                                }}
-                                              />
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                        )}
 
-                                  {/* Essay spaces and Sub-Questions */}
-                                  {sec.type === 'essay' && (
-                                    <>
-                                      {q.subQuestions && q.subQuestions.length > 0 ? (
-                                        <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                          {q.subQuestions.map((sq, sqIdx) => (
-                                            <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                                                <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
-                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
-                                                  <span style={{ flex: 1, textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                        {/* MCQ Options */}
+                                        {sec.type === 'mcq' && q.options && (
+                                          <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
+                                            {q.options.map((opt, oIdx) => (
+                                              <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
+                                                  {getOptionText(opt) && (
+                                                    <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
+                                                  )}
                                                 </div>
-                                                <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
+                                                {getOptionImage(opt) && (
+                                                  <div style={{ marginTop: '4px', marginLeft: '22px' }}>
+                                                    <img
+                                                      src={getOptionImage(opt)}
+                                                      alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                      style={{
+                                                        width: getOptionImageWidth(opt) ? `${getOptionImageWidth(opt)}px` : 'auto',
+                                                        height: getOptionImageHeight(opt) ? `${getOptionImageHeight(opt)}px` : 'auto',
+                                                        maxWidth: '100%',
+                                                        maxHeight: '180px',
+                                                        objectFit: 'contain'
+                                                      }}
+                                                    />
+                                                  </div>
+                                                )}
                                               </div>
-                                              {sq.image && (
-                                                <div className="paper-subquestion-image-container" style={{ marginTop: '4px', paddingLeft: '18px' }}>
-                                                  <img
-                                                    src={sq.image}
-                                                    alt={`Sub-question ${sq.label || sqIdx + 1}`}
-                                                    style={{
-                                                      width: `${sq.imageWidth || 300}px`,
-                                                      height: `${sq.imageHeight || 200}px`,
-                                                      objectFit: 'contain',
-                                                      maxWidth: '100%'
-                                                    }}
-                                                  />
-                                                </div>
-                                              )}
-                                              {!metadata.separateAnswerSheet && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '2px', paddingLeft: '20px' }}>
-                                                  {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 2 }).map((_, lineIdx) => (
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        {/* Essay spaces and Sub-Questions */}
+                                        {sec.type === 'essay' && (
+                                          <>
+                                            {q.subQuestions && q.subQuestions.length > 0 ? (
+                                              <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                {q.subQuestions.map((sq, sqIdx) => (
+                                                  <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                                      <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                                                        <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
+                                                        <span style={{ flex: 1, textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                      </div>
+                                                      <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
+                                                    </div>
+                                                    {sq.image && (
+                                                      <div className="paper-subquestion-image-container" style={{ marginTop: '4px', paddingLeft: '18px' }}>
+                                                        <img
+                                                          src={sq.image}
+                                                          alt={`Sub-question ${sq.label || sqIdx + 1}`}
+                                                          style={{
+                                                            width: `${sq.imageWidth || 300}px`,
+                                                            height: `${sq.imageHeight || 200}px`,
+                                                            objectFit: 'contain',
+                                                            maxWidth: '100%'
+                                                          }}
+                                                        />
+                                                      </div>
+                                                    )}
+                                                    {!metadata.separateAnswerSheet && (
+                                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '2px', paddingLeft: '20px' }}>
+                                                        {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 2 }).map((_, lineIdx) => (
+                                                          <div key={lineIdx} className="paper-answer-line"></div>
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              !metadata.separateAnswerSheet && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '3px' }}>
+                                                  {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 2 }).map((_, lineIdx) => (
                                                     <div key={lineIdx} className="paper-answer-line"></div>
                                                   ))}
                                                 </div>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        !metadata.separateAnswerSheet && (
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '3px' }}>
-                                            {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 2 }).map((_, lineIdx) => (
-                                              <div key={lineIdx} className="paper-answer-line"></div>
-                                            ))}
+                                              )
+                                            )}
+                                          </>
+                                        )}
+
+                                        {/* True/False selection */}
+                                        {sec.type === 'true_false' && !metadata.separateAnswerSheet && (
+                                          <div className="paper-tf-options">
+                                            <span>[   ] True</span>
+                                            <span>[   ] False</span>
                                           </div>
-                                        )
-                                      )}
-                                    </>
-                                  )}
+                                        )}
 
-                                  {/* True/False selection */}
-                                  {sec.type === 'true_false' && !metadata.separateAnswerSheet && (
-                                    <div className="paper-tf-options">
-                                      <span>[   ] True</span>
-                                      <span>[   ] False</span>
+                                        {/* Match the Following columns */}
+                                        {sec.type === 'match_following' && q.matchPairs && (
+                                          <table className="paper-match-table">
+                                            <thead>
+                                              <tr>
+                                                <th>Column A</th>
+                                                <th style={{ paddingLeft: '20px' }}>Column B</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {q.matchPairs.map((pair, pIdx) => {
+                                                const shuffledList = getShuffledList(q);
+                                                const roman = (idx) => {
+                                                  const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+                                                  return r[idx] || (idx + 1).toString();
+                                                };
+                                                const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
+                                                const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
+                                                const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
+
+                                                return (
+                                                  <tr key={pIdx}>
+                                                    <td style={{ padding: '6px 0', verticalAlign: 'top' }}>
+                                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                        <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
+                                                        <div>
+                                                          {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
+                                                          {pair.premiseImage && (
+                                                            <img
+                                                              src={pair.premiseImage}
+                                                              alt={`Col A ${pIdx + 1}`}
+                                                              style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                            />
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    </td>
+                                                    <td style={{ padding: '6px 0', paddingLeft: '20px', verticalAlign: 'top' }}>
+                                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                        <span style={{ fontWeight: '600', flexShrink: 0 }}>{roman(pIdx)}.</span>
+                                                        <div>
+                                                          {respText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(respText) }} />}
+                                                          {respImg && (
+                                                            <img
+                                                              src={respImg}
+                                                              alt={`Col B ${pIdx + 1}`}
+                                                              style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                            />
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        )}
+
+                                        {/* Table question render */}
+                                        {sec.type === 'table' && q.tableData && (
+                                          <table className="paper-table-question">
+                                            <thead>
+                                              <tr>
+                                                {q.tableData.headers.map((h, hIdx) => (
+                                                  <th key={hIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(h) }} />
+                                                ))}
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {q.tableData.rows.map((row, rIdx) => (
+                                                <tr key={rIdx}>
+                                                  {row.map((cell, cIdx) => (
+                                                    <td key={cIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(cell) }} />
+                                                  ))}
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        )}
+                                      </div>
+                                      <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
                                     </div>
-                                  )}
-
-                                  {/* Match the Following columns */}
-                                  {sec.type === 'match_following' && q.matchPairs && (
-                                    <table className="paper-match-table">
-                                      <thead>
-                                        <tr>
-                                          <th>Column A</th>
-                                          <th style={{ paddingLeft: '20px' }}>Column B</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {q.matchPairs.map((pair, pIdx) => {
-                                          const shuffledList = getShuffledList(q);
-                                          const roman = (idx) => {
-                                            const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
-                                            return r[idx] || (idx + 1).toString();
-                                          };
-                                          const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
-                                          const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
-                                          const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
-
-                                          return (
-                                            <tr key={pIdx}>
-                                              <td style={{ padding: '6px 0', verticalAlign: 'top' }}>
-                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
-                                                  <div>
-                                                    {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
-                                                    {pair.premiseImage && (
-                                                      <img
-                                                        src={pair.premiseImage}
-                                                        alt={`Col A ${pIdx + 1}`}
-                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
-                                                      />
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </td>
-                                              <td style={{ padding: '6px 0', paddingLeft: '20px', verticalAlign: 'top' }}>
-                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{roman(pIdx)}.</span>
-                                                  <div>
-                                                    {respText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(respText) }} />}
-                                                    {respImg && (
-                                                      <img
-                                                        src={respImg}
-                                                        alt={`Col B ${pIdx + 1}`}
-                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
-                                                      />
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  )}
-
-                                  {/* Table question render */}
-                                  {sec.type === 'table' && q.tableData && (
-                                    <table className="paper-table-question">
-                                      <thead>
-                                        <tr>
-                                          {q.tableData.headers.map((h, hIdx) => (
-                                            <th key={hIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(h) }} />
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {q.tableData.rows.map((row, rIdx) => (
-                                          <tr key={rIdx}>
-                                            {row.map((cell, cIdx) => (
-                                              <td key={cIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(cell) }} />
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  )}
-                                </div>
-                                <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
-                              </div>
-                            </React.Fragment>
-                          );
-                          })}
-                        </div>
-                      </div>
-                    </React.Fragment>
-                  );
-                  })
-                )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })
+                  )}
                 </div>
 
                 {/* Page number footer */}
@@ -5362,273 +5119,277 @@ export default function App() {
                       const firstQHasBreak = sec.questions && sec.questions[0] && sec.questions[0].pageBreakBefore;
                       const hasSecBreak = sec.pageBreakBefore || firstQHasBreak;
                       return (
-                      <React.Fragment key={sec.id}>
-                        {hasSecBreak && (
-                          <div className="preview-page-break-indicator print-hide" style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            margin: '20px 0 14px 0',
-                            padding: '6px 12px',
-                            borderTop: '2px dashed var(--accent)',
-                            borderBottom: '2px dashed var(--accent)',
-                            backgroundColor: 'rgba(99, 102, 241, 0.12)',
-                            color: 'var(--accent)',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            borderRadius: '4px',
-                            letterSpacing: '0.5px'
-                          }}>
-                            <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
-                          </div>
-                        )}
-                        <div className={`paper-section ${hasSecBreak ? 'page-break-before' : ''}`}>
-                        <div className="paper-section-header">
-                          <div className="paper-section-title-row">
-                            <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
-                            <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
-                          </div>
-                          {sec.instructions && (
-                            <div className="paper-section-instructions">{sec.instructions}</div>
+                        <React.Fragment key={sec.id}>
+                          {hasSecBreak && (
+                            <div className="preview-page-break-indicator print-hide" style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              margin: '20px 0 14px 0',
+                              padding: '6px 12px',
+                              borderTop: '2px dashed var(--accent)',
+                              borderBottom: '2px dashed var(--accent)',
+                              backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                              color: 'var(--accent)',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              borderRadius: '4px',
+                              letterSpacing: '0.5px'
+                            }}>
+                              <span>✂ PAGE BREAK BEFORE SECTION {String.fromCharCode(65 + sIdx)} ✂</span>
+                            </div>
                           )}
-                        </div>
+                          <div className={`paper-section ${hasSecBreak ? 'page-break-before' : ''}`}>
+                            <div className="paper-section-header">
+                              <div className="paper-section-title-row">
+                                <h2 className="paper-section-title">{(sec.title || '').toUpperCase()}</h2>
+                                <span className="paper-section-marks">[{formatMarks(sec.marks)} Marks]</span>
+                              </div>
+                              {sec.instructions && (
+                                <div className="paper-section-instructions" style={{ whiteSpace: 'pre-wrap' }}>
+                                  {(sec.instructions || '').split('\n').map((line, idx) => (
+                                    <span key={idx} className="paper-text-line" style={{ display: 'block', minHeight: '1.2rem' }}>{line || ' '}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                        <div className="paper-questions-list">
-                          {sec.questions.map((q, qIdx) => {
-                            // We compute the global question count.
-                            // Let's count all questions from previous sections
-                            let previousQuestionsCount = 0;
-                            for (let i = 0; i < sIdx; i++) {
-                              previousQuestionsCount += sections[i].questions.length;
-                            }
-                            const globalNum = previousQuestionsCount + qIdx + 1;
-                            const showQBreak = q.pageBreakBefore && qIdx > 0;
+                            <div className="paper-questions-list">
+                              {sec.questions.map((q, qIdx) => {
+                                // We compute the global question count.
+                                // Let's count all questions from previous sections
+                                let previousQuestionsCount = 0;
+                                for (let i = 0; i < sIdx; i++) {
+                                  previousQuestionsCount += sections[i].questions.length;
+                                }
+                                const globalNum = previousQuestionsCount + qIdx + 1;
+                                const showQBreak = q.pageBreakBefore && qIdx > 0;
 
-                            return (
-                              <React.Fragment key={q.id}>
-                                {showQBreak && (
-                                  <div className="preview-page-break-indicator print-hide" style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    margin: '16px 0 12px 0',
-                                    padding: '6px 12px',
-                                    borderTop: '2px dashed var(--accent)',
-                                    borderBottom: '2px dashed var(--accent)',
-                                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
-                                    color: 'var(--accent)',
-                                    fontSize: '11px',
-                                    fontWeight: 'bold',
-                                    borderRadius: '4px',
-                                    letterSpacing: '0.5px'
-                                  }}>
-                                    <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
-                                  </div>
-                                )}
-                                <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
-                                <span className="paper-question-number">Q{globalNum}.</span>
-                                <div className="paper-question-body">
-                                  <p style={{ fontWeight: '500', textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
+                                return (
+                                  <React.Fragment key={q.id}>
+                                    {showQBreak && (
+                                      <div className="preview-page-break-indicator print-hide" style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        margin: '16px 0 12px 0',
+                                        padding: '6px 12px',
+                                        borderTop: '2px dashed var(--accent)',
+                                        borderBottom: '2px dashed var(--accent)',
+                                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                                        color: 'var(--accent)',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '4px',
+                                        letterSpacing: '0.5px'
+                                      }}>
+                                        <span>✂ PAGE BREAK BEFORE QUESTION Q{globalNum} ✂</span>
+                                      </div>
+                                    )}
+                                    <div className={`paper-question-item ${showQBreak ? 'page-break-before' : ''}`}>
+                                      <span className="paper-question-number">Q{globalNum}.</span>
+                                      <div className="paper-question-body">
+                                        <p style={{ fontWeight: '500', textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(q.text) }} />
 
-                                  {/* Question Image render - positioned directly below Question Text */}
-                                  {q.image && sec.type !== 'match_following' && (
-                                    <div className="paper-image-container" style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-start' }}>
-                                      <img
-                                        src={q.image}
-                                        alt={`Question ${globalNum}`}
-                                        style={{
-                                          width: `${q.imageWidth || 300}px`,
-                                          height: `${q.imageHeight || 200}px`,
-                                          objectFit: 'contain',
-                                          maxWidth: '100%'
-                                        }}
-                                      />
-                                    </div>
-                                  )}
-
-                                  {/* MCQ Options */}
-                                  {sec.type === 'mcq' && q.options && (
-                                    <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
-                                      {q.options.map((opt, oIdx) => (
-                                        <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                          <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                                            <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
-                                            {getOptionText(opt) && (
-                                              <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
-                                            )}
+                                        {/* Question Image render - positioned directly below Question Text */}
+                                        {q.image && sec.type !== 'match_following' && (
+                                          <div className="paper-image-container" style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', justifyContent: 'flex-start' }}>
+                                            <img
+                                              src={q.image}
+                                              alt={`Question ${globalNum}`}
+                                              style={{
+                                                width: `${q.imageWidth || 300}px`,
+                                                height: `${q.imageHeight || 200}px`,
+                                                objectFit: 'contain',
+                                                maxWidth: '100%'
+                                              }}
+                                            />
                                           </div>
-                                          {getOptionImage(opt) && (
-                                            <div style={{ marginTop: '4px', marginLeft: '22px' }}>
-                                              <img
-                                                src={getOptionImage(opt)}
-                                                alt={`Option ${String.fromCharCode(65 + oIdx)}`}
-                                                style={{
-                                                  width: getOptionImageWidth(opt) ? `${getOptionImageWidth(opt)}px` : 'auto',
-                                                  height: getOptionImageHeight(opt) ? `${getOptionImageHeight(opt)}px` : 'auto',
-                                                  maxWidth: '100%',
-                                                  maxHeight: '180px',
-                                                  objectFit: 'contain'
-                                                }}
-                                              />
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                        )}
 
-                                  {/* Essay spaces and Sub-Questions */}
-                                  {sec.type === 'essay' && (
-                                    <>
-                                      {q.subQuestions && q.subQuestions.length > 0 ? (
-                                        <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                          {q.subQuestions.map((sq, sqIdx) => (
-                                            <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                                                <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
-                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
-                                                  <span style={{ flex: 1, textAlign: 'left', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                        {/* MCQ Options */}
+                                        {sec.type === 'mcq' && q.options && (
+                                          <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
+                                            {q.options.map((opt, oIdx) => (
+                                              <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
+                                                  {getOptionText(opt) && (
+                                                    <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
+                                                  )}
                                                 </div>
-                                                <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
+                                                {getOptionImage(opt) && (
+                                                  <div style={{ marginTop: '4px', marginLeft: '22px' }}>
+                                                    <img
+                                                      src={getOptionImage(opt)}
+                                                      alt={`Option ${String.fromCharCode(65 + oIdx)}`}
+                                                      style={{
+                                                        width: getOptionImageWidth(opt) ? `${getOptionImageWidth(opt)}px` : 'auto',
+                                                        height: getOptionImageHeight(opt) ? `${getOptionImageHeight(opt)}px` : 'auto',
+                                                        maxWidth: '100%',
+                                                        maxHeight: '180px',
+                                                        objectFit: 'contain'
+                                                      }}
+                                                    />
+                                                  </div>
+                                                )}
                                               </div>
-                                              {sq.image && (
-                                                <div className="paper-subquestion-image-container" style={{ marginTop: '4px', paddingLeft: '18px' }}>
-                                                  <img
-                                                    src={sq.image}
-                                                    alt={`Sub-question ${sq.label || sqIdx + 1}`}
-                                                    style={{
-                                                      width: `${sq.imageWidth || 300}px`,
-                                                      height: `${sq.imageHeight || 200}px`,
-                                                      objectFit: 'contain',
-                                                      maxWidth: '100%'
-                                                    }}
-                                                  />
-                                                </div>
-                                              )}
-                                              {!metadata.separateAnswerSheet && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '2px', paddingLeft: '20px' }}>
-                                                  {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 2 }).map((_, lineIdx) => (
+                                            ))}
+                                          </div>
+                                        )}
+
+                                        {/* Essay spaces and Sub-Questions */}
+                                        {sec.type === 'essay' && (
+                                          <>
+                                            {q.subQuestions && q.subQuestions.length > 0 ? (
+                                              <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                {q.subQuestions.map((sq, sqIdx) => (
+                                                  <div key={sq.id} className="paper-subquestion-item" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                                      <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                                                        <span style={{ fontWeight: '600', flexShrink: 0 }}>{sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`}</span>
+                                                        <span style={{ flex: 1, textAlign: 'justify', textAlignLast: 'left' }} dangerouslySetInnerHTML={{ __html: renderTextWithMath(sq.text) }} />
+                                                      </div>
+                                                      <span className="paper-question-marks" style={{ fontStyle: 'italic', fontSize: '11px' }}>({formatMarks(sq.marks)} M)</span>
+                                                    </div>
+                                                    {sq.image && (
+                                                      <div className="paper-subquestion-image-container" style={{ marginTop: '4px', paddingLeft: '18px' }}>
+                                                        <img
+                                                          src={sq.image}
+                                                          alt={`Sub-question ${sq.label || sqIdx + 1}`}
+                                                          style={{
+                                                            width: `${sq.imageWidth || 300}px`,
+                                                            height: `${sq.imageHeight || 200}px`,
+                                                            objectFit: 'contain',
+                                                            maxWidth: '100%'
+                                                          }}
+                                                        />
+                                                      </div>
+                                                    )}
+                                                    {!metadata.separateAnswerSheet && (
+                                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '2px', paddingLeft: '20px' }}>
+                                                        {Array.from({ length: (sq.blankLines !== undefined && sq.blankLines !== '') ? sq.blankLines : 2 }).map((_, lineIdx) => (
+                                                          <div key={lineIdx} className="paper-answer-line"></div>
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              !metadata.separateAnswerSheet && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '3px' }}>
+                                                  {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 2 }).map((_, lineIdx) => (
                                                     <div key={lineIdx} className="paper-answer-line"></div>
                                                   ))}
                                                 </div>
-                                              )}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        !metadata.separateAnswerSheet && (
-                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '3px' }}>
-                                            {Array.from({ length: (q.blankLines !== undefined && q.blankLines !== '') ? q.blankLines : 2 }).map((_, lineIdx) => (
-                                              <div key={lineIdx} className="paper-answer-line"></div>
-                                            ))}
+                                              )
+                                            )}
+                                          </>
+                                        )}
+
+                                        {/* True/False selection */}
+                                        {sec.type === 'true_false' && !metadata.separateAnswerSheet && (
+                                          <div className="paper-tf-options">
+                                            <span>[   ] True</span>
+                                            <span>[   ] False</span>
                                           </div>
-                                        )
-                                      )}
-                                    </>
-                                  )}
+                                        )}
 
-                                  {/* True/False selection */}
-                                  {sec.type === 'true_false' && !metadata.separateAnswerSheet && (
-                                    <div className="paper-tf-options">
-                                      <span>[   ] True</span>
-                                      <span>[   ] False</span>
+                                        {/* Match the Following columns */}
+                                        {sec.type === 'match_following' && q.matchPairs && (
+                                          <table className="paper-match-table">
+                                            <thead>
+                                              <tr>
+                                                <th>Column A</th>
+                                                <th style={{ paddingLeft: '20px' }}>Column B</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {q.matchPairs.map((pair, pIdx) => {
+                                                const shuffledList = getShuffledList(q);
+                                                const roman = (idx) => {
+                                                  const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
+                                                  return r[idx] || (idx + 1).toString();
+                                                };
+                                                const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
+                                                const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
+                                                const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
+
+                                                return (
+                                                  <tr key={pIdx}>
+                                                    <td style={{ padding: '6px 0', verticalAlign: 'top' }}>
+                                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                        <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
+                                                        <div>
+                                                          {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
+                                                          {pair.premiseImage && (
+                                                            <img
+                                                              src={pair.premiseImage}
+                                                              alt={`Col A ${pIdx + 1}`}
+                                                              style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                            />
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    </td>
+                                                    <td style={{ padding: '6px 0', paddingLeft: '20px', verticalAlign: 'top' }}>
+                                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                                                        <span style={{ fontWeight: '600', flexShrink: 0 }}>{roman(pIdx)}.</span>
+                                                        <div>
+                                                          {respText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(respText) }} />}
+                                                          {respImg && (
+                                                            <img
+                                                              src={respImg}
+                                                              alt={`Col B ${pIdx + 1}`}
+                                                              style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
+                                                            />
+                                                          )}
+                                                        </div>
+                                                      </div>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        )}
+
+                                        {/* Table question render */}
+                                        {sec.type === 'table' && q.tableData && (
+                                          <table className="paper-table-question">
+                                            <thead>
+                                              <tr>
+                                                {q.tableData.headers.map((h, hIdx) => (
+                                                  <th key={hIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(h) }} />
+                                                ))}
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {q.tableData.rows.map((row, rIdx) => (
+                                                <tr key={rIdx}>
+                                                  {row.map((cell, cIdx) => (
+                                                    <td key={cIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(cell) }} />
+                                                  ))}
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        )}
+                                      </div>
+                                      <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
                                     </div>
-                                  )}
-
-                                  {/* Match the Following columns */}
-                                  {sec.type === 'match_following' && q.matchPairs && (
-                                    <table className="paper-match-table">
-                                      <thead>
-                                        <tr>
-                                          <th>Column A</th>
-                                          <th style={{ paddingLeft: '20px' }}>Column B</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {q.matchPairs.map((pair, pIdx) => {
-                                          const shuffledList = getShuffledList(q);
-                                          const roman = (idx) => {
-                                            const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
-                                            return r[idx] || (idx + 1).toString();
-                                          };
-                                          const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
-                                          const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
-                                          const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
-
-                                          return (
-                                            <tr key={pIdx}>
-                                              <td style={{ padding: '6px 0', verticalAlign: 'top' }}>
-                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
-                                                  <div>
-                                                    {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
-                                                    {pair.premiseImage && (
-                                                      <img
-                                                        src={pair.premiseImage}
-                                                        alt={`Col A ${pIdx + 1}`}
-                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
-                                                      />
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </td>
-                                              <td style={{ padding: '6px 0', paddingLeft: '20px', verticalAlign: 'top' }}>
-                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                                                  <span style={{ fontWeight: '600', flexShrink: 0 }}>{roman(pIdx)}.</span>
-                                                  <div>
-                                                    {respText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(respText) }} />}
-                                                    {respImg && (
-                                                      <img
-                                                        src={respImg}
-                                                        alt={`Col B ${pIdx + 1}`}
-                                                        style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
-                                                      />
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  )}
-
-                                  {/* Table question render */}
-                                  {sec.type === 'table' && q.tableData && (
-                                    <table className="paper-table-question">
-                                      <thead>
-                                        <tr>
-                                          {q.tableData.headers.map((h, hIdx) => (
-                                            <th key={hIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(h) }} />
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {q.tableData.rows.map((row, rIdx) => (
-                                          <tr key={rIdx}>
-                                            {row.map((cell, cIdx) => (
-                                              <td key={cIdx} dangerouslySetInnerHTML={{ __html: renderTextWithMath(cell) }} />
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  )}
-                                </div>
-                                <span className="paper-question-marks">({formatMarks(getQuestionMarks(q))} M)</span>
-                              </div>
-                            </React.Fragment>
-                          );
-                          })}
-                        </div>
-                      </div>
-                    </React.Fragment>
-                  );
-                  })
-                )}
+                                  </React.Fragment>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </React.Fragment>
+                      );
+                    })
+                  )}
                 </div>
 
                 {/* Page number footer */}
@@ -5640,7 +5401,7 @@ export default function App() {
               <button
                 className="btn btn-primary"
                 disabled={isPdfExporting || !hasQuestions()}
-                title={hasQuestions() ? "Download PDF" : "Add at least one question to download"}
+                title={hasQuestions() ? "Download PDF" : "Add at least one question to export"}
                 onClick={triggerPdfExport}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
@@ -5674,7 +5435,7 @@ export default function App() {
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <svg viewBox="0 0 24 24" width="20" height="20" style={{ fill: '#4285f4' }}>
-                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
                 </svg>
                 Open in Google Docs
               </h3>
@@ -5707,7 +5468,7 @@ export default function App() {
                       <li>Drag and drop the downloaded <strong>.docx file</strong> into Google Docs to start editing immediately.</li>
                     </ol>
                   </div>
-                  
+
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '6px' }}>
                     <button
                       className="btn btn-primary"

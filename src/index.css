@@ -1210,6 +1210,8 @@ textarea.mcq-option-textarea {
 
 .paper-subquestion-item {
   font-size: 15.5px;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
 }
 
 .paper-table-question th,
@@ -2000,3 +2002,81 @@ textarea.mcq-option-textarea {
 
 
 
+
+@media print {
+  /* Core elements */
+  .paper-text-line,
+  .paper-image-container,
+  .paper-mcq-option,
+  .school-details,
+  .exam-meta-item,
+  .paper-section-title,
+  .paper-section-header,
+  .paper-question-item,
+  .paper-subquestion-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    -webkit-column-break-inside: avoid !important;
+  }
+  
+  .page-break-before {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* WORKAROUND: Chromium print renderer ignores page breaks on flex/grid elements.
+     Convert grid/flex elements to table/block to guarantee layout breaks properly. */
+  
+  .paper-question-item {
+    display: table !important;
+    width: 100% !important;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 10px;
+  }
+  
+  .paper-question-number,
+  .paper-question-body,
+  .paper-question-marks {
+    display: table-cell !important;
+    vertical-align: top !important;
+  }
+  
+  .paper-question-number {
+    width: 1% !important;
+    white-space: nowrap !important;
+    padding-right: 10px !important;
+  }
+  
+  .paper-question-marks {
+    width: 1% !important;
+    white-space: nowrap !important;
+    padding-left: 10px !important;
+  }
+  
+  .paper-question-body p {
+    display: block !important;
+  }
+  
+  .paper-section-header {
+    display: block !important;
+  }
+
+  .paper-section-title-row {
+    display: block !important;
+  }
+
+  .paper-section-marks {
+    float: right !important;
+  }
+  
+  .paper-mcq-option {
+    display: inline-block !important;
+    width: 100%;
+  }
+
+  .paper-subquestions-list, 
+  .paper-subquestion-item {
+    display: block !important;
+  }
+}
