@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import pageLogo from './assets/logo.png';
 import schoolLogo from './assets/school_logo.png';
 import developerPhoto from './assets/developer_photo.jpeg';
@@ -34,545 +34,28 @@ import {
   X,
   Printer
 } from 'lucide-react';
-import katex from 'katex';
-import DOMPurify from 'dompurify';
-import html2pdf from 'html2pdf.js';
-
-let docx;
-let exportDependenciesPromise;
-
-const loadExportDependencies = async () => {
-  if (!exportDependenciesPromise) {
-    exportDependenciesPromise = Promise.all([
-      import('docx')
-    ]).then(([docxModule]) => {
-      docx = docxModule;
-    });
-  }
-  return exportDependenciesPromise;
-};
-
-// Helper: render square root with proper radical symbol and top overbar line
-const renderSquareRootHTML = (inner) => {
-  if (!inner) return '<span class="math-sqrt-symbol">√</span>';
-  const trimmed = inner.trim();
-  if (!trimmed) {
-    return '<span class="math-sqrt-symbol">√</span>';
-  }
-  // Instead of an overbar, just render the symbol and the content next to it
-  return '<span class="math-sqrt-symbol">√</span>' + trimmed;
-};
-
-// Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt, minus) (sanitized)
-const renderTextWithMath = (text) => {
-  if (!text) return '';
-  let result = text;
-
-  // 1. Process explicit $...$ math blocks FIRST to isolate and protect KaTeX rendered math
-  const mathBlocks = [];
-  result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
-    try {
-      const katexHTML = katex.renderToString(mathContent, {
-        throwOnError: false,
-        displayMode: false,
-        output: 'html'
-      });
-      const placeholder = `___MATH_BLOCK_${mathBlocks.length}___`;
-      mathBlocks.push(katexHTML);
-      return placeholder;
-    } catch {
-      return `<span style="color:red;">${match}</span>`;
-    }
-  });
-
-  // 2. Format math subtraction and negative numbers with Unicode minus sign (U+2212) BEFORE creating HTML tags
-  result = result.replace(/(\b[0-9a-zA-Z]+\b|\))\s*-\s*(\b[0-9a-zA-Z]+\b|\()/g, '$1 − $2');
-  result = result.replace(/(^|\s)-([0-9a-zA-Z])/g, '$1−$2');
-
-  // 3. Convert raw \sqrt{...} and Unicode √ OUTSIDE of $...$ into styled radical + overbar content
-  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, degree, inner) => `${degree}√${inner}`);
-  result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, inner) => renderSquareRootHTML(inner));
-  // Removed √ grouping replacements per user request to treat it as a regular character
-  result = result.replace(/√/g, '<span class="math-sqrt-symbol">√</span>');
-
-  // 4. Convert Unicode cube root ∛ to styled span
-  result = result.replace(/∛/g, '<span class="math-sqrt-symbol">∛</span>');
-
-  // 5. Restore rendered $...$ math blocks
-  mathBlocks.forEach((html, i) => {
-    result = result.replace(`___MATH_BLOCK_${i}___`, html);
-  });
-
-  // Convert newlines to block lines for precise page-break slicing in PDF
-  const lines = result.split('\n');
-  result = lines.map(line => `<span class="paper-text-line" style="display: block; min-height: 1.2rem;">${line || '&nbsp;'}</span>`).join('');
-
-  return DOMPurify.sanitize(result, {
-    ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub', 'br'],
-    ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
-  });
-};
-
-// Helper: convert text with $...$ math or raw √ symbols into an array of docx.TextRun objects
-const docxTextRunsWithMath = (text, defaultOptions = {}) => {
-  if (!text) return [];
-  let processedText = text;
-
-  // Convert raw √ or \sqrt outside of $...$ into $...$ blocks for DOCX math rendering
-  if (!processedText.includes('$') && (processedText.includes('\\sqrt'))) {
-    processedText = processedText.replace(/\\sqrt\{([^}]*)\}/g, '$\\sqrt{$1}$');
-  }
-  // Removed √ grouping replacements for docx per user request
-
-  const parts = processedText.split('$');
-  const runs = [];
-  parts.forEach((part, index) => {
-    if (index % 2 === 1) {
-      // This is math
-      const plainMath = latexToPlainText(part);
-      runs.push(new docx.TextRun({
-        text: plainMath,
-        italics: true,
-        font: 'Cambria Math',
-        size: defaultOptions.size || 30,
-        ...defaultOptions
-      }));
-    } else {
-      // Plain text part (format math subtraction and negative numbers with Unicode minus sign U+2212)
-      const formattedPart = part.replace(/(\b[0-9a-zA-Z]+\b|\))\s*-\s*(\b[0-9a-zA-Z]+\b|\()/g, '$1 − $2');
-      const lines = formattedPart.split('\n');
-      lines.forEach((line, lIdx) => {
-        const runProps = {
-          text: line,
-          size: defaultOptions.size || 30,
-          ...defaultOptions
-        };
-        if (lIdx > 0) {
-          runProps.break = 1;
-        }
-        runs.push(new docx.TextRun(runProps));
-      });
-    }
-  });
-  return runs;
-};
-
-// Helper: convert LaTeX to readable plain text for DOCX with full math symbol support
-const latexToPlainText = (latex) => {
-  if (!latex) return '';
-  let text = latex;
-  // Binomial coefficients / combinations
-  text = text.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, (_, n, k) => `C(${n}, ${k})`);
-  // Fractions (keep clean separation for numerator / denominator)
-  text = text.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, (_, num, den) => `(${num}) / (${den})`);
-  // nth root and square root
-  text = text.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, n, arg) => `ⁿ√(${arg})`);
-  text = text.replace(/\\sqrt\{([^}]*)\}/g, (_, arg) => {
-    const trimmed = arg ? arg.trim() : '';
-    if (/^[0-9a-zA-Z]+$/.test(trimmed)) {
-      return `√${trimmed}`;
-    }
-    return `√(${trimmed})`;
-  });
-  // Vector notation
-  text = text.replace(/\\vec\{([^}]*)\}/g, (_, v) => `${v}⃗`);
-  text = text.replace(/\\hat\{([^}]*)\}/g, (_, v) => `${v}̂`);
-  text = text.replace(/\\bar\{([^}]*)\}/g, (_, v) => `${v}̄`);
-  // Superscript
-  text = text.replace(/\^\{([^}]*)\}/g, (_, p) => {
-    const supMap = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ', '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'x': 'ˣ', 'y': 'ʸ' };
-    return p.split('').map(c => supMap[c] || `^${c}`).join('');
-  });
-  text = text.replace(/\^([0-9n])/g, (_, c) => {
-    const supMap = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', 'n': 'ⁿ' };
-    return supMap[c] || `^${c}`;
-  });
-  // Subscript
-  text = text.replace(/_\{([^}]*)\}/g, (_, p) => {
-    const subMap = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', 'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'x': 'ₓ' };
-    return p.split('').map(c => subMap[c] || `_${c}`).join('');
-  });
-  text = text.replace(/_([0-9a-zA-Z])/g, (_, c) => {
-    const subMap = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', 'a': 'ₐ', 'e': 'ₑ', 'o': 'ₒ', 'x': 'ₓ' };
-    return subMap[c] || `_${c}`;
-  });
-  // Full Greek alphabet (lowercase & uppercase)
-  const greeks = {
-    '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ', '\\epsilon': 'ε', '\\varepsilon': 'ϵ',
-    '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ', '\\vartheta': 'ϑ', '\\iota': 'ι', '\\kappa': 'κ',
-    '\\lambda': 'λ', '\\mu': 'μ', '\\nu': 'ν', '\\xi': 'ξ', '\\pi': 'π', '\\varpi': 'ϖ',
-    '\\rho': 'ρ', '\\varrho': 'ϱ', '\\sigma': 'σ', '\\varsigma': 'ς', '\\tau': 'τ', '\\upsilon': 'υ',
-    '\\phi': 'φ', '\\varphi': 'ϕ', '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
-    '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ', '\\Xi': 'Ξ', '\\Pi': 'Π',
-    '\\Sigma': 'Σ', '\\Upsilon': 'Υ', '\\Phi': 'Φ', '\\Psi': 'Ψ', '\\Omega': 'Ω'
-  };
-  const sortedGreeks = Object.keys(greeks).sort((a, b) => b.length - a.length);
-  for (const k of sortedGreeks) {
-    text = text.replaceAll(k, greeks[k]);
-  }
-  // Comprehensive Math, Arithmetic, Calculus & Logic operators
-  const ops = {
-    '\\pm': '±', '\\mp': '∓', '\\times': '×', '\\div': '÷', '\\cdot': '·', '\\star': '⋆', '\\circ': '∘',
-    '\\bullet': '•', '\\cap': '∩', '\\cup': '∪', '\\uplus': '⊎', '\\sqcap': '⊓', '\\sqcup': '⊔',
-    '\\vee': '∨', '\\wedge': '∧', '\\setminus': '∖', '\\diamond': '⋄',
-    '\\leq': '≤', '\\geq': '≥', '\\neq': '≠', '\\equiv': '≡', '\\approx': '≈', '\\sim': '∼',
-    '\\simeq': '≃', '\\asymp': '≍', '\\propto': '∝', '\\perp': '⊥', '\\parallel': '∥',
-    '\\in': '∈', '\\notin': '∉', '\\subset': '⊂', '\\supset': '⊃', '\\subseteq': '⊆', '\\supseteq': '⊇',
-    '\\forall': '∀', '\\exists': '∃', '\\nexists': '∄', '\\emptyset': '∅', '\\nabla': '∇',
-    '\\partial': '∂', '\\int': '∫', '\\iint': '∬', '\\iiint': '∭', '\\oint': '∮', '\\sum': '∑',
-    '\\prod': '∏', '\\coprod': '∐', '\\infty': '∞', '\\therefore': '∴', '\\because': '∵',
-    '\\implies': '⇒', '\\iff': '⇔', '\\rightarrow': '→', '\\leftarrow': '←', '\\leftrightarrow': '↔',
-    '\\Rightarrow': '⇒', '\\Leftarrow': '⇐', '\\Leftrightarrow': '⇔', '\\angle': '∠', '\\measuredangle': '∡',
-    '\\degree': '°', '\\ldots': '…', '\\cdots': '⋯', '\\vdots': '⋮', '\\ddots': '⋱'
-  };
-  const sortedOps = Object.keys(ops).sort((a, b) => b.length - a.length);
-  for (const k of sortedOps) {
-    text = text.replaceAll(k, ops[k]);
-  }
-  // Clean remaining commands
-  text = text.replace(/\\(lim|log|sin|cos|tan|cot|sec|csc|ln|max|min|deg)/g, '$1');
-  text = text.replace(/\\[a-zA-Z]+/g, '');
-  text = text.replace(/[{}]/g, '');
-  text = text.replace(/\s+/g, ' ').trim();
-  return text;
-};
-
-// Formula toolbar button definitions
-const FORMULA_BUTTONS = [
-  {
-    label: 'Basic', buttons: [
-      { symbol: 'x²', insert: '²', hint: 'Superscript 2' },
-      { symbol: 'x³', insert: '³', hint: 'Superscript 3' },
-      { symbol: 'xⁿ', insert: '^', hint: 'Power' },
-      { symbol: 'x₁', insert: '₁', hint: 'Subscript 1' },
-      { symbol: 'x₂', insert: '₂', hint: 'Subscript 2' },
-      { symbol: 'xₙ', insert: '_', hint: 'Subscript' },
-      { symbol: '½', insert: '½', hint: 'Half' },
-      { symbol: '¼', insert: '¼', hint: 'Quarter' },
-      { symbol: '¾', insert: '¾', hint: 'Three quarters' },
-      { symbol: '√', insert: '√', hint: 'Square root' },
-      { symbol: '∛', insert: '∛', hint: 'Cube root' },
-    ]
-  },
-  {
-    label: 'Greek', buttons: [
-      { symbol: 'α', insert: 'α', hint: 'Alpha' },
-      { symbol: 'β', insert: 'β', hint: 'Beta' },
-      { symbol: 'γ', insert: 'γ', hint: 'Gamma' },
-      { symbol: 'δ', insert: 'δ', hint: 'Delta' },
-      { symbol: 'θ', insert: 'θ', hint: 'Theta' },
-      { symbol: 'λ', insert: 'λ', hint: 'Lambda' },
-      { symbol: 'μ', insert: 'μ', hint: 'Mu' },
-      { symbol: 'π', insert: 'π', hint: 'Pi' },
-      { symbol: 'σ', insert: 'σ', hint: 'Sigma' },
-      { symbol: 'φ', insert: 'φ', hint: 'Phi' },
-      { symbol: 'ω', insert: 'ω', hint: 'Omega' },
-      { symbol: 'Δ', insert: 'Δ', hint: 'Delta (uppercase)' },
-      { symbol: 'Σ', insert: 'Σ', hint: 'Sigma (uppercase)' },
-      { symbol: 'Ω', insert: 'Ω', hint: 'Omega (uppercase)' },
-    ]
-  },
-  {
-    label: 'Operators', buttons: [
-      { symbol: '±', insert: '±', hint: 'Plus-minus' },
-      { symbol: '×', insert: '×', hint: 'Multiply' },
-      { symbol: '÷', insert: '÷', hint: 'Divide' },
-      { symbol: '·', insert: '·', hint: 'Dot product' },
-      { symbol: '≠', insert: '≠', hint: 'Not equal' },
-      { symbol: '≤', insert: '≤', hint: 'Less than or equal' },
-      { symbol: '≥', insert: '≥', hint: 'Greater than or equal' },
-      { symbol: '≈', insert: '≈', hint: 'Approximately' },
-      { symbol: '∞', insert: '∞', hint: 'Infinity' },
-      { symbol: '∝', insert: '∝', hint: 'Proportional' },
-      { symbol: '°', insert: '°', hint: 'Degree' },
-    ]
-  },
-  {
-    label: 'Calculus', buttons: [
-      { symbol: '∫', insert: '∫', hint: 'Integral' },
-      { symbol: '∂', insert: '∂', hint: 'Partial derivative' },
-      { symbol: '∑', insert: '∑', hint: 'Summation' },
-      { symbol: '∏', insert: '∏', hint: 'Product' },
-    ]
-  },
-  {
-    label: 'Trig & Log', buttons: [
-      { symbol: 'sin', insert: 'sin ', hint: 'Sine' },
-      { symbol: 'cos', insert: 'cos ', hint: 'Cosine' },
-      { symbol: 'tan', insert: 'tan ', hint: 'Tangent' },
-      { symbol: 'log', insert: 'log ', hint: 'Logarithm' },
-      { symbol: 'ln', insert: 'ln ', hint: 'Natural log' },
-    ]
-  }
-];
-
-const DEFAULT_BRANDING = {
-  logo: schoolLogo,
-  logoWidth: 65,
-  logoHeight: 65,
-  logoPos: { x: 0, y: 0 },
-  schoolName: 'Girijyothi CMI Public School',
-  schoolAddress: 'Vazhathope, Idukki',
-  fontFamily: 'Inter',
-  headerLogoOnly: false,
-  hideSchoolLogo: false
-};
-
-const normalizeLogo = (val) => {
-  if (val === null || val === undefined) return null;
-  if (typeof val === 'string') {
-    const trimmed = val.trim();
-    if (trimmed === '' || trimmed === 'null' || trimmed === 'none' || trimmed === 'undefined' || trimmed === 'false') {
-      return null;
-    }
-    const lower = trimmed.toLowerCase();
-    if (
-      lower === 'default' ||
-      lower === 'schoollogo' ||
-      lower.includes('school_logo') ||
-      lower.includes('school-logo')
-    ) {
-      return schoolLogo;
-    }
-    return trimmed;
-  }
-  return val;
-};
-
-const DEFAULT_METADATA = {
-  title: 'FIRST TERM SUMMATIVE ASSESSMENT',
-  subject: 'Computer Science & Programming',
-  classDiv: 'Class X - Division A & B',
-  maxMarks: 50,
-  duration: '90 Minutes',
-  separateAnswerSheet: true,
-  language: 'english',
-  instructions: ''
-};
-
-const DEFAULT_SECTIONS = [
-  {
-    id: 'sec-1',
-    title: 'SECTION A: OBJECTIVE TYPE QUESTIONS (MCQ)',
-    marks: 5,
-    instructions: 'Answer all the questions. Each question carries 1 mark. Select the most appropriate option.',
-    type: 'mcq',
-    questions: [
-      {
-        id: 'q-1',
-        text: 'Which of the following is NOT a high-level programming language?',
-        marks: 1,
-        options: ['Python', 'Assembly Language', 'Java', 'C++']
-      },
-      {
-        id: 'q-2',
-        text: 'Which data structure operates on a Last-In, First-Out (LIFO) basis?',
-        marks: 1,
-        options: ['Queue', 'Stack', 'Linked List', 'Array']
-      }
-    ]
-  },
-  {
-    id: 'sec-1-tf',
-    title: 'SECTION B: TRUE OR FALSE',
-    marks: 5,
-    instructions: 'State whether the following statements are True or False.',
-    type: 'true_false',
-    questions: [
-      {
-        id: 'q-2-tf-1',
-        text: 'In Python, variables are dynamically typed and do not need to be declared.',
-        marks: 1
-      },
-      {
-        id: 'q-2-tf-2',
-        text: 'HTML is a programming language used for logic execution.',
-        marks: 1
-      }
-    ]
-  },
-  {
-    id: 'sec-2',
-    title: 'SECTION C: MATCH THE COMPONENTS',
-    marks: 3,
-    instructions: 'Match the computer hardware components with their appropriate primary functions.',
-    type: 'match_following',
-    questions: [
-      {
-        id: 'q-4',
-        text: 'Associate components to functions:',
-        marks: 3,
-        matchPairs: [
-          { premise: 'CPU', response: 'Instruction execution and logic processing' },
-          { premise: 'RAM', response: 'Temporary high-speed volatile data storage' },
-          { premise: 'SSD', response: 'Persistent high-speed non-volatile storage' }
-        ],
-        shuffleB: true
-      }
-    ]
-  },
-  {
-    id: 'sec-3',
-    title: 'SECTION D: SHORT ANSWER & ESSAYS',
-    marks: 15,
-    instructions: 'Answer all questions. Assign marks based on the depth and logic of your explanation.',
-    type: 'essay',
-    questions: [
-      {
-        id: 'q-5',
-        text: 'Discuss cloud computing architectures and security:',
-        marks: 10,
-        blankLines: 12,
-        subQuestions: [
-          {
-            id: 'sq-1',
-            label: '(a)',
-            text: 'Explain the key differences between Public, Private, and Hybrid Cloud architectures.',
-            marks: 5,
-            blankLines: 6
-          },
-          {
-            id: 'sq-2',
-            label: '(b)',
-            text: 'List three critical security concerns when hosting sensitive data in public cloud servers.',
-            marks: 5,
-            blankLines: 6
-          }
-        ]
-      },
-      {
-        id: 'q-6',
-        text: 'Explain the difference between compiler and interpreter.',
-        marks: 5,
-        blankLines: 6
-      }
-    ]
-  }
-];
-
-const _PRESET_TEMPLATES = {
-  cbse10: {
-    name: 'Class 10 Science (CBSE 80 Marks)',
-    branding: {
-      schoolName: 'Greenwood International School',
-      schoolAddress: 'Sector 14, Main Campus, New Delhi - 110001\nPhone: +91 11 2345 6789 | Web: www.greenwood.edu.in',
-      fontFamily: 'Inter',
-      hideSchoolLogo: false,
-      headerLogoOnly: false,
-      logoPos: { x: 0, y: 0 },
-      logoWidth: 80,
-      logoHeight: 80
-    },
-    metadata: {
-      examTitle: 'MID-TERM ASSESSMENT 2026',
-      subject: 'SCIENCE (PHYSICAL & LIFE SCIENCES)',
-      grade: 'CLASS X',
-      duration: '3 Hours',
-      maxMarks: 80,
-      date: '2026-09-15',
-      instructions: '1. All questions are compulsory.\n2. Section A contains 16 MCQs of 1 mark each.\n3. Section B contains 6 Short Answer Questions of 2 marks each.\n4. Section C contains 7 Short Answer Questions of 3 marks each.\n5. Section D contains 3 Long Answer Questions of 5 marks each.\n6. Use of calculators is not permitted.',
-      language: 'english',
-      separateAnswerSheet: true
-    },
-    sections: [
-      {
-        id: 'sec-cbse-mcq',
-        title: 'SECTION A - MULTIPLE CHOICE QUESTIONS',
-        instructions: 'Select the single correct option for each question.',
-        type: 'mcq',
-        questions: [
-          { id: 'q-cbse-1', text: 'Which of the following represents the correct balanced chemical equation for the reaction between hydrogen gas and chlorine gas?', marks: 1, options: ['H₂ + Cl₂ → 2HCl', '2H + 2Cl → 2HCl', 'H₂ + Cl₂ → HCl₂', 'H₂ + 2Cl → H₂Cl'] },
-          { id: 'q-cbse-2', text: 'The focal length of a concave mirror is 20 cm. Its radius of curvature $R$ will be:', marks: 1, options: ['10 cm', '20 cm', '40 cm', '80 cm'] },
-          { id: 'q-cbse-3', text: 'Which gas is evolved when dilute hydrochloric acid reacts with zinc granules?', marks: 1, options: ['Carbon dioxide', 'Hydrogen gas', 'Oxygen gas', 'Nitrogen dioxide'] },
-          { id: 'q-cbse-4', text: 'The breakdown of pyruvate to give carbon dioxide, water and energy takes place in:', marks: 1, options: ['Cytoplasm', 'Mitochondria', 'Chloroplast', 'Nucleus'] }
-        ]
-      },
-      {
-        id: 'sec-cbse-sa',
-        title: 'SECTION B - SHORT ANSWER QUESTIONS',
-        instructions: 'Answer each question in about 30-50 words.',
-        type: 'essay',
-        questions: [
-          { id: 'q-cbse-5', text: 'State Ohm\'s Law and write its mathematical formula $V = I \\times R$. Draw a circuit diagram to verify Ohm\'s Law.', marks: 2, blankLines: 4 },
-          { id: 'q-cbse-6', text: 'What is a redox reaction? Identify the substance oxidized and reduced in the following reaction:\n$CuO + H_2 \\rightarrow Cu + H_2O$', marks: 2, blankLines: 4 },
-          { id: 'q-cbse-7', text: 'Explain why the sky appears blue to an observer on Earth during daytime.', marks: 2, blankLines: 4 }
-        ]
-      }
-    ]
-  },
-  physics12: {
-    name: 'Class 12 Physics (70 Marks)',
-    branding: {
-      schoolName: 'St. Xavier Higher Secondary School',
-      schoolAddress: 'Campus Avenue, Science Block, Bengaluru\nContact: exam.dep@stxaviers.edu',
-      fontFamily: 'Montserrat',
-      hideSchoolLogo: false,
-      headerLogoOnly: false,
-      logoPos: { x: 0, y: 0 },
-      logoWidth: 80,
-      logoHeight: 80
-    },
-    metadata: {
-      examTitle: 'FIRST QUARTERLY EXAMINATION 2026',
-      subject: 'PHYSICS (THEORY)',
-      grade: 'CLASS XII',
-      duration: '3 Hours',
-      maxMarks: 70,
-      date: '2026-10-01',
-      instructions: '1. All questions are compulsory.\n2. Numerical constants: $c = 3 \\times 10^8\\text{ m/s}$, $e = 1.6 \\times 10^{-19}\\text{ C}$.',
-      language: 'english',
-      separateAnswerSheet: true
-    },
-    sections: [
-      {
-        id: 'sec-p12-mcq',
-        title: 'SECTION A - CONCEPTUAL MCQs',
-        instructions: 'Choose the correct option.',
-        type: 'mcq',
-        questions: [
-          { id: 'q-p12-1', text: 'The electrostatic potential $V$ at any point $(x, y, z)$ in space is given by $V = 4x^2\\text{ volts}$. The electric field $\\vec{E}$ at point $(1, 0, 2)\\text{ m}$ is:', marks: 1, options: ['-8 î V/m', '8 î V/m', '-16 î V/m', '4 î V/m'] },
-          { id: 'q-p12-2', text: 'Two thin convex lenses of focal lengths $f_1 = 15\\text{ cm}$ and $f_2 = 30\\text{ cm}$ are kept in contact. Equivalent power $P$ of the combination is:', marks: 1, options: ['+10 D', '+5 D', '+15 D', '+2.5 D'] }
-        ]
-      }
-    ]
-  },
-  mathQuiz: {
-    name: 'Mathematics Weekly Quiz (25 Marks)',
-    branding: {
-      schoolName: 'Model Public Academy',
-      schoolAddress: 'Department of Mathematics',
-      fontFamily: 'Inter',
-      hideSchoolLogo: false,
-      headerLogoOnly: false,
-      logoPos: { x: 0, y: 0 },
-      logoWidth: 80,
-      logoHeight: 80
-    },
-    metadata: {
-      examTitle: 'WEEKLY MATHEMATICS QUIZ',
-      subject: 'ALGEBRA & GEOMETRY',
-      grade: 'CLASS IX',
-      duration: '45 Minutes',
-      maxMarks: 25,
-      date: '2026-08-20',
-      instructions: 'Answer all questions clearly. Show formula steps.',
-      language: 'english',
-      separateAnswerSheet: true
-    },
-    sections: [
-      {
-        id: 'sec-mq-1',
-        title: 'SECTION A - ALGEBRA & POLYNOMIALS',
-        instructions: 'Solve the following algebraic equations.',
-        type: 'essay',
-        questions: [
-          { id: 'q-mq-1', text: 'Factorise the quadratic polynomial: $x^2 - 7x + 12 = 0$. Find its roots.', marks: 3, blankLines: 4 },
-          { id: 'q-mq-2', text: 'Find the value of $k$ if $(x - 1)$ is a factor of $p(x) = 2x^2 + kx + \\sqrt{2}$.', marks: 3, blankLines: 4 }
-        ]
-      }
-    ]
-  }
-};
+import {
+  FORMULA_BUTTONS,
+  DEFAULT_BRANDING,
+  DEFAULT_METADATA,
+  DEFAULT_SECTIONS,
+  _PRESET_TEMPLATES
+} from './config/constants';
+import {
+  renderTextWithMath
+} from './utils/mathUtils';
+import {
+  normalizeLogo,
+  formatMarks,
+  getQuestionMarks,
+  getSectionTotalMarks,
+  getExamCurrentTotalMarks,
+  getExamTotalQuestionsCount,
+  hasBlankQuestions,
+  hasZeroMarkQuestions,
+  getOptionText
+} from './utils/formatUtils';
+import { exportToCSV, generateExportFilename, importCsvData } from './utils/csvUtils';
 
 export default function App() {
   // App states
@@ -862,76 +345,25 @@ export default function App() {
     e.target.releasePointerCapture(e.pointerId);
   };
 
-  // Helper to format marks to show at most 2 decimal places
-  const formatMarks = (val) => {
-    const num = Number(val) || 0;
-    if (Number.isInteger(num)) return String(num);
-    return num.toFixed(2);
-  };
 
-  // Helper calculation functions
-  const getQuestionMarks = (q) => {
-    if (q && q.subQuestions && q.subQuestions.length > 0) {
-      return q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
-    }
-    return Number(q?.marks) || 0;
-  };
 
-  const getSectionTotalMarks = (section) => {
-    const rawTotal = section.questions.reduce((total, q) => total + getQuestionMarks(q), 0);
-    return Math.round(rawTotal * 100) / 100;
-  };
 
-  const getExamCurrentTotalMarks = () => {
-    const rawTotal = sections.reduce((total, s) => total + getSectionTotalMarks(s), 0);
-    return Math.round(rawTotal * 100) / 100;
-  };
 
-  const getExamTotalQuestionsCount = () => {
-    return sections.reduce((total, sec) => total + (sec.questions ? sec.questions.length : 0), 0);
-  };
 
-  const hasBlankQuestions = () => {
-    return sections.some(s => s.questions.some(q => {
-      if (q.subQuestions && q.subQuestions.length > 0) {
-        return q.subQuestions.some(sq => !sq.text || !sq.text.trim());
-      }
-      return !q.text || !q.text.trim();
-    }));
-  };
 
-  const hasZeroMarkQuestions = () => {
-    return sections.some(s => s.questions.some(q => {
-      if (q.subQuestions && q.subQuestions.length > 0) {
-        return q.subQuestions.some(sq => Number(sq.marks) === 0);
-      }
-      return Number(q.marks) === 0;
-    }));
-  };
 
-  const hasQuestions = () => {
+  const hasQuestions = useCallback(() => {
     return sections.some(s => s.questions && s.questions.length > 0);
-  };
+  }, [sections]);
 
-  const getOptionText = (opt) => {
-    if (typeof opt === 'object' && opt !== null) return opt.text || '';
-    return opt || '';
-  };
+  const examCurrentTotalMarks = useMemo(() => getExamCurrentTotalMarks(sections), [sections]);
+  const examTotalQuestionsCount = useMemo(() => getExamTotalQuestionsCount(sections), [sections]);
+  const hasBlank = useMemo(() => hasBlankQuestions(sections), [sections]);
+  const hasZeroMark = useMemo(() => hasZeroMarkQuestions(sections), [sections]);
 
-  const getOptionImage = (opt) => {
-    if (typeof opt === 'object' && opt !== null) return opt.image || '';
-    return '';
-  };
 
-  const getOptionImageWidth = (opt) => {
-    if (typeof opt === 'object' && opt !== null) return opt.imageWidth || 150;
-    return 150;
-  };
 
-  const getOptionImageHeight = (opt) => {
-    if (typeof opt === 'object' && opt !== null) return opt.imageHeight || 100;
-    return 100;
-  };
+
 
   const updateOptionText = (secId, qId, oIdx, text) => {
     setSections(prev => prev.map(sec => {
@@ -971,14 +403,6 @@ export default function App() {
     }));
   };
 
-  const canFitSingleLine = (options) => {
-    if (!options || options.length === 0) return false;
-    if (options.some(opt => getOptionImage(opt))) return false;
-    if (options.some(opt => getOptionText(opt).includes('\n'))) return false;
-    const totalChars = options.reduce((acc, opt) => acc + getOptionText(opt).length, 0);
-    const maxOptLen = Math.max(...options.map(opt => getOptionText(opt).length));
-    return options.length <= 4 && totalChars <= 36 && maxOptLen <= 12;
-  };
 
 
   // State update helpers for Sections & Questions
@@ -1337,38 +761,13 @@ export default function App() {
     }
   };
 
-  // Helper to format export filename as 'Class Name - Subject Name - Export Date - Time'
-  const generateExportFilename = (ext) => {
-    const className = (metadata.classDiv || 'Class').trim();
-    const subjectName = (metadata.subject || 'Subject').trim();
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const timeStr = `${hours}-${minutes}-${seconds}`;
-
-    const sanitize = (str) => str.replace(/[/\\:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-
-    const cleanClass = sanitize(className) || 'Class';
-    const cleanSubject = sanitize(subjectName) || 'Subject';
-
-    const baseName = `${cleanClass} - ${cleanSubject} - ${dateStr} - ${timeStr}`;
-    return ext ? `${baseName}.${ext.replace(/^\./, '')}` : baseName;
-  };
-
   // Direct printing handler with validation and automatic title branding
   const handleDirectPrint = useCallback(() => {
     if (!hasQuestions()) {
       alert("No questions added to print. Please add questions first.");
       return;
     }
-    if (hasBlankQuestions()) {
+    if (hasBlank) {
       if (!window.confirm("Some questions have empty text. Are you sure you want to print?")) {
         return;
       }
@@ -1377,7 +776,7 @@ export default function App() {
     const doPrint = () => {
       const originalTitle = document.title;
       try {
-        const examName = generateExportFilename('').replace(/\.$/, '');
+        const examName = generateExportFilename('', metadata).replace(/\.$/, '');
         if (examName) {
           document.title = examName;
         }
@@ -1398,7 +797,7 @@ export default function App() {
     } else {
       doPrint();
     }
-  }, [hasQuestions, hasBlankQuestions, generateExportFilename, isPreviewOpen]);
+  }, [hasQuestions, hasBlank, isPreviewOpen, metadata]);
 
   // Keyboard shortcuts: Ctrl+P / Cmd+P for direct printing, Escape to close preview modal
   useEffect(() => {
@@ -1415,210 +814,6 @@ export default function App() {
   }, [handleDirectPrint, isPreviewOpen]);
 
   // CSV Export & Import Features
-  const exportToCSV = () => {
-    if (!hasQuestions()) {
-      alert("No questions added to export.");
-      return;
-    }
-    const headers = [
-      'School Logo',
-      'School Logo Width',
-      'School Logo Height',
-      'Hide School Logo',
-      'Header Logo Only',
-      'School Name',
-      'School Address',
-      'Font Family',
-      'Exam Title',
-      'Subject',
-      'Class Div',
-      'Max Marks',
-      'Duration',
-      'Separate Answer Sheet',
-      'Language',
-      'General Instructions',
-      'Section Title',
-      'Section Marks',
-      'Section Instructions',
-      'Section Page Break Before',
-      'Question Type',
-      'Question Text',
-      'Question Marks',
-      'Options',
-      'Blank Lines',
-      'Match Pairs',
-      'Image Data',
-      'Image Width',
-      'Image Height',
-      'Sub Questions',
-      'Shuffle Column B',
-      'Table Data',
-      'Page Break Before'
-    ];
-
-    const getBrandingMetaCols = () => [
-      branding.logo === schoolLogo ? 'school_logo.png' : (branding.logo || ''),
-      branding.logoWidth !== undefined && branding.logoWidth !== null ? branding.logoWidth : '',
-      branding.logoHeight !== undefined && branding.logoHeight !== null ? branding.logoHeight : '',
-      branding.hideSchoolLogo ? 'true' : 'false',
-      branding.headerLogoOnly ? 'true' : 'false',
-      branding.schoolName || '',
-      branding.schoolAddress || '',
-      branding.fontFamily || '',
-      metadata.title || '',
-      metadata.subject || '',
-      metadata.classDiv || '',
-      metadata.maxMarks !== undefined && metadata.maxMarks !== null ? metadata.maxMarks : '',
-      metadata.duration || '',
-      metadata.separateAnswerSheet ? 'true' : 'false',
-      metadata.language || '',
-      metadata.instructions || ''
-    ];
-
-    const rows = [];
-    if (sections.length === 0) {
-      rows.push([
-        ...getBrandingMetaCols(),
-        '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
-      ]);
-    } else {
-      sections.forEach((sec) => {
-        if (sec.questions.length === 0) {
-          rows.push([
-            ...getBrandingMetaCols(),
-            sec.title || '',
-            sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
-            sec.instructions || '',
-            sec.pageBreakBefore ? 'true' : 'false',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            ''
-          ]);
-        } else {
-          sec.questions.forEach((q) => {
-            let optionsStr = '';
-            if (sec.type === 'mcq' && q.options) {
-              const hasImagesOrObjects = q.options.some(opt => typeof opt === 'object' && opt !== null);
-              if (hasImagesOrObjects) {
-                optionsStr = JSON.stringify(q.options);
-              } else {
-                optionsStr = q.options.map(opt => getOptionText(opt)).join(';');
-              }
-            }
-
-            let matchPairsStr = '';
-            if (sec.type === 'match_following' && q.matchPairs) {
-              const hasImagesOrObjects = q.matchPairs.some(p => typeof p === 'object' && p !== null);
-              if (hasImagesOrObjects) {
-                matchPairsStr = JSON.stringify(q.matchPairs);
-              } else {
-                matchPairsStr = q.matchPairs.map(p => `${typeof p === 'string' ? p : (p.premise || '')}=${typeof p === 'string' ? p : (p.response || '')}`).join(';');
-              }
-            }
-
-            let subQsStr = '';
-            if (q.subQuestions && q.subQuestions.length > 0) {
-              subQsStr = JSON.stringify(q.subQuestions);
-            }
-
-            let tableDataStr = '';
-            if (sec.type === 'table' && q.tableData) {
-              tableDataStr = JSON.stringify(q.tableData);
-            }
-
-            rows.push([
-              ...getBrandingMetaCols(),
-              (sec.title || '').toUpperCase(),
-              sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
-              sec.instructions || '',
-              sec.pageBreakBefore ? 'true' : 'false',
-              sec.type || 'essay',
-              q.text || '',
-              getQuestionMarks(q),
-              optionsStr,
-              q.blankLines !== undefined && q.blankLines !== null ? q.blankLines : '',
-              matchPairsStr,
-              q.image || '',
-              q.imageWidth || '',
-              q.imageHeight || '',
-              subQsStr,
-              (q.shuffleB || q.shuffleColumnB) ? 'true' : 'false',
-              tableDataStr,
-              q.pageBreakBefore ? 'true' : 'false'
-            ]);
-          });
-        }
-      });
-    }
-
-    const sanitizeCSVCell = (val) => {
-      if (val === undefined || val === null) return '""';
-      let str = String(val);
-      // Neutralize formula characters (=, +, -, @, \t, \r) to prevent spreadsheet macro execution
-      if (/^[=+\-@\t\r]/.test(str)) {
-        str = "'" + str;
-      }
-      return `"${str.replace(/"/g, '""')}"`;
-    };
-
-    const csvContent = [
-      headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
-      ...rows.map(row => row.map(sanitizeCSVCell).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', generateExportFilename('csv'));
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const parseCSV = (text) => {
-    const lines = [];
-    let row = [""];
-    let insideQuote = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      const nextChar = text[i + 1];
-
-      if (char === '"') {
-        if (insideQuote && nextChar === '"') {
-          row[row.length - 1] += '"';
-          i++;
-        } else {
-          insideQuote = !insideQuote;
-        }
-      } else if (char === ',' && !insideQuote) {
-        row.push("");
-      } else if ((char === '\r' || char === '\n') && !insideQuote) {
-        if (char === '\r' && nextChar === '\n') {
-          i++;
-        }
-        lines.push(row);
-        row = [""];
-      } else {
-        row[row.length - 1] += char;
-      }
-    }
-    if (row.length > 1 || row[0] !== "") {
-      lines.push(row);
-    }
-    return lines;
-  };
 
   const importFromCSV = (e) => {
     const file = e.target.files[0];
@@ -1628,314 +823,25 @@ export default function App() {
     reader.onload = (event) => {
       try {
         const text = event.target.result;
-        const parsedRows = parseCSV(text);
-        if (parsedRows.length < 2) {
-          alert('Invalid CSV file.');
+        const { branding, metadata, sections } = importCsvData(text);
+
+        if (!branding && !metadata && (!sections || sections.length === 0)) {
+          alert('No valid sections, questions, or branding/exam details found in the CSV.');
           return;
         }
 
-        const headerRow = parsedRows[0].map(h => (h || '').trim().toLowerCase());
-        const getColIdx = (...names) => {
-          for (const name of names) {
-            const idx = headerRow.findIndex(h => h === name.toLowerCase() || h.includes(name.toLowerCase()));
-            if (idx !== -1) return idx;
-          }
-          return -1;
-        };
-
-        const normalizeQType = (rawType, defaultType = 'essay') => {
-          if (!rawType) return defaultType;
-          const lower = String(rawType).trim().toLowerCase().replace(/[-_]/g, ' ');
-          if (lower.includes('mcq') || lower.includes('multiple choice')) return 'mcq';
-          if (lower.includes('true') || lower.includes('false') || lower.includes('tf')) return 'true_false';
-          if (lower.includes('match') || lower.includes('following') || lower.includes('pair')) return 'match_following';
-          if (lower.includes('table')) return 'table';
-          return 'essay';
-        };
-
-        // Header column mappings with aliases
-        const schoolLogoIdx = getColIdx('School Logo', 'logo');
-        const schoolLogoWidthIdx = getColIdx('School Logo Width', 'logo width');
-        const schoolLogoHeightIdx = getColIdx('School Logo Height', 'logo height');
-        const hideSchoolLogoIdx = getColIdx('Hide School Logo', 'hide logo');
-        const headerLogoOnlyIdx = getColIdx('Header Logo Only');
-        const schoolNameIdx = getColIdx('School Name', 'school');
-        const schoolAddressIdx = getColIdx('School Address', 'address');
-        const fontFamilyIdx = getColIdx('Font Family', 'font');
-
-        const examTitleIdx = getColIdx('Exam Title', 'title');
-        const subjectIdx = getColIdx('Subject');
-        const classDivIdx = getColIdx('Class Div', 'grade', 'class');
-        const maxMarksIdx = getColIdx('Max Marks', 'total marks');
-        const durationIdx = getColIdx('Duration', 'time');
-        const separateAnswerSheetIdx = getColIdx('Separate Answer Sheet', 'answer sheet');
-        const languageIdx = getColIdx('Language', 'lang');
-        const generalInstructionsIdx = getColIdx('General Instructions');
-
-        // Section & Question column mappings with legacy index fallbacks
-        const secTitleIdx = getColIdx('Section Title', 'section') !== -1 ? getColIdx('Section Title', 'section') : 0;
-        const secMarksIdx = getColIdx('Section Marks') !== -1 ? getColIdx('Section Marks') : 1;
-        const secInstructionsIdx = getColIdx('Section Instructions', 'instructions') !== -1 ? getColIdx('Section Instructions', 'instructions') : 2;
-        const secPageBreakBeforeIdx = getColIdx('Section Page Break Before');
-        const qTypeIdx = getColIdx('Question Type', 'type') !== -1 ? getColIdx('Question Type', 'type') : 3;
-        const qTextIdx = getColIdx('Question Text', 'text', 'question') !== -1 ? getColIdx('Question Text', 'text', 'question') : 4;
-        const qMarksIdx = getColIdx('Question Marks', 'marks') !== -1 ? getColIdx('Question Marks', 'marks') : 5;
-        const optionsIdx = getColIdx('Options', 'choices') !== -1 ? getColIdx('Options', 'choices') : 6;
-        const blankLinesIdx = getColIdx('Blank Lines') !== -1 ? getColIdx('Blank Lines') : 7;
-        const matchPairsIdx = getColIdx('Match Pairs', 'match', 'matching', 'pairs') !== -1 ? getColIdx('Match Pairs', 'match', 'matching', 'pairs') : 8;
-        const imageDataIdx = getColIdx('Image Data', 'image') !== -1 ? getColIdx('Image Data', 'image') : 9;
-        const imageWidthIdx = getColIdx('Image Width') !== -1 ? getColIdx('Image Width') : 10;
-        const imageHeightIdx = getColIdx('Image Height') !== -1 ? getColIdx('Image Height') : 11;
-        const subQsIdx = getColIdx('Sub Questions', 'subquestions') !== -1 ? getColIdx('Sub Questions', 'subquestions') : 12;
-        const shuffleColBIdx = getColIdx('Shuffle Column B', 'shuffle');
-        const tableDataIdx = getColIdx('Table Data', 'table');
-        const pageBreakBeforeIdx = getColIdx('Page Break Before');
-
-        const importedSections = [];
-        let importedBranding = null;
-        let importedMetadata = null;
-        let currentSection = null;
-
-        for (let i = 1; i < parsedRows.length; i++) {
-          const row = parsedRows[i];
-          if (!row || row.length === 0) continue;
-
-          // Extract Branding if present and not yet extracted
-          if (!importedBranding && (schoolNameIdx !== -1 || schoolAddressIdx !== -1 || schoolLogoIdx !== -1)) {
-            const logoVal = schoolLogoIdx !== -1 ? row[schoolLogoIdx] : undefined;
-            const logoWidthVal = schoolLogoWidthIdx !== -1 ? row[schoolLogoWidthIdx] : undefined;
-            const logoHeightVal = schoolLogoHeightIdx !== -1 ? row[schoolLogoHeightIdx] : undefined;
-            const hideLogoVal = hideSchoolLogoIdx !== -1 ? row[hideSchoolLogoIdx] : undefined;
-            const headerLogoOnlyVal = headerLogoOnlyIdx !== -1 ? row[headerLogoOnlyIdx] : undefined;
-            const schoolNameVal = schoolNameIdx !== -1 ? row[schoolNameIdx] : undefined;
-            const schoolAddressVal = schoolAddressIdx !== -1 ? row[schoolAddressIdx] : undefined;
-            const fontFamilyVal = fontFamilyIdx !== -1 ? row[fontFamilyIdx] : undefined;
-
-            if (
-              logoVal !== undefined || schoolNameVal !== undefined || schoolAddressVal !== undefined ||
-              logoWidthVal !== undefined || fontFamilyVal !== undefined
-            ) {
-              importedBranding = {};
-              if (logoVal !== undefined && logoVal !== '') importedBranding.logo = normalizeLogo(logoVal);
-              if (logoWidthVal !== undefined && logoWidthVal !== '' && !isNaN(logoWidthVal)) importedBranding.logoWidth = Number(logoWidthVal);
-              if (logoHeightVal !== undefined && logoHeightVal !== '' && !isNaN(logoHeightVal)) importedBranding.logoHeight = Number(logoHeightVal);
-              if (hideLogoVal !== undefined && hideLogoVal !== '') importedBranding.hideSchoolLogo = hideLogoVal === 'true';
-              if (headerLogoOnlyVal !== undefined && headerLogoOnlyVal !== '') importedBranding.headerLogoOnly = headerLogoOnlyVal === 'true';
-              if (schoolNameVal !== undefined && schoolNameVal !== '') importedBranding.schoolName = schoolNameVal;
-              if (schoolAddressVal !== undefined && schoolAddressVal !== '') importedBranding.schoolAddress = schoolAddressVal;
-              if (fontFamilyVal !== undefined && fontFamilyVal !== '') importedBranding.fontFamily = fontFamilyVal;
-            }
-          }
-
-          // Extract Metadata if present and not yet extracted
-          if (!importedMetadata && (examTitleIdx !== -1 || subjectIdx !== -1 || classDivIdx !== -1 || maxMarksIdx !== -1)) {
-            const titleVal = examTitleIdx !== -1 ? row[examTitleIdx] : undefined;
-            const subjectVal = subjectIdx !== -1 ? row[subjectIdx] : undefined;
-            const classDivVal = classDivIdx !== -1 ? row[classDivIdx] : undefined;
-            const maxMarksVal = maxMarksIdx !== -1 ? row[maxMarksIdx] : undefined;
-            const durationVal = durationIdx !== -1 ? row[durationIdx] : undefined;
-            const sepAnsVal = separateAnswerSheetIdx !== -1 ? row[separateAnswerSheetIdx] : undefined;
-            const langVal = languageIdx !== -1 ? row[languageIdx] : undefined;
-            const generalInstrVal = generalInstructionsIdx !== -1 ? row[generalInstructionsIdx] : undefined;
-
-            if (
-              titleVal !== undefined || subjectVal !== undefined || classDivVal !== undefined ||
-              maxMarksVal !== undefined || durationVal !== undefined
-            ) {
-              importedMetadata = {};
-              if (titleVal !== undefined && titleVal !== '') importedMetadata.title = titleVal;
-              if (subjectVal !== undefined && subjectVal !== '') importedMetadata.subject = subjectVal;
-              if (classDivVal !== undefined && classDivVal !== '') importedMetadata.classDiv = classDivVal;
-              if (maxMarksVal !== undefined && maxMarksVal !== '' && !isNaN(maxMarksVal)) importedMetadata.maxMarks = Number(maxMarksVal);
-              if (durationVal !== undefined && durationVal !== '') importedMetadata.duration = durationVal;
-              if (sepAnsVal !== undefined && sepAnsVal !== '') importedMetadata.separateAnswerSheet = sepAnsVal === 'true';
-              if (langVal !== undefined && langVal !== '') importedMetadata.language = langVal;
-              if (generalInstrVal !== undefined && generalInstrVal !== '') importedMetadata.instructions = generalInstrVal;
-            }
-          }
-
-          const secTitle = row[secTitleIdx] || '';
-          const secMarks = Math.max(0, Math.round((Number(row[secMarksIdx]) || 0) * 100) / 100);
-          const secInstructions = row[secInstructionsIdx] || '';
-          const secPageBreakVal = secPageBreakBeforeIdx !== -1 ? row[secPageBreakBeforeIdx] : '';
-          const rawQType = row[qTypeIdx] || '';
-          const qText = row[qTextIdx] || '';
-          const qMarks = Math.max(0, Math.round((Number(row[qMarksIdx]) || 0) * 100) / 100);
-          const optionsStr = row[optionsIdx] || '';
-          const blankLinesVal = row[blankLinesIdx] || '';
-          const matchPairsStr = row[matchPairsIdx] || '';
-          const imageData = row[imageDataIdx] || '';
-          const imageWidthVal = row[imageWidthIdx] || '';
-          const imageHeightVal = row[imageHeightIdx] || '';
-          const subQsStr = row[subQsIdx] || '';
-          const shuffleColBVal = shuffleColBIdx !== -1 ? row[shuffleColBIdx] : '';
-          const tableDataStr = tableDataIdx !== -1 ? row[tableDataIdx] : '';
-          const pageBreakBeforeVal = pageBreakBeforeIdx !== -1 ? row[pageBreakBeforeIdx] : '';
-
-          const hasQuestionData = !!(qText || matchPairsStr || optionsStr || tableDataStr || subQsStr);
-
-          if (!secTitle && !hasQuestionData) continue;
-
-          if (secTitle && (!currentSection || currentSection.title !== secTitle)) {
-            currentSection = {
-              id: `sec-${Date.now()}-${i}`,
-              title: secTitle,
-              marks: secMarks,
-              instructions: secInstructions,
-              type: normalizeQType(rawQType, 'essay'),
-              pageBreakBefore: secPageBreakVal === 'true',
-              questions: []
-            };
-            importedSections.push(currentSection);
-          }
-
-          if (!currentSection) {
-            currentSection = {
-              id: `sec-${Date.now()}-${i}`,
-              title: 'Imported Section',
-              marks: 0,
-              instructions: '',
-              type: normalizeQType(rawQType, 'essay'),
-              questions: []
-            };
-            importedSections.push(currentSection);
-          }
-
-          const effectiveQType = normalizeQType(rawQType || currentSection.type, 'essay');
-
-          if (hasQuestionData || effectiveQType === 'match_following') {
-            const q = {
-              id: `q-${Date.now()}-${i}`,
-              type: effectiveQType,
-              text: qText || (effectiveQType === 'match_following' ? 'Match the following items:' : ''),
-              marks: qMarks
-            };
-
-            if (subQsStr) {
-              try {
-                q.subQuestions = JSON.parse(subQsStr);
-                q.marks = q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
-              } catch (e) {
-                console.warn('Failed to parse subQuestions from CSV', e);
-              }
-            }
-
-            if (effectiveQType === 'match_following') {
-              q.shuffleB = true;
-              q.shuffleColumnB = true;
-            } else if (shuffleColBVal !== '') {
-              const isTrue = shuffleColBVal === 'true' || shuffleColBVal === '1';
-              q.shuffleB = isTrue;
-              q.shuffleColumnB = isTrue;
-            } else {
-              q.shuffleB = false;
-              q.shuffleColumnB = false;
-            }
-
-            if (pageBreakBeforeVal !== '') {
-              q.pageBreakBefore = pageBreakBeforeVal === 'true';
-            }
-
-            if (tableDataStr) {
-              try {
-                const parsedTbl = JSON.parse(tableDataStr);
-                if (parsedTbl) {
-                  q.tableData = parsedTbl;
-                  if (parsedTbl.rows) {
-                    q.tableRows = parsedTbl.rows.length + 1;
-                    q.tableCols = parsedTbl.headers ? parsedTbl.headers.length : 3;
-                  }
-                }
-              } catch (e) {
-                console.warn('Failed to parse tableData from CSV', e);
-              }
-            }
-
-            if (effectiveQType === 'mcq') {
-              if (optionsStr) {
-                const trimmedOpt = optionsStr.trim();
-                if (trimmedOpt.startsWith('[') || trimmedOpt.startsWith('{')) {
-                  try {
-                    const parsedOpts = JSON.parse(trimmedOpt);
-                    q.options = Array.isArray(parsedOpts) ? parsedOpts : ['', '', '', ''];
-                  } catch {
-                    q.options = optionsStr.split(';');
-                  }
-                } else {
-                  q.options = optionsStr.split(';');
-                }
-              } else {
-                q.options = ['', '', '', ''];
-              }
-            } else if (effectiveQType === 'essay') {
-              q.blankLines = (blankLinesVal !== '' && !isNaN(blankLinesVal)) ? Math.max(0, parseInt(blankLinesVal, 10)) : 5;
-            } else if (effectiveQType === 'match_following') {
-              if (matchPairsStr) {
-                const trimmed = matchPairsStr.trim();
-                if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-                  try {
-                    const parsed = JSON.parse(trimmed);
-                    q.matchPairs = Array.isArray(parsed) ? parsed.map(p => {
-                      if (typeof p === 'string') {
-                        const parts = p.split('=');
-                        return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
-                      }
-                      return {
-                        premise: p.premise !== undefined ? p.premise : (p.premiseText !== undefined ? p.premiseText : (p.left || '')),
-                        premiseImage: p.premiseImage || p.leftImage || '',
-                        response: p.response !== undefined ? p.response : (p.responseText !== undefined ? p.responseText : (p.right || '')),
-                        responseImage: p.responseImage || p.rightImage || ''
-                      };
-                    }) : [];
-                  } catch {
-                    q.matchPairs = matchPairsStr.split(';').map(pair => {
-                      const parts = pair.split('=');
-                      return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
-                    });
-                  }
-                } else {
-                  q.matchPairs = matchPairsStr.split(';').map(pair => {
-                    const parts = pair.split('=');
-                    return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
-                  });
-                }
-              } else {
-                q.matchPairs = [
-                  { premise: 'Column A Item 1', premiseImage: '', response: 'Column B Match 1', responseImage: '' }
-                ];
-              }
-            }
-
-            if (imageData) {
-              q.image = imageData;
-              q.imageWidth = Number(imageWidthVal) || 300;
-              q.imageHeight = Number(imageHeightVal) || 200;
-            }
-
-            currentSection.questions.push(q);
-          }
-        }
-
-        const hasSections = importedSections.length > 0;
-        const hasBranding = importedBranding && Object.keys(importedBranding).length > 0;
-        const hasMeta = importedMetadata && Object.keys(importedMetadata).length > 0;
-
-        if (hasSections || hasBranding || hasMeta) {
-          setCsvImportModal({
-            isOpen: true,
-            branding: hasBranding ? importedBranding : null,
-            metadata: hasMeta ? importedMetadata : null,
-            sections: hasSections ? importedSections : [],
-            importSchool: false,
-            importExam: hasMeta,
-            importQuestions: hasSections
-          });
-        } else {
-          alert('No valid sections, questions, or branding/exam details found in the CSV.');
-        }
+        setCsvImportModal({
+          isOpen: true,
+          branding: branding || null,
+          metadata: metadata || null,
+          sections: sections || [],
+          importSchool: false,
+          importExam: !!metadata,
+          importQuestions: !!(sections && sections.length > 0)
+        });
       } catch (err) {
         console.error(err);
-        alert('Error parsing CSV file. Please make sure the format is correct.');
+        alert(err.message || 'Error parsing CSV file. Please make sure the format is correct.');
       }
     };
     reader.readAsText(file);
@@ -1964,1067 +870,26 @@ export default function App() {
     setCsvImportModal({ isOpen: false, branding: null, metadata: null, sections: [], importSchool: false, importExam: true, importQuestions: true });
   };
 
-  const triggerPdfExport = async () => {
-    if (!hasQuestions()) {
-      alert("No questions added to export.");
-      return;
-    }
-    if (hasBlankQuestions()) {
-      if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
-        return;
-      }
-    }
-    
-    if (activeTab !== 'preview') {
-      setActiveTab('preview');
-      await new Promise(r => setTimeout(r, 200));
-    }
-    
-    const element = paperSheetRef.current;
-    if (!element) {
-      alert("Could not find the question paper preview.");
-      return;
-    }
-    
-    setIsPdfExporting(true);
-    
+  // Dynamic DOCX Export Handler
+  const handleDocxExport = async () => {
     try {
-      const originalTransform = element.style.transform;
-      element.style.transform = 'none';
-
-      const opt = {
-        margin:       0,
-        filename:     generateExportFilename('pdf'),
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'] }
-      };
-
-      await html2pdf().set(opt).from(element).save();
-      
-      element.style.transform = originalTransform;
-    } catch (error) {
-      console.error("PDF generation failed:", error);
-      alert("Failed to generate PDF. Check console for details.");
-    } finally {
-      setIsPdfExporting(false);
-    }
-  };
-  const dataURLToUint8Array = (dataURL) => {
-    if (!dataURL) return null;
-    const parts = dataURL.split(';base64,');
-    if (parts.length < 2) return null;
-    const base64 = parts[1];
-    try {
-      const raw = window.atob(base64);
-      const rawLength = raw.length;
-      const array = new Uint8Array(new ArrayBuffer(rawLength));
-      for (let i = 0; i < rawLength; i++) {
-        array[i] = raw.charCodeAt(i);
-      }
-      return array;
-    } catch (e) {
-      console.error("Failed to decode base64 image", e);
-      return null;
-    }
-  };
-
-  const getFontFamily = () => {
-    if (metadata.language === 'malayalam') return 'Manjari';
-    if (metadata.language === 'hindi') return 'Noto Sans Devanagari';
-    switch (branding.fontFamily) {
-      case 'Inter': return 'Inter';
-      case 'Playfair': return 'Playfair Display';
-      case 'Montserrat': return 'Montserrat';
-      case 'Courier': return 'Courier Prime';
-      case 'Merriweather': return 'Merriweather';
-      case 'Cinzel': return 'Cinzel';
-      default: return branding.fontFamily || 'Inter';
-    }
-  };
-
-  const imageToUint8Array = async (src) => {
-    if (!src) return null;
-    const resolvedSrc = normalizeLogo(src);
-    if (!resolvedSrc) return null;
-
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = 'Anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL('image/png');
-          const parts = dataUrl.split(';base64,');
-          if (parts.length < 2) {
-            resolve(null);
-            return;
-          }
-          const base64 = parts[1];
-          const raw = window.atob(base64);
-          const array = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) {
-            array[i] = raw.charCodeAt(i);
-          }
-          resolve(array);
-        } catch (e) {
-          console.error("Canvas PNG conversion failed", e);
-          resolve(null);
-        }
-      };
-      img.onerror = () => {
-        console.error("Failed to load image for DOCX export");
-        resolve(null);
-      };
-      img.src = resolvedSrc;
-    });
-  };
-
-  // DOCX Export Implementation
-  const generateDocxBlob = async () => {
-    await loadExportDependencies();
-    // Create the School branding header
-    const headerChildren = [];
-
-    // Fetch and load logo data if active and not hidden
-    let logoData = null;
-    if (branding.logo && !branding.hideSchoolLogo) {
-      logoData = await imageToUint8Array(branding.logo);
-    }
-
-    const schoolDetailsParagraphs = [];
-    if (!branding.headerLogoOnly && branding.schoolName) {
-      schoolDetailsParagraphs.push(
-        new docx.Paragraph({
-          alignment: docx.AlignmentType.CENTER,
-          children: [
-            new docx.TextRun({
-              text: branding.schoolName || '',
-              bold: true,
-              size: 50,
-              font: getFontFamily()
-            })
-          ],
-          spacing: { after: 120 }
-        })
-      );
-    }
-
-    if (!branding.headerLogoOnly && branding.schoolAddress) {
-      const addressLines = branding.schoolAddress.split('\n');
-      addressLines.forEach(line => {
-        schoolDetailsParagraphs.push(
-          new docx.Paragraph({
-            alignment: docx.AlignmentType.CENTER,
-            children: [
-              new docx.TextRun({
-                text: line || '',
-                size: 32,
-                font: getFontFamily()
-              })
-            ],
-            spacing: { after: 80 }
-          })
-        );
-      });
-    }
-
-    if (logoData) {
-      const logoRun = new docx.ImageRun({
-        data: logoData,
-        transformation: {
-          width: Number(branding.logoWidth) || 100,
-          height: Number(branding.logoHeight) || 100
-        }
-      });
-
-      if (branding.headerLogoOnly) {
-        headerChildren.push(
-          new docx.Paragraph({
-            alignment: docx.AlignmentType.CENTER,
-            children: [logoRun],
-            spacing: { before: 0, after: 200 }
-          })
-        );
-      } else {
-        // Construct side-by-side layout using borderless table with explicit DXA widths (prevents Mobile Google Docs 1-letter column collapse)
-        const headerTable = new docx.Table({
-          width: { size: 9000, type: docx.WidthType.DXA },
-          columnWidths: [1800, 7200],
-          borders: {
-            top: { style: docx.BorderStyle.NONE },
-            bottom: { style: docx.BorderStyle.NONE },
-            left: { style: docx.BorderStyle.NONE },
-            right: { style: docx.BorderStyle.NONE },
-            insideHorizontal: { style: docx.BorderStyle.NONE },
-            insideVertical: { style: docx.BorderStyle.NONE }
-          },
-          rows: [
-            new docx.TableRow({
-              children: [
-                new docx.TableCell({
-                  width: { size: 1800, type: docx.WidthType.DXA },
-                  borders: {
-                    top: { style: docx.BorderStyle.NONE },
-                    bottom: { style: docx.BorderStyle.NONE },
-                    left: { style: docx.BorderStyle.NONE },
-                    right: { style: docx.BorderStyle.NONE }
-                  },
-                  children: [
-                    new docx.Paragraph({
-                      alignment: docx.AlignmentType.CENTER,
-                      children: [logoRun]
-                    })
-                  ]
-                }),
-                new docx.TableCell({
-                  width: { size: 7200, type: docx.WidthType.DXA },
-                  borders: {
-                    top: { style: docx.BorderStyle.NONE },
-                    bottom: { style: docx.BorderStyle.NONE },
-                    left: { style: docx.BorderStyle.NONE },
-                    right: { style: docx.BorderStyle.NONE }
-                  },
-                  children: schoolDetailsParagraphs
-                })
-              ]
-            })
-          ]
-        });
-        headerChildren.push(headerTable);
-      }
-    } else {
-      headerChildren.push(...schoolDetailsParagraphs);
-    }
-
-    // Divider line (Double bottom border matching PDF)
-    headerChildren.push(
-      new docx.Paragraph({
-        border: {
-          bottom: {
-            style: docx.BorderStyle.DOUBLE,
-            size: 18,
-            color: '000000',
-            space: 6
-          }
-        },
-        spacing: { after: 200 }
-      })
-    );
-
-    // Helper to generate a metadata row with labels on the left and input data aligned to the right margin
-    const createMetaParagraph = (label, value) => {
-      return new docx.Paragraph({
-        tabStops: [
-          {
-            type: docx.TabStopType.RIGHT,
-            position: docx.TabStopPosition.MAX
-          }
-        ],
-        children: [
-          new docx.TextRun({ text: label, bold: true, size: 30 }),
-          new docx.TextRun({ text: `\t${value || ''}`, size: 30 })
-        ],
-        spacing: { after: 120 }
-      });
-    };
-
-    headerChildren.push(createMetaParagraph('Examination: ', metadata.title));
-    headerChildren.push(createMetaParagraph('Subject: ', metadata.subject));
-    headerChildren.push(createMetaParagraph('Class: ', metadata.classDiv));
-    headerChildren.push(createMetaParagraph('Max Marks: ', formatMarks(metadata.maxMarks)));
-    headerChildren.push(createMetaParagraph('Duration: ', metadata.duration));
-
-    if (metadata.instructions) {
-      const instructionRuns = [new docx.TextRun({ text: "General Instructions:", bold: true, size: 28 })];
-      const lines = metadata.instructions.split('\n');
-      lines.forEach((line) => {
-        instructionRuns.push(new docx.TextRun({ break: 1, text: line, size: 24 }));
-      });
-      headerChildren.push(
-        new docx.Paragraph({
-          spacing: { before: 120, after: 120 },
-          children: instructionRuns
-        })
-      );
-    }
-
-    // Bottom border for metadata
-    headerChildren.push(
-      new docx.Paragraph({
-        border: {
-          bottom: {
-            style: docx.BorderStyle.SINGLE,
-            size: 8,
-            color: '000000',
-            space: 6
-          }
-        },
-        spacing: { after: 240 }
-      })
-    );
-
-    // Now populate sections and questions
-    let absoluteQuestionCount = 1;
-
-    for (const sec of sections) {
-      const firstQHasBreak = sec.questions && sec.questions[0] && sec.questions[0].pageBreakBefore;
-      // Section page break if requested on section OR on the first question of the section
-      if (sec.pageBreakBefore || firstQHasBreak) {
-        headerChildren.push(
-          new docx.Paragraph({
-            children: [new docx.PageBreak()]
-          })
-        );
-      }
-
-      const hasInstructions = !!sec.instructions;
-      const hasQuestionsInSec = sec.questions && sec.questions.length > 0;
-      // Section header title
-      headerChildren.push(
-        new docx.Paragraph({
-          keepNext: hasInstructions || hasQuestionsInSec,
-          alignment: docx.AlignmentType.JUSTIFY,
-          border: hasInstructions ? undefined : {
-            bottom: {
-              style: docx.BorderStyle.SINGLE,
-              size: 8,
-              color: '000000',
-              space: 4
-            }
-          },
-          tabStops: [
-            {
-              type: docx.TabStopType.RIGHT,
-              position: docx.TabStopPosition.MAX
-            }
-          ],
-          spacing: { before: 140, after: hasInstructions ? 20 : 40 },
-          children: [
-            new docx.TextRun({
-              text: (sec.title || '').toUpperCase(),
-              bold: true,
-              size: 36,
-              font: getFontFamily()
-            }),
-            new docx.TextRun({
-              text: `\t[${formatMarks(sec.marks)} Marks]`,
-              bold: true,
-              size: 32,
-              font: getFontFamily()
-            })
-          ]
-        })
-      );
-
-      // Section instructions
-      if (sec.instructions) {
-        const instructionLines = String(sec.instructions).split('\n');
-        instructionLines.forEach((line, idx) => {
-          const isLastInstructionLine = idx === instructionLines.length - 1;
-          headerChildren.push(
-            new docx.Paragraph({
-              keepNext: isLastInstructionLine ? hasQuestionsInSec : true,
-              alignment: docx.AlignmentType.JUSTIFY,
-              border: isLastInstructionLine ? {
-                bottom: {
-                  style: docx.BorderStyle.SINGLE,
-                  size: 8,
-                  color: '000000',
-                  space: 4
-                }
-              } : undefined,
-              spacing: {
-                before: idx === 0 ? 20 : 10,
-                after: isLastInstructionLine ? 40 : 10
-              },
-              children: [
-                new docx.TextRun({
-                  text: line,
-                  italic: true,
-                  size: 30,
-                  font: getFontFamily()
-                })
-              ]
-            })
-          );
-        });
-      }
-
-      // Add each question
-      for (let qIdx = 0; qIdx < sec.questions.length; qIdx++) {
-        const q = sec.questions[qIdx];
-        const qNum = `Q${absoluteQuestionCount}.`;
-        absoluteQuestionCount++;
-
-        // Only insert page break before question if it's NOT the first question (first question break was inserted before section heading)
-        if (q.pageBreakBefore && qIdx > 0) {
-          headerChildren.push(
-            new docx.Paragraph({
-              children: [new docx.PageBreak()]
-            })
-          );
-        }
-
-        const linesCount = (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0))
-          ? ((q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
-            ? Math.max(0, parseInt(q.blankLines, 10) || 0)
-            : (sec.type === 'essay' ? 4 : 0))
-          : 0;
-
-        const hasImage = Boolean(q.image && sec.type !== 'match_following');
-        const hasMCQ = Boolean(sec.type === 'mcq' && q.options && q.options.length > 0);
-        const hasEssaySubs = Boolean(sec.type === 'essay' && q.subQuestions && q.subQuestions.length > 0);
-        const hasTF = Boolean(sec.type === 'true_false' && !metadata.separateAnswerSheet);
-        const hasMatch = Boolean((sec.type === 'match_following' || (q.matchPairs && q.matchPairs.length > 0)) && q.matchPairs && q.matchPairs.length > 0);
-        const hasTable = Boolean(sec.type === 'table' && q.tableData);
-        const hasBlankLines = linesCount > 0;
-
-        // Does the question have any sub-element following the question text lines?
-        const hasSubElementsAfterText = hasImage || hasMCQ || hasEssaySubs || hasTF || hasMatch || hasTable || hasBlankLines;
-
-        // Add question text matching PDF (Q1. and (1 M))
-        const cleanText = (q.text || '').trimEnd();
-        const qLines = cleanText ? cleanText.split('\n') : [''];
-        headerChildren.push(
-          new docx.Paragraph({
-            keepNext: qLines.length > 1 ? true : hasSubElementsAfterText,
-            alignment: docx.AlignmentType.JUSTIFY,
-            spacing: { before: 100, after: 30 },
-            tabStops: [
-              {
-                type: docx.TabStopType.RIGHT,
-                position: docx.TabStopPosition.MAX
-              }
-            ],
-            children: [
-              new docx.TextRun({
-                text: `${qNum}  `,
-                bold: true,
-                size: 30
-              }),
-              ...docxTextRunsWithMath(qLines[0] || '', { size: 30 }),
-              new docx.TextRun({
-                text: `\t(${formatMarks(getQuestionMarks(q))} M)`,
-                italic: true,
-                size: 30
-              })
-            ]
-          })
-        );
-
-        for (let lIdx = 1; lIdx < qLines.length; lIdx++) {
-          const isLastQLine = lIdx === qLines.length - 1;
-          headerChildren.push(
-            new docx.Paragraph({
-              keepNext: isLastQLine ? hasSubElementsAfterText : true,
-              indent: { left: 450 },
-              spacing: { after: 20 },
-              children: docxTextRunsWithMath(qLines[lIdx], { size: 30 })
-            })
-          );
-        }
-
-        // Question Image (positioned directly below Question Text)
-        if (hasImage) {
-          const imageBytes = await imageToUint8Array(q.image);
-          if (imageBytes) {
-            const hasSubElementsAfterImage = hasMCQ || hasEssaySubs || hasTF || hasMatch || hasTable || hasBlankLines;
-            headerChildren.push(
-              new docx.Paragraph({
-                keepNext: hasSubElementsAfterImage,
-                indent: { left: 450 },
-                spacing: { before: 80, after: 120 },
-                children: [
-                  new docx.ImageRun({
-                    data: imageBytes,
-                    transformation: {
-                      width: Number(q.imageWidth) || 300,
-                      height: Number(q.imageHeight) || 200
-                    }
-                  })
-                ]
-              })
-            );
-          }
-        }
-
-        // Formatting specific question types
-        if (hasMCQ) {
-          const createOptionParagraphs = (letter, opt) => {
-            const text = getOptionText(opt);
-            const imgData = getOptionImage(opt);
-            const imgW = getOptionImageWidth(opt) || 150;
-            const imgH = getOptionImageHeight(opt) || 100;
-
-            const paragraphs = [];
-            const lines = text ? text.split('\n') : [''];
-            paragraphs.push(
-              new docx.Paragraph({
-                spacing: { before: 40, after: 40 },
-                children: [
-                  new docx.TextRun({ text: `(${letter})  `, bold: true, size: 26 }),
-                  ...docxTextRunsWithMath(lines[0] || '', { size: 26 })
-                ]
-              })
-            );
-            for (let i = 1; i < lines.length; i++) {
-              paragraphs.push(
-                new docx.Paragraph({
-                  indent: { left: 450 },
-                  spacing: { before: 40, after: 40 },
-                  children: docxTextRunsWithMath(lines[i], { size: 26 })
-                })
-              );
-            }
-            if (imgData) {
-              const imgBytes = dataURLToUint8Array(imgData);
-              if (imgBytes) {
-                paragraphs.push(
-                  new docx.Paragraph({
-                    indent: { left: 450 },
-                    spacing: { before: 60, after: 100 },
-                    children: [
-                      new docx.ImageRun({
-                        data: imgBytes,
-                        transformation: { width: Number(imgW) || 150, height: Number(imgH) || 100 }
-                      })
-                    ]
-                  })
-                );
-              }
-            }
-            return paragraphs;
-          };
-
-          const isSingle = canFitSingleLine(q.options);
-
-          if (isSingle) {
-            const numOpts = q.options.length;
-            const availWidth = 8550;
-            const colWidth = Math.floor(availWidth / numOpts);
-            const cells = q.options.map((opt, oIdx) => {
-              const letter = String.fromCharCode(65 + oIdx);
-              return new docx.TableCell({
-                width: { size: colWidth, type: docx.WidthType.DXA },
-                borders: {
-                  top: { style: docx.BorderStyle.NONE },
-                  bottom: { style: docx.BorderStyle.NONE },
-                  left: { style: docx.BorderStyle.NONE },
-                  right: { style: docx.BorderStyle.NONE }
-                },
-                children: createOptionParagraphs(letter, opt)
-              });
-            });
-
-            headerChildren.push(
-              new docx.Table({
-                width: { size: availWidth, type: docx.WidthType.DXA },
-                indent: { size: 450, type: docx.WidthType.DXA },
-                columnWidths: Array(numOpts).fill(colWidth),
-                borders: {
-                  top: { style: docx.BorderStyle.NONE },
-                  bottom: { style: docx.BorderStyle.NONE },
-                  left: { style: docx.BorderStyle.NONE },
-                  right: { style: docx.BorderStyle.NONE },
-                  insideHorizontal: { style: docx.BorderStyle.NONE },
-                  insideVertical: { style: docx.BorderStyle.NONE }
-                },
-                rows: [new docx.TableRow({ cantSplit: true, children: cells })]
-              })
-            );
-          } else {
-            const optRows = [];
-            for (let i = 0; i < q.options.length; i += 2) {
-              const leftLetter = String.fromCharCode(65 + i);
-              const leftOpt = q.options[i];
-              const rightLetter = i + 1 < q.options.length ? String.fromCharCode(65 + i + 1) : '';
-              const rightOpt = i + 1 < q.options.length ? q.options[i + 1] : null;
-
-              const leftChildren = createOptionParagraphs(leftLetter, leftOpt);
-              const rightChildren = rightLetter ? createOptionParagraphs(rightLetter, rightOpt) : [new docx.Paragraph({ children: [] })];
-
-              optRows.push(
-                new docx.TableRow({
-                  cantSplit: true,
-                  children: [
-                    new docx.TableCell({
-                      width: { size: 4275, type: docx.WidthType.DXA },
-                      borders: {
-                        top: { style: docx.BorderStyle.NONE },
-                        bottom: { style: docx.BorderStyle.NONE },
-                        left: { style: docx.BorderStyle.NONE },
-                        right: { style: docx.BorderStyle.NONE }
-                      },
-                      children: leftChildren
-                    }),
-                    new docx.TableCell({
-                      width: { size: 4275, type: docx.WidthType.DXA },
-                      borders: {
-                        top: { style: docx.BorderStyle.NONE },
-                        bottom: { style: docx.BorderStyle.NONE },
-                        left: { style: docx.BorderStyle.NONE },
-                        right: { style: docx.BorderStyle.NONE }
-                      },
-                      children: rightChildren
-                    })
-                  ]
-                })
-              );
-            }
-
-            headerChildren.push(
-              new docx.Table({
-                width: { size: 8550, type: docx.WidthType.DXA },
-                indent: { size: 450, type: docx.WidthType.DXA },
-                columnWidths: [4275, 4275],
-                borders: {
-                  top: { style: docx.BorderStyle.NONE },
-                  bottom: { style: docx.BorderStyle.NONE },
-                  left: { style: docx.BorderStyle.NONE },
-                  right: { style: docx.BorderStyle.NONE },
-                  insideHorizontal: { style: docx.BorderStyle.NONE },
-                  insideVertical: { style: docx.BorderStyle.NONE }
-                },
-                rows: optRows
-              })
-            );
-          }
-        }
-
-        else if (hasEssaySubs) {
-          for (let sqIdx = 0; sqIdx < q.subQuestions.length; sqIdx++) {
-            const sq = q.subQuestions[sqIdx];
-            const sqLabel = sq.label || `(${String.fromCharCode(97 + (sqIdx % 26))})`;
-            const sqCleanText = (sq.text || '').trimEnd();
-            const sqLinesText = sqCleanText ? sqCleanText.split('\n') : [''];
-            const sqLinesCount = (!metadata.separateAnswerSheet)
-              ? ((sq.blankLines !== undefined && sq.blankLines !== '' && sq.blankLines !== null)
-                ? Math.max(0, parseInt(sq.blankLines, 10) || 0)
-                : 4)
-              : 0;
-            const sqHasImage = Boolean(sq.image);
-            const sqHasFollowup = sqHasImage || sqLinesCount > 0;
-
-            for (let slIdx = 0; slIdx < sqLinesText.length; slIdx++) {
-              const isLastSqLine = slIdx === sqLinesText.length - 1;
-              const keepNextSq = isLastSqLine ? sqHasFollowup : true;
-
-              if (slIdx === 0) {
-                headerChildren.push(
-                  new docx.Paragraph({
-                    keepNext: keepNextSq,
-                    alignment: docx.AlignmentType.JUSTIFY,
-                    indent: { left: 360 },
-                    spacing: { before: 40, after: 20 },
-                    tabStops: [
-                      {
-                        type: docx.TabStopType.RIGHT,
-                        position: docx.TabStopPosition.MAX
-                      }
-                    ],
-                    children: [
-                      new docx.TextRun({
-                        text: `${sqLabel}  `,
-                        bold: true,
-                        size: 28
-                      }),
-                      ...docxTextRunsWithMath(sqLinesText[0] || '', { size: 28 }),
-                      new docx.TextRun({
-                        text: `\t(${formatMarks(sq.marks)} M)`,
-                        italic: true,
-                        size: 28
-                      })
-                    ]
-                  })
-                );
-              } else {
-                headerChildren.push(
-                  new docx.Paragraph({
-                    keepNext: keepNextSq,
-                    indent: { left: 720 },
-                    spacing: { after: 20 },
-                    children: docxTextRunsWithMath(sqLinesText[slIdx], { size: 28 })
-                  })
-                );
-              }
-            }
-
-            if (sqHasImage) {
-              const sqImageBytes = await imageToUint8Array(sq.image);
-              if (sqImageBytes) {
-                headerChildren.push(
-                  new docx.Paragraph({
-                    keepNext: sqLinesCount > 0,
-                    indent: { left: 720 },
-                    spacing: { before: 80, after: 80 },
-                    children: [
-                      new docx.ImageRun({
-                        data: sqImageBytes,
-                        transformation: {
-                          width: Number(sq.imageWidth) || 300,
-                          height: Number(sq.imageHeight) || 200
-                        }
-                      })
-                    ]
-                  })
-                );
-              }
-            }
-
-            if (sqLinesCount > 0) {
-              for (let i = 0; i < sqLinesCount; i++) {
-                headerChildren.push(
-                  new docx.Paragraph({
-                    indent: { left: 360 },
-                    tabStops: [
-                      {
-                        type: docx.TabStopType.RIGHT,
-                        position: docx.TabStopPosition.MAX
-                      }
-                    ],
-                    spacing: { before: 100, after: 100 },
-                    children: [
-                      new docx.TextRun({
-                        text: '\t',
-                        underline: {
-                          type: docx.UnderlineType.SINGLE,
-                          color: '777777'
-                        }
-                      })
-                    ]
-                  })
-                );
-              }
-            }
-          }
-        }
-
-        else if (hasTF) {
-          headerChildren.push(
-            new docx.Paragraph({
-              keepNext: hasBlankLines,
-              indent: { left: 450 },
-              spacing: { before: 80, after: 120 },
-              children: [
-                new docx.TextRun({
-                  text: '[    ] True        [    ] False',
-                  bold: true,
-                  size: 26
-                })
-              ]
-            })
-          );
-        }
-
-        else if (hasMatch) {
-          const columnA = q.matchPairs.map(p => {
-            if (typeof p === 'string') {
-              const parts = p.split('=');
-              return { text: parts[0] || p, image: '' };
-            }
-            return { text: p.premise || p.text || '', image: p.premiseImage || '' };
-          });
-
-          const shuffledList = getShuffledList(q);
-          const columnB = q.matchPairs.map((pair, pIdx) => {
-            const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
-            if (typeof itemB === 'string') {
-              const parts = itemB.split('=');
-              return { text: parts.length > 1 ? parts[1] : parts[0], image: '' };
-            }
-            return {
-              text: itemB.response || itemB.text || '',
-              image: itemB.responseImage || ''
-            };
-          });
-
-          const tableRows = [];
-
-          // Header row with repeating tableHeader and cantSplit
-          tableRows.push(
-            new docx.TableRow({
-              tableHeader: true,
-              cantSplit: true,
-              children: [
-                new docx.TableCell({
-                  width: { size: 4275, type: docx.WidthType.DXA },
-                  borders: {
-                    top: { style: docx.BorderStyle.NONE },
-                    bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
-                    left: { style: docx.BorderStyle.NONE },
-                    right: { style: docx.BorderStyle.NONE }
-                  },
-                  children: [
-                    new docx.Paragraph({
-                      spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column A', bold: true, size: 30 })]
-                    })
-                  ]
-                }),
-                new docx.TableCell({
-                  width: { size: 4275, type: docx.WidthType.DXA },
-                  borders: {
-                    top: { style: docx.BorderStyle.NONE },
-                    bottom: { style: docx.BorderStyle.SINGLE, size: 4, color: '000000' },
-                    left: { style: docx.BorderStyle.NONE },
-                    right: { style: docx.BorderStyle.NONE }
-                  },
-                  children: [
-                    new docx.Paragraph({
-                      spacing: { before: 60, after: 60 },
-                      children: [new docx.TextRun({ text: 'Column B', bold: true, size: 30 })]
-                    })
-                  ]
-                })
-              ]
-            })
-          );
-
-          const romanNum = (idx) => {
-            const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
-            return r[idx] || (idx + 1).toString();
-          };
-
-          for (let index = 0; index < columnA.length; index++) {
-            const itemA = columnA[index];
-            const itemB = columnB[index];
-
-            const cellAChildren = [
-              new docx.Paragraph({
-                spacing: { before: 40, after: 40 },
-                children: [
-                  new docx.TextRun({ text: `${index + 1}. `, bold: true, size: 26 }),
-                  ...docxTextRunsWithMath(itemA.text || '', { size: 26 })
-                ]
-              })
-            ];
-            if (itemA.image) {
-              const imgBytes = await imageToUint8Array(itemA.image);
-              if (imgBytes) {
-                cellAChildren.push(
-                  new docx.Paragraph({
-                    spacing: { before: 20, after: 40 },
-                    children: [
-                      new docx.ImageRun({
-                        data: imgBytes,
-                        transformation: { width: 120, height: 80 }
-                      })
-                    ]
-                  })
-                );
-              }
-            }
-
-            const cellBChildren = [
-              new docx.Paragraph({
-                spacing: { before: 40, after: 40 },
-                children: [
-                  new docx.TextRun({ text: `${romanNum(index)}. `, bold: true, size: 26 }),
-                  ...docxTextRunsWithMath(itemB.text || '', { size: 26 })
-                ]
-              })
-            ];
-            if (itemB.image) {
-              const imgBytes = await imageToUint8Array(itemB.image);
-              if (imgBytes) {
-                cellBChildren.push(
-                  new docx.Paragraph({
-                    spacing: { before: 20, after: 40 },
-                    children: [
-                      new docx.ImageRun({
-                        data: imgBytes,
-                        transformation: { width: 120, height: 80 }
-                      })
-                    ]
-                  })
-                );
-              }
-            }
-
-            tableRows.push(
-              new docx.TableRow({
-                cantSplit: true,
-                children: [
-                  new docx.TableCell({
-                    width: { size: 4275, type: docx.WidthType.DXA },
-                    borders: {
-                      top: { style: docx.BorderStyle.NONE },
-                      bottom: { style: docx.BorderStyle.NONE },
-                      left: { style: docx.BorderStyle.NONE },
-                      right: { style: docx.BorderStyle.NONE }
-                    },
-                    children: cellAChildren
-                  }),
-                  new docx.TableCell({
-                    width: { size: 4275, type: docx.WidthType.DXA },
-                    borders: {
-                      top: { style: docx.BorderStyle.NONE },
-                      bottom: { style: docx.BorderStyle.NONE },
-                      left: { style: docx.BorderStyle.NONE },
-                      right: { style: docx.BorderStyle.NONE }
-                    },
-                    children: cellBChildren
-                  })
-                ]
-              })
-            );
-          }
-
-          headerChildren.push(
-            new docx.Table({
-              width: { size: 8550, type: docx.WidthType.DXA },
-              indent: { size: 450, type: docx.WidthType.DXA },
-              columnWidths: [4275, 4275],
-              borders: {
-                top: { style: docx.BorderStyle.NONE },
-                bottom: { style: docx.BorderStyle.NONE },
-                left: { style: docx.BorderStyle.NONE },
-                right: { style: docx.BorderStyle.NONE },
-                insideHorizontal: { style: docx.BorderStyle.NONE },
-                insideVertical: { style: docx.BorderStyle.NONE }
-              },
-              rows: tableRows
-            })
-          );
-        }
-
-        if (hasTable) {
-          // Build a bordered table in DOCX with bold headers and regular body
-          const tblRows = [];
-
-          // Header row with repeating tableHeader and cantSplit
-          const headerCells = q.tableData.headers.map(h =>
-            new docx.TableCell({
-              shading: { fill: 'E8E8E8' },
-              children: [
-                new docx.Paragraph({
-                  spacing: { before: 40, after: 40 },
-                  children: docxTextRunsWithMath(h || '', { bold: true, size: 28 })
-                })
-              ]
-            })
-          );
-          tblRows.push(new docx.TableRow({ tableHeader: true, cantSplit: true, children: headerCells }));
-
-          // Body rows
-          q.tableData.rows.forEach(row => {
-            const bodyCells = row.map(cell =>
-              new docx.TableCell({
-                children: [
-                  new docx.Paragraph({
-                    spacing: { before: 40, after: 40 },
-                    children: docxTextRunsWithMath(cell || '', { size: 28 })
-                  })
-                ]
-              })
-            );
-            tblRows.push(new docx.TableRow({ cantSplit: true, children: bodyCells }));
-          });
-
-          headerChildren.push(
-            new docx.Table({
-              width: { size: 8550, type: docx.WidthType.DXA },
-              indent: { size: 450, type: docx.WidthType.DXA },
-              rows: tblRows
-            })
-          );
-        }
-
-        // Render main question blank lines for any question type if blankLines is specified
-        if (hasBlankLines) {
-          for (let i = 0; i < linesCount; i++) {
-            headerChildren.push(
-              new docx.Paragraph({
-                tabStops: [
-                  {
-                    type: docx.TabStopType.RIGHT,
-                    position: docx.TabStopPosition.MAX
-                  }
-                ],
-                spacing: { before: 100, after: 100 },
-                children: [
-                  new docx.TextRun({
-                    text: '\t',
-                    underline: {
-                      type: docx.UnderlineType.SINGLE,
-                      color: '777777'
-                    }
-                  })
-                ]
-              })
-            );
-          }
-        }
-      }
-    }
-
-    const doc = new docx.Document({
-      styles: {
-        default: {
-          document: {
-            run: {
-              font: getFontFamily()
-            }
-          }
-        }
-      },
-      sections: [{
-        properties: {},
-        footers: {
-          default: new docx.Footer({
-            children: [
-              new docx.Paragraph({
-                alignment: docx.AlignmentType.RIGHT,
-                children: [
-                  new docx.TextRun({
-                    text: 'Page ',
-                    size: 18
-                  }),
-                  new docx.SimpleField("PAGE"),
-                  new docx.TextRun({
-                    text: ' of ',
-                    size: 18
-                  }),
-                  new docx.SimpleField("NUMPAGES")
-                ]
-              })
-            ]
-          })
-        },
-        children: headerChildren
-      }]
-    });
-
-    return await docx.Packer.toBlob(doc);
-  };
-
-  const triggerDocxExport = async () => {
-    if (!hasQuestions()) {
-      alert("No questions added to export.");
-      return;
-    }
-    if (hasBlankQuestions()) {
-      if (!window.confirm("Some questions have empty text. Are you sure you want to export?")) {
-        return;
-      }
-    }
-    try {
-      const blob = await generateDocxBlob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = generateExportFilename('docx');
-      a.click();
-      URL.revokeObjectURL(url);
+      const { triggerDocxExport } = await import("./utils/exportUtils");
+      await triggerDocxExport(branding, metadata, sections, hasQuestions, () => hasBlankQuestions(sections));
     } catch (err) {
-      console.error('Error exporting DOCX:', err);
-      alert('Failed to generate DOCX file.');
+      console.error("Error importing or exporting DOCX:", err);
+      alert("Failed to initialize Word export.");
+    }
+  };
+
+  // Dynamic PDF Export Handler
+  const handlePdfExport = async () => {
+    try {
+      const targetElement = paperSheetRef.current || document.querySelector(".exam-paper-container");
+      const { triggerPdfExport } = await import("./utils/exportUtils");
+      await triggerPdfExport(targetElement, metadata, hasQuestions, () => hasBlankQuestions(sections), setIsPdfExporting);
+    } catch (err) {
+      console.error("Error importing or exporting PDF:", err);
+      alert("Failed to initialize PDF export.");
     }
   };
 
@@ -3127,17 +992,17 @@ export default function App() {
                 Sections: <strong style={{ color: 'var(--text-primary)' }}>{sections ? sections.length : 0}</strong>
               </span>
               <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                Questions: <strong style={{ color: 'var(--text-primary)' }}>{getExamTotalQuestionsCount()}</strong>
+                Questions: <strong style={{ color: 'var(--text-primary)' }}>{examTotalQuestionsCount}</strong>
               </span>
             </div>
             <div>
-              {getExamCurrentTotalMarks() === metadata.maxMarks ? (
+              {examCurrentTotalMarks === metadata.maxMarks ? (
                 <span className="marks-meter-badge marks-meter-success">
-                  <CheckCircle size={14} /> Allocated: {formatMarks(getExamCurrentTotalMarks())} M (Match!)
+                  <CheckCircle size={14} /> Allocated: {formatMarks(examCurrentTotalMarks)} M (Match!)
                 </span>
               ) : (
                 <span className="marks-meter-badge marks-meter-warning">
-                  <AlertTriangle size={14} /> Allocated: {formatMarks(getExamCurrentTotalMarks())} / {metadata.maxMarks} M
+                  <AlertTriangle size={14} /> Allocated: {formatMarks(examCurrentTotalMarks)} / {metadata.maxMarks} M
                 </span>
               )}
             </div>
@@ -3166,7 +1031,7 @@ export default function App() {
               onClick={() => setActiveTab('sections')}
             >
               <Layers size={15} />
-              <span>Questions ({getExamTotalQuestionsCount()})</span>
+              <span>Questions ({examTotalQuestionsCount})</span>
             </button>
           </div>
 
@@ -3324,10 +1189,10 @@ export default function App() {
                   />
                 </div>              {/* Validation Badges */}
                 <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
+                  {examCurrentTotalMarks !== metadata.maxMarks ? (
                     <div className="warning-badge">
                       <AlertTriangle size={14} />
-                      <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
+                      <span>Marks Mismatch: Current Questions = {formatMarks(examCurrentTotalMarks)} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
                     </div>
                   ) : (
                     <div className="warning-badge" style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
@@ -3335,7 +1200,7 @@ export default function App() {
                       <span>Perfect: Sum of all questions matches targets!</span>
                     </div>
                   )}
-                  {hasZeroMarkQuestions() && (
+                  {hasZeroMark && (
                     <div className="warning-badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
                       <AlertTriangle size={14} />
                       <span>Warning: One or more questions have 0 marks.</span>
@@ -4503,10 +2368,10 @@ export default function App() {
 
                 {/* Validation Badges */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-                  {getExamCurrentTotalMarks() !== metadata.maxMarks ? (
+                  {examCurrentTotalMarks !== metadata.maxMarks ? (
                     <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start' }}>
                       <AlertTriangle size={14} />
-                      <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
+                      <span>Marks Mismatch: Current Questions = {formatMarks(examCurrentTotalMarks)} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
                     </div>
                   ) : (
                     <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(16,185,129,0.15)', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)' }}>
@@ -4514,7 +2379,7 @@ export default function App() {
                       <span>Perfect: Sum of all questions matches targets!</span>
                     </div>
                   )}
-                  {hasZeroMarkQuestions() && (
+                  {hasZeroMark && (
                     <div className="warning-badge" style={{ display: 'flex', alignSelf: 'flex-start', backgroundColor: 'rgba(239, 68, 68, 0.15)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
                       <AlertTriangle size={14} />
                       <span>Warning: One or more questions have 0 marks.</span>
@@ -4562,7 +2427,7 @@ export default function App() {
               </button>
             </div>
             <div className="action-bar-group action-bar-data">
-              <button className="btn btn-primary btn-sm action-bar-btn" onClick={exportToCSV}>
+              <button className="btn btn-primary btn-sm action-bar-btn" onClick={() => exportToCSV(branding, metadata, sections, getOptionText)}>
                 <Download size={12} /> Export CSV
               </button>
               <label className="btn btn-secondary btn-sm action-bar-btn" style={{ cursor: 'pointer', margin: 0 }}>
@@ -5101,16 +2966,16 @@ export default function App() {
               </div>
             </div>
 
-            {getExamCurrentTotalMarks() !== metadata.maxMarks && (
+            {examCurrentTotalMarks !== metadata.maxMarks && (
               <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-editor)', display: 'flex' }} className="warning-badge-container print-hide">
                 <div className="warning-badge" style={{ display: 'flex', width: '100%', boxSizing: 'border-box' }}>
                   <AlertTriangle size={14} />
-                  <span>Marks Mismatch: Current Questions = {formatMarks(getExamCurrentTotalMarks())} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
+                  <span>Marks Mismatch: Current Questions = {formatMarks(examCurrentTotalMarks)} marks (Target = {formatMarks(metadata.maxMarks)} marks).</span>
                 </div>
               </div>
             )}
 
-            {hasZeroMarkQuestions() && (
+            {hasZeroMark && (
               <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-editor)', display: 'flex' }} className="warning-badge-container print-hide">
                 <div className="warning-badge" style={{ display: 'flex', width: '100%', boxSizing: 'border-box', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
                   <AlertTriangle size={14} />
@@ -5500,7 +3365,7 @@ export default function App() {
                 className="btn btn-primary"
                 disabled={isPdfExporting || !hasQuestions()}
                 title={hasQuestions() ? "Download PDF" : "Add at least one question to export"}
-                onClick={triggerPdfExport}
+                onClick={handlePdfExport}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 {isPdfExporting ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
@@ -5511,7 +3376,7 @@ export default function App() {
                 className="btn btn-docx"
                 disabled={!hasQuestions()}
                 title={hasQuestions() ? "Download Word (DOCX)" : "Add at least one question to download"}
-                onClick={triggerDocxExport}
+                onClick={handleDocxExport}
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <FileText size={16} style={{ color: '#ffffff' }} />
@@ -5571,7 +3436,7 @@ export default function App() {
                     <button
                       className="btn btn-primary"
                       onClick={() => {
-                        triggerDocxExport();
+                        handleDocxExport();
                         window.open('https://docs.google.com/document/', '_blank', 'noopener,noreferrer');
                         setIsDocsModalOpen(false);
                       }}
@@ -5582,7 +3447,7 @@ export default function App() {
                     <button
                       className="btn btn-secondary"
                       onClick={() => {
-                        triggerDocxExport();
+                        handleDocxExport();
                         window.open('https://drive.google.com/', '_blank', 'noopener,noreferrer');
                         setIsDocsModalOpen(false);
                       }}
