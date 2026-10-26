@@ -151,8 +151,8 @@ body {
   padding: 0 24px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-sidebar);
-  backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
@@ -181,8 +181,8 @@ body {
   height: 100%;
   border-right: 1px solid var(--border-color);
   background-color: var(--bg-sidebar);
-  backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   overflow-y: auto;
   position: relative;
 }
@@ -541,8 +541,8 @@ textarea {
   flex-direction: column;
   gap: 18px;
   position: relative;
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -662,6 +662,19 @@ button:disabled,
   transform: translateY(-1px);
 }
 
+.btn-print {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+  font-weight: 600;
+}
+.btn-print:hover {
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+  box-shadow: 0 6px 18px rgba(5, 150, 105, 0.45);
+  transform: translateY(-1px);
+}
+
 .btn-sm {
   padding: 7px 14px;
   font-size: 13.5px;
@@ -689,8 +702,8 @@ button:disabled,
   position: sticky;
   bottom: 38px;
   z-index: 10;
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   box-sizing: border-box;
 }
 
@@ -704,6 +717,7 @@ button:disabled,
   white-space: nowrap;
   box-sizing: border-box;
   text-decoration: none;
+  -webkit-user-select: none;
   user-select: none;
   border-radius: var(--radius-sm);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -718,11 +732,19 @@ button:disabled,
     width: 100%;
     padding: 10px 16px;
     overflow-x: auto;
-    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  @supports (scrollbar-width: none) {
+    .action-bar.studio-action-bar {
+      scrollbar-width: none;
+    }
   }
 
   .action-bar.studio-action-bar::-webkit-scrollbar {
     display: none;
+    width: 0;
+    height: 0;
   }
 
   /* Unbox group containers so every action button directly participates in the single flex row */
@@ -774,6 +796,7 @@ button:disabled,
   right: 0;
   bottom: 0;
   background-color: rgba(12, 13, 18, 0.65);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   display: flex;
   justify-content: center;
@@ -788,8 +811,8 @@ button:disabled,
 
 .modal-content {
   background-color: rgba(19, 21, 32, 0.75);
-  backdrop-filter: blur(25px) saturate(200%);
   -webkit-backdrop-filter: blur(25px) saturate(200%);
+  backdrop-filter: blur(25px) saturate(200%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   max-width: 900px;
@@ -874,7 +897,7 @@ button:disabled,
 @media screen and (max-width: 842px) {
   .paper-sheet {
     width: 100% !important;
-    min-height: auto !important;
+    min-height: 0 !important;
     padding: 10mm !important;
   }
 }
@@ -888,13 +911,14 @@ button:disabled,
   border-bottom: 3px double var(--text-paper);
   padding-bottom: 8px;
   margin-bottom: 8px;
-  min-height: auto;
+  min-height: 0;
   gap: 20px;
 }
 
 .brand-logo-container {
   position: absolute;
   cursor: move;
+  -webkit-user-select: none;
   user-select: none;
   touch-action: none;
   border: 1px dashed transparent;
@@ -999,9 +1023,8 @@ button:disabled,
 .paper-subquestion-item,
 .paper-image-container,
 .paper-mcq-options {
-  break-inside: avoid !important;
   page-break-inside: avoid !important;
-  -webkit-column-break-inside: avoid !important;
+  break-inside: avoid !important;
 }
 
 .paper-match-table,
@@ -1064,9 +1087,8 @@ button:disabled,
   margin-bottom: 4px;
   white-space: pre-wrap !important;
   word-break: break-word;
-  break-inside: avoid !important;
   page-break-inside: avoid !important;
-  -webkit-column-break-inside: avoid !important;
+  break-inside: avoid !important;
 }
 
 .paper-questions-list {
@@ -1287,16 +1309,24 @@ textarea.mcq-option-textarea {
 /* Print CSS Overrides */
 @media print {
   @page {
-    margin: 0;
+    size: A4 portrait;
+    margin: 12mm 15mm 16mm 15mm;
+    @bottom-center {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 10pt;
+      font-family: 'Inter', sans-serif;
+      color: #777777;
+    }
   }
+  html,
   body {
     background-color: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
-    padding-top: 1cm !important;
-    padding-bottom: 1.5cm !important;
-    padding-left: 1.6cm !important;
-    padding-right: 1.6cm !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -1308,31 +1338,12 @@ textarea.mcq-option-textarea {
     border: none !important;
   }
 
-  .app-container,
-  .editor-panel,
-  .modal-overlay {
-    background: transparent !important;
-    position: static !important;
-    display: block !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: visible !important;
-    box-shadow: none !important;
-    border: none !important;
-    backdrop-filter: none !important;
-    width: auto !important;
-    height: auto !important;
-  }
-
-  .modal-content {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    max-height: none !important;
-    overflow: visible !important;
-    width: 100% !important;
-  }
-
+  /* Hide entire app UI, editor, headers, footers, toolbars, overlays not being printed */
+  .studio-header,
+  .editor-header,
+  .studio-workspace,
+  .studio-editor-column,
+  .marks-meter-bar,
   .modal-header,
   .modal-footer,
   .preview-options-bar,
@@ -1344,24 +1355,115 @@ textarea.mcq-option-textarea {
   .warning-badge-container,
   .app-footer-fixed,
   .floating-formula-btn,
+  .about-modal-overlay,
+  .modal-overlay:not(.preview-overlay),
+  .paper-footer,
   .print-hide {
     display: none !important;
   }
 
+  .app-container {
+    background: transparent !important;
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .app-container::before,
+  .app-container::after {
+    display: none !important;
+  }
+
+  /* When printing from the preview modal */
+  .modal-overlay.preview-overlay {
+    background: transparent !important;
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .modal-content.preview-modal-content {
+    background: transparent !important;
+    position: static !important;
+    display: block !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
   .modal-body {
     padding: 0 !important;
+    margin: 0 !important;
     display: block !important;
     overflow: visible !important;
-    background-color: #ffffff !important;
+    background-color: transparent !important;
+    height: auto !important;
+    max-height: none !important;
+    width: 100% !important;
   }
 
   .paper-sheet {
     box-shadow: none !important;
+    border: none !important;
     padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
-    min-height: auto !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
     color: #000000 !important;
+    background-color: transparent !important;
+    display: block !important;
+  }
+
+  /* Fallback: If printing while modal is closed, show only the live preview paper sheet */
+  body:not(:has(.preview-overlay)) .studio-workspace {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+  body:not(:has(.preview-overlay)) .studio-preview-column {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+  body:not(:has(.preview-overlay)) .studio-preview-column > div:first-child {
+    display: none !important;
+  }
+  body:not(:has(.preview-overlay)) .studio-preview-column > div:nth-child(2) {
+    padding: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+  body:not(:has(.preview-overlay)) .studio-preview-column > div:nth-child(2) > div {
+    transform: none !important;
   }
 
   /* Force page break behavior */
@@ -1381,7 +1483,6 @@ textarea.mcq-option-textarea {
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    -webkit-column-break-inside: avoid !important;
   }
 
   table,
@@ -1440,20 +1541,10 @@ textarea.mcq-option-textarea {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .paper-footer {
-    display: block !important;
-    position: fixed;
-    bottom: 0.6cm;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 13px;
-    font-family: inherit;
-    color: #777777;
-    background: transparent !important;
-  }
+  .paper-footer,
   .paper-footer::after {
-    content: "Page " counter(page) " of " counter(pages);
+    display: none !important;
+    content: none !important;
   }
 }
 
@@ -1470,8 +1561,8 @@ textarea.mcq-option-textarea {
   right: 0;
   margin-bottom: 8px;
   background-color: var(--bg-card);
-  backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
@@ -1869,8 +1960,8 @@ textarea.mcq-option-textarea {
   justify-content: space-between;
   align-items: center;
   z-index: 90;
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   box-sizing: border-box;
 }
 
@@ -1911,8 +2002,8 @@ textarea.mcq-option-textarea {
   position: fixed;
   inset: 0;
   background-color: rgba(12, 14, 24, 0.65);
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   display: flex;
   justify-content: flex-end; /* Show on the right side */
   align-items: center;
@@ -1933,8 +2024,8 @@ textarea.mcq-option-textarea {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background-color: var(--bg-card);
-  backdrop-filter: blur(25px) saturate(200%);
   -webkit-backdrop-filter: blur(25px) saturate(200%);
+  backdrop-filter: blur(25px) saturate(200%);
   animation: aboutSlideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -2016,7 +2107,6 @@ textarea.mcq-option-textarea {
   .paper-subquestion-item {
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    -webkit-column-break-inside: avoid !important;
   }
   
   .page-break-before {

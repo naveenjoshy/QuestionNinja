@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import pageLogo from './assets/logo.png';
 import schoolLogo from './assets/school_logo.png';
 import developerPhoto from './assets/developer_photo.jpeg';
@@ -31,7 +31,8 @@ import {
   GraduationCap,
   School,
   Check,
-  X
+  X,
+  Printer
 } from 'lucide-react';
 import katex from 'katex';
 import DOMPurify from 'dompurify';
@@ -1360,6 +1361,58 @@ export default function App() {
     const baseName = `${cleanClass} - ${cleanSubject} - ${dateStr} - ${timeStr}`;
     return ext ? `${baseName}.${ext.replace(/^\./, '')}` : baseName;
   };
+
+  // Direct printing handler with validation and automatic title branding
+  const handleDirectPrint = useCallback(() => {
+    if (!hasQuestions()) {
+      alert("No questions added to print. Please add questions first.");
+      return;
+    }
+    if (hasBlankQuestions()) {
+      if (!window.confirm("Some questions have empty text. Are you sure you want to print?")) {
+        return;
+      }
+    }
+
+    const doPrint = () => {
+      const originalTitle = document.title;
+      try {
+        const examName = generateExportFilename('').replace(/\.$/, '');
+        if (examName) {
+          document.title = examName;
+        }
+      } catch (err) {
+        console.warn("Could not set document title for printing:", err);
+      }
+
+      window.print();
+
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 1000);
+    };
+
+    if (!isPreviewOpen) {
+      setIsPreviewOpen(true);
+      setTimeout(doPrint, 250);
+    } else {
+      doPrint();
+    }
+  }, [hasQuestions, hasBlankQuestions, generateExportFilename, isPreviewOpen]);
+
+  // Keyboard shortcuts: Ctrl+P / Cmd+P for direct printing, Escape to close preview modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        handleDirectPrint();
+      } else if (e.key === 'Escape' && isPreviewOpen) {
+        setIsPreviewOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleDirectPrint, isPreviewOpen]);
 
   // CSV Export & Import Features
   const exportToCSV = () => {
@@ -2995,7 +3048,7 @@ export default function App() {
   return (
     <div className={`app-container studio-container theme-${theme}`}>
       {/* Studio Top Header Bar */}
-      <div className="studio-header">
+      <div className="studio-header print-hide">
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           <div style={{
             width: '40px',
@@ -4564,7 +4617,28 @@ export default function App() {
               </button>
             </div>
 
-
+            {/* Quick Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                className="btn btn-print btn-sm"
+                onClick={handleDirectPrint}
+                disabled={!hasQuestions()}
+                title="Direct Print Paper (Ctrl+P / ⌘P)"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Printer size={14} />
+                <span>Print</span>
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setIsPreviewOpen(true)}
+                title="Open Full Screen Preview Modal"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Maximize2 size={14} />
+                <span>Full Preview</span>
+              </button>
+            </div>
           </div>
 
           {/* Paper Zoom Container */}
@@ -4932,7 +5006,7 @@ export default function App() {
                 </div>
 
                 {/* Page number footer */}
-                <div className="paper-footer"></div>
+                <div className="paper-footer print-hide"></div>
               </div>
             </div>
           </div>
@@ -4941,8 +5015,31 @@ export default function App() {
       {isPreviewOpen && (
         <div className="modal-overlay preview-overlay" onClick={() => setIsPreviewOpen(false)}>
           <div className="modal-content preview-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Question Paper Live Preview</h3>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Eye size={20} style={{ color: 'var(--accent)' }} />
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Question Paper Live Preview</h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  className="btn btn-print btn-sm"
+                  disabled={!hasQuestions()}
+                  title={hasQuestions() ? "Direct Print Question Paper (Ctrl+P / ⌘P)" : "Add at least one question to print"}
+                  onClick={handleDirectPrint}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Printer size={15} />
+                  <span>Direct Print</span>
+                </button>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setIsPreviewOpen(false)}
+                  title="Close Preview (Esc)"
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 10px' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             {/* Live Preview Controls Bar */}
@@ -5393,11 +5490,22 @@ export default function App() {
                 </div>
 
                 {/* Page number footer */}
-                <div className="paper-footer"></div>
+                <div className="paper-footer print-hide"></div>
               </div>
             </div>
 
-            <div className="modal-footer" style={{ gap: '10px' }}>
+            <div className="modal-footer" style={{ gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-print"
+                disabled={!hasQuestions()}
+                title={hasQuestions() ? "Print directly to connected printer or Save as PDF (Ctrl+P / ⌘P)" : "Add at least one question to print"}
+                onClick={handleDirectPrint}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Printer size={16} />
+                <span>Direct Print (Ctrl+P)</span>
+              </button>
+
               <button
                 className="btn btn-primary"
                 disabled={isPdfExporting || !hasQuestions()}
@@ -5417,7 +5525,7 @@ export default function App() {
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <FileText size={16} style={{ color: '#ffffff' }} />
-                Download Word (DOCX)
+                <span>Download Word (DOCX)</span>
               </button>
 
               <button className="btn btn-danger" onClick={() => setIsPreviewOpen(false)}>
