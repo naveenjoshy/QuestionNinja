@@ -5022,16 +5022,6 @@ export default function App() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
-                  className="btn btn-print btn-sm"
-                  disabled={!hasQuestions()}
-                  title={hasQuestions() ? "Direct Print Question Paper (Ctrl+P / ⌘P)" : "Add at least one question to print"}
-                  onClick={handleDirectPrint}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <Printer size={15} />
-                  <span>Direct Print</span>
-                </button>
-                <button
                   className="btn btn-secondary btn-sm"
                   onClick={() => setIsPreviewOpen(false)}
                   title="Close Preview (Esc)"
@@ -5503,7 +5493,7 @@ export default function App() {
                 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
               >
                 <Printer size={16} />
-                <span>Direct Print (Ctrl+P)</span>
+                <span>Direct Print</span>
               </button>
 
               <button
