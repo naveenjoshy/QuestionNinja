@@ -441,8 +441,8 @@ export default function App() {
     setSections(sections.map(sec => {
       if (sec.id === secId) {
         const updatedQuestions = sec.questions.map(q => {
-          const updatedQ = { ...q };
-          if (newType === 'mcq' && !updatedQ.options) {
+          const updatedQ = { ...q, type: newType };
+          if (newType === 'mcq' && (!updatedQ.options || !Array.isArray(updatedQ.options) || updatedQ.options.length === 0)) {
             updatedQ.options = ['', '', '', ''];
           }
           if (newType === 'match_following' && !updatedQ.matchPairs) {
@@ -486,6 +486,7 @@ export default function App() {
         const type = s.type || 'essay';
         const defaultQuestion = {
           id: `q-${Date.now()}`,
+          type,
           text: '',
           marks: 1,
           pageBreakBefore: false
@@ -1549,7 +1550,7 @@ export default function App() {
                                       {/* ... rest of logic */}
                                     </div>
                                   )}
-                                  {(sec.type === 'essay') && (
+                                  {(sec.type === 'essay' && q.type !== 'mcq') && (
                                     <button
                                       className="btn btn-secondary btn-sm"
                                       style={{ alignSelf: 'flex-start', marginTop: '4px', fontSize: '11px', padding: '4px 8px' }}
@@ -1591,7 +1592,7 @@ export default function App() {
                                 </div>
 
                                 {/* MCQ Specific Fields */}
-                                {sec.type === 'mcq' && q.options && (
+                                {(sec.type === 'mcq' || q.type === 'mcq' || (Array.isArray(q.options) && q.options.length > 0)) && (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <label style={{ fontSize: '10px', fontWeight: 'bold' }}>Options</label>
@@ -1600,14 +1601,15 @@ export default function App() {
                                         className="btn-secondary"
                                         style={{ padding: '2px 8px', fontSize: '11px', borderRadius: '4px' }}
                                         onClick={() => {
-                                          const newOpts = [...q.options, ''];
-                                          updateQuestion(sec.id, q.id, { options: newOpts });
+                                          const currentOpts = Array.isArray(q.options) && q.options.length > 0 ? q.options : ['', '', '', ''];
+                                          const newOpts = [...currentOpts, ''];
+                                          updateQuestion(sec.id, q.id, { options: newOpts, type: 'mcq' });
                                         }}
                                       >
                                         + Add Option
                                       </button>
                                     </div>
-                                    {q.options.map((opt, oIdx) => (
+                                    {(Array.isArray(q.options) && q.options.length > 0 ? q.options : ['', '', '', '']).map((opt, oIdx) => (
                                       <div key={oIdx} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(0,0,0,0.1)' }}>
                                         <div style={{ display: 'flex', gap: '6px', width: '100%', alignItems: 'flex-start' }}>
                                           <span style={{ fontSize: '13px', fontWeight: 'bold', paddingTop: '6px', minWidth: '18px' }}>
@@ -1627,9 +1629,17 @@ export default function App() {
                                               resize: 'vertical',
                                               fontFamily: 'inherit'
                                             }}
-                                            onChange={(e) => updateOptionText(sec.id, q.id, oIdx, e.target.value)}
+                                            onChange={(e) => {
+                                              if (!Array.isArray(q.options) || q.options.length === 0) {
+                                                const initOpts = ['', '', '', ''];
+                                                initOpts[oIdx] = e.target.value;
+                                                updateQuestion(sec.id, q.id, { options: initOpts, type: 'mcq' });
+                                              } else {
+                                                updateOptionText(sec.id, q.id, oIdx, e.target.value);
+                                              }
+                                            }}
                                           />
-                                          {q.options.length > 2 && (
+                                          {(Array.isArray(q.options) ? q.options.length > 2 : false) && (
                                             <button
                                               type="button"
                                               title="Remove Option"
@@ -1643,7 +1653,8 @@ export default function App() {
                                                 lineHeight: 1
                                               }}
                                               onClick={() => {
-                                                const newOpts = q.options.filter((_, idx) => idx !== oIdx);
+                                                const currentOpts = Array.isArray(q.options) ? q.options : ['', '', '', ''];
+                                                const newOpts = currentOpts.filter((_, idx) => idx !== oIdx);
                                                 updateQuestion(sec.id, q.id, { options: newOpts });
                                               }}
                                             >
@@ -1758,7 +1769,7 @@ export default function App() {
                                 )}
 
                                 {/* Essay Specific Fields & Sub-Questions */}
-                                {sec.type === 'essay' && (
+                                {sec.type === 'essay' && q.type !== 'mcq' && (!Array.isArray(q.options) || !q.options.some(opt => getOptionText(opt).trim() !== '' || getOptionImage(opt))) && (
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                     {(!q.subQuestions || q.subQuestions.length === 0) && (
                                       <div className="form-group">
@@ -2694,13 +2705,13 @@ export default function App() {
                                         )}
 
                                         {/* MCQ Options */}
-                                        {sec.type === 'mcq' && q.options && (
+                                        {(sec.type === 'mcq' || q.type === 'mcq' || (Array.isArray(q.options) && q.options.some(opt => getOptionText(opt).trim() !== '' || getOptionImage(opt)))) && Array.isArray(q.options) && q.options.length > 0 && (
                                           <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
                                             {q.options.map((opt, oIdx) => (
                                               <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                                                   <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
-                                                  {getOptionText(opt) && (
+                                                  {getOptionText(opt) !== '' && (
                                                     <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
                                                   )}
                                                 </div>
@@ -2725,7 +2736,7 @@ export default function App() {
                                         )}
 
                                         {/* Essay spaces and Sub-Questions */}
-                                        {sec.type === 'essay' && (
+                                        {sec.type === 'essay' && q.type !== 'mcq' && (!Array.isArray(q.options) || !q.options.some(opt => getOptionText(opt).trim() !== '' || getOptionImage(opt))) && (
                                           <>
                                             {q.subQuestions && q.subQuestions.length > 0 ? (
                                               <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -3170,13 +3181,13 @@ export default function App() {
                                         )}
 
                                         {/* MCQ Options */}
-                                        {sec.type === 'mcq' && q.options && (
+                                        {(sec.type === 'mcq' || q.type === 'mcq' || (Array.isArray(q.options) && q.options.some(opt => getOptionText(opt).trim() !== '' || getOptionImage(opt)))) && Array.isArray(q.options) && q.options.length > 0 && (
                                           <div className={`paper-mcq-options ${canFitSingleLine(q.options) ? 'single-line' : ''}`}>
                                             {q.options.map((opt, oIdx) => (
                                               <div key={oIdx} className="paper-mcq-option" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                                                   <span style={{ fontWeight: '600', flexShrink: 0 }}>({String.fromCharCode(65 + oIdx)})</span>
-                                                  {getOptionText(opt) && (
+                                                  {getOptionText(opt) !== '' && (
                                                     <span className="paper-mcq-option-text" dangerouslySetInnerHTML={{ __html: renderTextWithMath(getOptionText(opt)) }} />
                                                   )}
                                                 </div>
@@ -3201,7 +3212,7 @@ export default function App() {
                                         )}
 
                                         {/* Essay spaces and Sub-Questions */}
-                                        {sec.type === 'essay' && (
+                                        {sec.type === 'essay' && q.type !== 'mcq' && (!Array.isArray(q.options) || !q.options.some(opt => getOptionText(opt).trim() !== '' || getOptionImage(opt))) && (
                                           <>
                                             {q.subQuestions && q.subQuestions.length > 0 ? (
                                               <div className="paper-subquestions-list" style={{ marginTop: '4px', paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>

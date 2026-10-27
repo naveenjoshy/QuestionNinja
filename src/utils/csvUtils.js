@@ -1,4 +1,4 @@
-import { normalizeLogo } from './formatUtils';
+import { normalizeLogo } from './formatUtils.js';
 
 export const generateExportFilename = (ext, metadata = {}) => {
   const className = (metadata?.classDiv || 'Class').trim();
@@ -111,7 +111,7 @@ export const exportToCSV = (branding, metadata, sections, getOptionText) => {
       } else {
         sec.questions.forEach((q) => {
           let optionsStr = '';
-          if (sec.type === 'mcq' && q.options) {
+          if ((sec.type === 'mcq' || q.type === 'mcq' || (Array.isArray(q.options) && q.options.length > 0)) && q.options) {
             const hasImagesOrObjects = q.options.some(opt => typeof opt === 'object' && opt !== null);
             if (hasImagesOrObjects) {
               optionsStr = JSON.stringify(q.options);
@@ -146,7 +146,7 @@ export const exportToCSV = (branding, metadata, sections, getOptionText) => {
             sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
             sec.instructions || '',
             sec.pageBreakBefore ? 'true' : 'false',
-            sec.type || 'essay',
+            q.type || sec.type || 'essay',
             q.text || '',
             q.marks || 0,
             optionsStr,
@@ -229,14 +229,113 @@ export const parseCSV = (text) => {
   return lines;
 };
 
+export const cleanOptionText = (val) => {
+  if (val === undefined || val === null) return '';
+  const str = String(val).trim();
+  const cleaned = str.replace(/^(?:\([A-Za-z0-9]\)|[A-Za-z0-9][.):])\s*/, '').trim();
+  return cleaned !== '' ? cleaned : str;
+};
+
+export const parseOptionsString = (optionsStr) => {
+  if (!optionsStr) return [];
+  const trimmed = String(optionsStr).trim();
+  if (!trimmed) return [];
+
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map(opt => {
+          if (typeof opt === 'object' && opt !== null) {
+            return {
+              text: cleanOptionText(opt.text ?? opt.value ?? ''),
+              image: opt.image || '',
+              imageWidth: opt.imageWidth || 150,
+              imageHeight: opt.imageHeight || 100
+            };
+          }
+          return cleanOptionText(String(opt));
+        });
+      }
+    } catch {
+      // Fall through to delimiter split
+    }
+  }
+
+  let parts = [];
+  if (trimmed.includes(';')) {
+    parts = trimmed.split(';');
+  } else if (trimmed.includes('\n')) {
+    parts = trimmed.split('\n');
+  } else if (trimmed.includes('|')) {
+    parts = trimmed.split('|');
+  } else if (trimmed.includes(',')) {
+    parts = trimmed.split(',');
+  } else {
+    const prefixRegex = /(?:^|\s+)(?:\([A-Da-d1-4]\)|[A-Da-d1-4][.):])\s+/g;
+    const matches = [...trimmed.matchAll(prefixRegex)];
+    if (matches.length >= 2) {
+      for (let mIdx = 0; mIdx < matches.length; mIdx++) {
+        const start = matches[mIdx].index + matches[mIdx][0].length;
+        const end = mIdx + 1 < matches.length ? matches[mIdx + 1].index : trimmed.length;
+        parts.push(trimmed.slice(start, end).trim());
+      }
+    } else {
+      parts = [trimmed];
+    }
+  }
+
+  const cleanedParts = parts.map(p => cleanOptionText(p)).filter(p => p !== '');
+  return cleanedParts.length > 0 ? cleanedParts : [trimmed];
+};
+
+export const inferTypeFromText = (text) => {
+  if (!text) return null;
+  const lower = String(text).trim().toLowerCase().replace(/[-_]/g, ' ');
+  if (
+    lower.includes('mcq') ||
+    lower.includes('multiple choice') ||
+    lower.includes('objective') ||
+    lower.includes('choose the correct') ||
+    lower.includes('choose the best') ||
+    lower.includes('choose correct') ||
+    lower.includes('single choice') ||
+    lower.includes('choice question') ||
+    lower.includes('quiz')
+  ) {
+    return 'mcq';
+  }
+  if (lower.includes('true or false') || lower.includes('true/false') || lower.includes('true false') || lower.includes('state true')) {
+    return 'true_false';
+  }
+  if (lower.includes('match the following') || lower.includes('match column') || lower.includes('matching') || lower.includes('match pairs')) {
+    return 'match_following';
+  }
+  if (lower.includes('table') || lower.includes('tabular')) {
+    return 'table';
+  }
+  return null;
+};
+
 export const normalizeQType = (rawType, defaultType = 'essay') => {
   if (!rawType) return defaultType;
   const lower = String(rawType).trim().toLowerCase().replace(/[-_]/g, ' ');
-  if (lower.includes('mcq') || lower.includes('multiple choice')) return 'mcq';
+  if (
+    lower.includes('mcq') ||
+    lower.includes('multiple choice') ||
+    lower.includes('objective') ||
+    lower.includes('single choice') ||
+    lower.includes('choice') ||
+    lower.includes('select') ||
+    lower.includes('quiz') ||
+    lower.includes('option')
+  ) {
+    return 'mcq';
+  }
   if (lower.includes('true') || lower.includes('false') || lower.includes('tf')) return 'true_false';
   if (lower.includes('match') || lower.includes('following') || lower.includes('pair')) return 'match_following';
   if (lower.includes('table')) return 'table';
-  return 'essay';
+  return defaultType;
 };
 
 export const importCsvData = (text) => {
@@ -261,6 +360,20 @@ export const importCsvData = (text) => {
     for (const name of names) {
       const target = name.toLowerCase();
       const idx = headerRow.findIndex(h => h.includes(target));
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+
+  const getSpecificColIdx = (exactNames, prefixNames = []) => {
+    for (const name of exactNames) {
+      const target = name.toLowerCase();
+      const idx = headerRow.findIndex(h => h === target);
+      if (idx !== -1) return idx;
+    }
+    for (const prefix of prefixNames) {
+      const target = prefix.toLowerCase();
+      const idx = headerRow.findIndex(h => h.startsWith(target) || h.includes(target));
       if (idx !== -1) return idx;
     }
     return -1;
@@ -291,7 +404,35 @@ export const importCsvData = (text) => {
   const qTypeIdx = getColIdx('Question Type', 'type') !== -1 ? getColIdx('Question Type', 'type') : (hasRecognizedHeaders ? -1 : 3);
   const qTextIdx = getColIdx('Question Text', 'text', 'question') !== -1 ? getColIdx('Question Text', 'text', 'question') : (hasRecognizedHeaders ? -1 : 4);
   const qMarksIdx = getColIdx('Question Marks', 'marks') !== -1 ? getColIdx('Question Marks', 'marks') : (hasRecognizedHeaders ? -1 : 5);
-  const optionsIdx = getColIdx('Options', 'choices') !== -1 ? getColIdx('Options', 'choices') : (hasRecognizedHeaders ? -1 : 6);
+  const isMultiOptionHeader = (h) => {
+    const trimmed = (h || '').trim().toLowerCase();
+    return /^(?:option|opt|choice)\s*[a-e1-5]$/i.test(trimmed) || /^[a-e]$/i.test(trimmed);
+  };
+
+  const optAIdx = getSpecificColIdx(['option a', 'option 1', 'opt a', 'choice a', 'optiona', 'opt1', 'choice 1', 'a'], ['option a', 'opt a', 'choice a']);
+  const optBIdx = getSpecificColIdx(['option b', 'option 2', 'opt b', 'choice b', 'optionb', 'opt2', 'choice 2', 'b'], ['option b', 'opt b', 'choice b']);
+  const optCIdx = getSpecificColIdx(['option c', 'option 3', 'opt c', 'choice c', 'optionc', 'opt3', 'choice 3', 'c'], ['option c', 'opt c', 'choice c']);
+  const optDIdx = getSpecificColIdx(['option d', 'option 4', 'opt d', 'choice d', 'optiond', 'opt4', 'choice 4', 'd'], ['option d', 'opt d', 'choice d']);
+  const optEIdx = getSpecificColIdx(['option e', 'option 5', 'opt e', 'choice e', 'optione', 'opt5', 'choice 5', 'e'], ['option e', 'opt e', 'choice e']);
+
+  const multiOptionCols = [];
+  if (optAIdx !== -1 && optBIdx !== -1 && optAIdx !== optBIdx) {
+    multiOptionCols.push(optAIdx, optBIdx);
+    if (optCIdx !== -1 && !multiOptionCols.includes(optCIdx)) multiOptionCols.push(optCIdx);
+    if (optDIdx !== -1 && !multiOptionCols.includes(optDIdx)) multiOptionCols.push(optDIdx);
+    if (optEIdx !== -1 && !multiOptionCols.includes(optEIdx)) multiOptionCols.push(optEIdx);
+  }
+
+  // Look for combined options column (Options, Choices)
+  let rawOptionsIdx = -1;
+  const exactOptIdx = headerRow.findIndex(h => h === 'options' || h === 'choices' || h === 'question options');
+  if (exactOptIdx !== -1) {
+    rawOptionsIdx = exactOptIdx;
+  } else {
+    rawOptionsIdx = headerRow.findIndex(h => (h.includes('options') || h.includes('choices')) && !isMultiOptionHeader(h));
+  }
+  const optionsIdx = rawOptionsIdx !== -1 ? rawOptionsIdx : (hasRecognizedHeaders ? -1 : 6);
+
   const blankLinesIdx = getColIdx('Blank Lines') !== -1 ? getColIdx('Blank Lines') : (hasRecognizedHeaders ? -1 : 7);
   const matchPairsIdx = getColIdx('Match Pairs', 'match', 'matching', 'pairs') !== -1 ? getColIdx('Match Pairs', 'match', 'matching', 'pairs') : (hasRecognizedHeaders ? -1 : 8);
   const imageDataIdx = getColIdx('Image Data', 'image') !== -1 ? getColIdx('Image Data', 'image') : (hasRecognizedHeaders ? -1 : 9);
@@ -370,7 +511,28 @@ export const importCsvData = (text) => {
     const rawQType = qTypeIdx !== -1 ? (row[qTypeIdx] || '') : '';
     const qText = qTextIdx !== -1 ? (row[qTextIdx] || '') : '';
     const qMarks = qMarksIdx !== -1 ? Math.max(0, Math.round((Number(row[qMarksIdx]) || 0) * 100) / 100) : 1;
-    const optionsStr = optionsIdx !== -1 ? (row[optionsIdx] || '') : '';
+    let extractedOptions = [];
+    if (multiOptionCols.length >= 2) {
+      const fromCols = multiOptionCols
+        .map(cIdx => row[cIdx])
+        .filter(val => val !== undefined && val !== null && String(val).trim() !== '')
+        .map(val => cleanOptionText(val));
+      if (fromCols.length >= 2) {
+        extractedOptions = fromCols;
+      }
+    }
+
+    const optionsStr = (optionsIdx !== -1 && !multiOptionCols.includes(optionsIdx)) ? (row[optionsIdx] || '') : '';
+    if (extractedOptions.length === 0 && optionsIdx === headerRow.length - 1 && row.length > headerRow.length) {
+      const tailCells = row.slice(optionsIdx).map(c => cleanOptionText(c)).filter(Boolean);
+      if (tailCells.length >= 2) {
+        extractedOptions = tailCells;
+      }
+    }
+    if (extractedOptions.length === 0 && optionsStr && optionsStr.trim() !== '') {
+      extractedOptions = parseOptionsString(optionsStr);
+    }
+
     const blankLinesVal = blankLinesIdx !== -1 ? (row[blankLinesIdx] || '') : '';
     const matchPairsStr = matchPairsIdx !== -1 ? (row[matchPairsIdx] || '') : '';
     const imageData = imageDataIdx !== -1 ? (row[imageDataIdx] || '') : '';
@@ -381,9 +543,13 @@ export const importCsvData = (text) => {
     const tableDataStr = tableDataIdx !== -1 ? row[tableDataIdx] : '';
     const pageBreakBeforeVal = pageBreakBeforeIdx !== -1 ? row[pageBreakBeforeIdx] : '';
 
-    const hasQuestionData = !!(qText || matchPairsStr || optionsStr || tableDataStr || subQsStr);
+    const hasOptions = extractedOptions.length > 0;
+    const hasQuestionData = !!(qText || matchPairsStr || optionsStr || hasOptions || tableDataStr || subQsStr);
 
     if (!secTitle && !hasQuestionData) continue;
+
+    const inferredSecType = inferTypeFromText(secTitle) || inferTypeFromText(secInstructions);
+    const initialSecType = normalizeQType(rawQType, '') || (hasOptions ? 'mcq' : (inferredSecType || 'essay'));
 
     if (secTitle && (!currentSection || currentSection.title !== secTitle)) {
       currentSection = {
@@ -391,7 +557,7 @@ export const importCsvData = (text) => {
         title: secTitle,
         marks: secMarks,
         instructions: secInstructions,
-        type: normalizeQType(rawQType, 'essay'),
+        type: initialSecType,
         pageBreakBefore: secPageBreakVal === 'true',
         questions: []
       };
@@ -404,13 +570,32 @@ export const importCsvData = (text) => {
         title: 'Imported Section',
         marks: 0,
         instructions: '',
-        type: normalizeQType(rawQType, 'essay'),
+        type: initialSecType,
         questions: []
       };
       importedSections.push(currentSection);
     }
 
-    const effectiveQType = normalizeQType(rawQType || currentSection.type, 'essay');
+    let effectiveQType = normalizeQType(rawQType, '');
+    if (!effectiveQType) {
+      if (hasOptions) {
+        effectiveQType = 'mcq';
+      } else if (matchPairsStr) {
+        effectiveQType = 'match_following';
+      } else if (tableDataStr) {
+        effectiveQType = 'table';
+      } else if (currentSection && currentSection.type) {
+        effectiveQType = currentSection.type;
+      } else {
+        effectiveQType = inferredSecType || 'essay';
+      }
+    } else if (hasOptions && effectiveQType !== 'mcq') {
+      effectiveQType = 'mcq';
+    }
+
+    if (effectiveQType === 'mcq' && currentSection.type === 'essay') {
+      currentSection.type = 'mcq';
+    }
 
     if (hasQuestionData || effectiveQType === 'match_following') {
       const q = {
@@ -484,18 +669,8 @@ export const importCsvData = (text) => {
       }
 
       if (effectiveQType === 'mcq') {
-        if (optionsStr) {
-          const trimmedOpt = optionsStr.trim();
-          if (trimmedOpt.startsWith('[') || trimmedOpt.startsWith('{')) {
-            try {
-              const parsedOpts = JSON.parse(trimmedOpt);
-              q.options = Array.isArray(parsedOpts) ? parsedOpts : ['', '', '', ''];
-            } catch {
-              q.options = optionsStr.split(';');
-            }
-          } else {
-            q.options = optionsStr.split(';');
-          }
+        if (extractedOptions.length > 0) {
+          q.options = extractedOptions;
         } else {
           q.options = ['', '', '', ''];
         }

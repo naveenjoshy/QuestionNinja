@@ -426,15 +426,24 @@ export const generateDocxBlob = async (branding, metadata, sections) => {
         );
       }
 
-      const linesCount = (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0))
+      const isMCQ = Boolean(
+        sec.type === 'mcq' ||
+        q.type === 'mcq' ||
+        (Array.isArray(q.options) && q.options.some(opt => {
+          const txt = getOptionText(opt);
+          return (txt && txt.trim() !== '') || Boolean(getOptionImage(opt));
+        }))
+      );
+      const hasMCQ = Boolean(isMCQ && Array.isArray(q.options) && q.options.length > 0);
+      const hasEssaySubs = Boolean(sec.type === 'essay' && !hasMCQ && q.type !== 'mcq' && q.subQuestions && q.subQuestions.length > 0);
+
+      const linesCount = (!metadata.separateAnswerSheet && (!q.subQuestions || q.subQuestions.length === 0) && !hasMCQ && q.type !== 'mcq')
         ? ((q.blankLines !== undefined && q.blankLines !== '' && q.blankLines !== null)
           ? Math.max(0, parseInt(q.blankLines, 10) || 0)
           : (sec.type === 'essay' ? 4 : 0))
         : 0;
 
       const hasImage = Boolean(q.image && sec.type !== 'match_following');
-      const hasMCQ = Boolean(sec.type === 'mcq' && q.options && q.options.length > 0);
-      const hasEssaySubs = Boolean(sec.type === 'essay' && q.subQuestions && q.subQuestions.length > 0);
       const hasTF = Boolean(sec.type === 'true_false' && !metadata.separateAnswerSheet);
       const hasMatch = Boolean((sec.type === 'match_following' || (q.matchPairs && q.matchPairs.length > 0)) && q.matchPairs && q.matchPairs.length > 0);
       const hasTable = Boolean(sec.type === 'table' && q.tableData);

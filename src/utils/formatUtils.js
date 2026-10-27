@@ -72,8 +72,11 @@ export const hasZeroMarkQuestions = (sections) => {
 };
 
 export const getOptionText = (opt) => {
-  if (typeof opt === 'object' && opt !== null) return opt.text || '';
-  return opt || '';
+  if (opt === undefined || opt === null) return '';
+  if (typeof opt === 'object') {
+    return opt.text !== undefined && opt.text !== null ? String(opt.text) : '';
+  }
+  return String(opt);
 };
 
 export const getOptionImage = (opt) => {
@@ -96,6 +99,6 @@ export const canFitSingleLine = (options) => {
   if (options.some(opt => getOptionImage(opt))) return false;
   if (options.some(opt => getOptionText(opt).includes('\n'))) return false;
   const totalChars = options.reduce((acc, opt) => acc + getOptionText(opt).length, 0);
-  const maxOptLen = Math.max(...options.map(opt => getOptionText(opt).length));
+  const maxOptLen = Math.max(0, ...options.map(opt => getOptionText(opt).length));
   return options.length <= 4 && totalChars <= 36 && maxOptLen <= 12;
 };
