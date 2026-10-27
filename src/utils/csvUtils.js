@@ -1,5 +1,34 @@
 import { normalizeLogo } from './formatUtils.js';
 
+export const sanitizeImageURI = (val) => {
+  if (!val || typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+  // Strictly allow base64 image data URIs or blob URLs
+  if (trimmed.startsWith('data:image/') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+  const lower = trimmed.toLowerCase();
+  // Block any executable or untrusted script/data schemes
+  if (
+    lower.startsWith('javascript:') ||
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('data:') ||
+    lower.startsWith('file:')
+  ) {
+    return '';
+  }
+  // Allow safe relative/local image asset paths
+  if (/^[a-zA-Z0-9_\-./]+\.(png|jpe?g|webp|svg|gif|ico)$/i.test(trimmed)) {
+    return trimmed;
+  }
+  // Allow standard web URLs
+  if (/^https?:\/\/[^\s$.?#].[^\s]*$/i.test(trimmed)) {
+    return trimmed;
+  }
+  return '';
+};
+
 export const generateExportFilename = (ext, metadata = {}) => {
   const className = (metadata?.classDiv || 'Class').trim();
   const subjectName = (metadata?.subject || 'Subject').trim();
@@ -335,7 +364,7 @@ export const parseOptionsString = (optionsStr) => {
           if (typeof opt === 'object' && opt !== null) {
             return {
               text: cleanOptionText(opt.text ?? opt.value ?? ''),
-              image: opt.image || '',
+              image: sanitizeImageURI(opt.image),
               imageWidth: opt.imageWidth || 150,
               imageHeight: opt.imageHeight || 100
             };
@@ -789,7 +818,7 @@ export const importCsvData = (text) => {
               text: sq?.text || '',
               marks: Number(sq?.marks) || 1,
               blankLines: sq?.blankLines !== undefined && sq?.blankLines !== '' ? Math.max(0, Number(sq.blankLines)) : 2,
-              image: sq?.image || '',
+              image: sanitizeImageURI(sq?.image),
               imageWidth: Number(sq?.imageWidth) || 300,
               imageHeight: Number(sq?.imageHeight) || 200
             }));
@@ -919,9 +948,9 @@ export const importCsvData = (text) => {
                   }
                   return {
                     premise: p.premise !== undefined ? p.premise : (p.premiseText !== undefined ? p.premiseText : (p.left || '')),
-                    premiseImage: p.premiseImage || p.leftImage || '',
+                    premiseImage: sanitizeImageURI(p.premiseImage || p.leftImage),
                     response: p.response !== undefined ? p.response : (p.responseText !== undefined ? p.responseText : (p.right || '')),
-                    responseImage: p.responseImage || p.rightImage || ''
+                    responseImage: sanitizeImageURI(p.responseImage || p.rightImage)
                   };
                 });
                 matchParsed = true;
@@ -943,8 +972,9 @@ export const importCsvData = (text) => {
         }
       }
 
-      if (imageData) {
-        q.image = imageData;
+      const safeImageData = sanitizeImageURI(imageData);
+      if (safeImageData) {
+        q.image = safeImageData;
         q.imageWidth = Number(imageWidthVal) || 300;
         q.imageHeight = Number(imageHeightVal) || 200;
       }

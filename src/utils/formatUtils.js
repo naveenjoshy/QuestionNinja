@@ -9,6 +9,14 @@ export const normalizeLogo = (val) => {
     }
     const lower = trimmed.toLowerCase();
     if (
+      lower.startsWith('javascript:') ||
+      lower.startsWith('vbscript:') ||
+      lower.startsWith('data:text') ||
+      lower.startsWith('data:application')
+    ) {
+      return null;
+    }
+    if (
       lower === 'default' ||
       lower === 'schoollogo' ||
       lower.includes('school_logo') ||

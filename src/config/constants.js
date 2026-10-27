@@ -3,67 +3,83 @@ import schoolLogo from '../assets/school_logo.png';
 export const FORMULA_BUTTONS = [
   {
     label: 'Basic', buttons: [
-      { symbol: 'x²', insert: '²', hint: 'Superscript 2' },
-      { symbol: 'x³', insert: '³', hint: 'Superscript 3' },
-      { symbol: 'xⁿ', insert: '^', hint: 'Power' },
-      { symbol: 'x₁', insert: '₁', hint: 'Subscript 1' },
-      { symbol: 'x₂', insert: '₂', hint: 'Subscript 2' },
-      { symbol: 'xₙ', insert: '_', hint: 'Subscript' },
-      { symbol: '½', insert: '½', hint: 'Half' },
-      { symbol: '¼', insert: '¼', hint: 'Quarter' },
-      { symbol: '¾', insert: '¾', hint: 'Three quarters' },
-      { symbol: '√', insert: '√', hint: 'Square root' },
-      { symbol: '∛', insert: '∛', hint: 'Cube root' },
+      { symbol: 'x²', latex: '^{2}', hint: 'Superscript 2' },
+      { symbol: 'x³', latex: '^{3}', hint: 'Superscript 3' },
+      { symbol: 'xⁿ', latex: '^{n}', hint: 'nth power' },
+      { symbol: 'x₁', latex: '_{1}', hint: 'Subscript 1' },
+      { symbol: 'x₂', latex: '_{2}', hint: 'Subscript 2' },
+      { symbol: 'xₙ', latex: '_{n}', hint: 'Subscript' },
+      { symbol: '⁄', latex: '\\frac{a}{b}', hint: 'Fraction', replace: true },
+      { symbol: '√', latex: '\\sqrt{x}', hint: 'Square root', replace: true },
+      { symbol: '∛', latex: '\\sqrt[3]{x}', hint: 'Cube root', replace: true },
     ]
   },
   {
     label: 'Greek', buttons: [
-      { symbol: 'α', insert: 'α', hint: 'Alpha' },
-      { symbol: 'β', insert: 'β', hint: 'Beta' },
-      { symbol: 'γ', insert: 'γ', hint: 'Gamma' },
-      { symbol: 'δ', insert: 'δ', hint: 'Delta' },
-      { symbol: 'θ', insert: 'θ', hint: 'Theta' },
-      { symbol: 'λ', insert: 'λ', hint: 'Lambda' },
-      { symbol: 'μ', insert: 'μ', hint: 'Mu' },
-      { symbol: 'π', insert: 'π', hint: 'Pi' },
-      { symbol: 'σ', insert: 'σ', hint: 'Sigma' },
-      { symbol: 'φ', insert: 'φ', hint: 'Phi' },
-      { symbol: 'ω', insert: 'ω', hint: 'Omega' },
-      { symbol: 'Δ', insert: 'Δ', hint: 'Delta (uppercase)' },
-      { symbol: 'Σ', insert: 'Σ', hint: 'Sigma (uppercase)' },
-      { symbol: 'Ω', insert: 'Ω', hint: 'Omega (uppercase)' },
+      { symbol: 'α', latex: '\\alpha', hint: 'Alpha' },
+      { symbol: 'β', latex: '\\beta', hint: 'Beta' },
+      { symbol: 'γ', latex: '\\gamma', hint: 'Gamma' },
+      { symbol: 'δ', latex: '\\delta', hint: 'Delta' },
+      { symbol: 'θ', latex: '\\theta', hint: 'Theta' },
+      { symbol: 'λ', latex: '\\lambda', hint: 'Lambda' },
+      { symbol: 'μ', latex: '\\mu', hint: 'Mu' },
+      { symbol: 'π', latex: '\\pi', hint: 'Pi' },
+      { symbol: 'σ', latex: '\\sigma', hint: 'Sigma (lowercase)' },
+      { symbol: 'φ', latex: '\\phi', hint: 'Phi' },
+      { symbol: 'ω', latex: '\\omega', hint: 'Omega' },
+      { symbol: 'Δ', latex: '\\Delta', hint: 'Delta (uppercase)' },
+      { symbol: 'Σ', latex: '\\Sigma', hint: 'Sigma (uppercase)' },
+      { symbol: 'Π', latex: '\\Pi', hint: 'Pi (uppercase)' },
+      { symbol: 'Ω', latex: '\\Omega', hint: 'Omega (uppercase)' },
     ]
   },
   {
     label: 'Operators', buttons: [
-      { symbol: '±', insert: '±', hint: 'Plus-minus' },
-      { symbol: '×', insert: '×', hint: 'Multiply' },
-      { symbol: '÷', insert: '÷', hint: 'Divide' },
-      { symbol: '·', insert: '·', hint: 'Dot product' },
-      { symbol: '≠', insert: '≠', hint: 'Not equal' },
-      { symbol: '≤', insert: '≤', hint: 'Less than or equal' },
-      { symbol: '≥', insert: '≥', hint: 'Greater than or equal' },
-      { symbol: '≈', insert: '≈', hint: 'Approximately' },
-      { symbol: '∞', insert: '∞', hint: 'Infinity' },
-      { symbol: '∝', insert: '∝', hint: 'Proportional' },
-      { symbol: '°', insert: '°', hint: 'Degree' },
+      { symbol: '±', latex: '\\pm', hint: 'Plus-minus' },
+      { symbol: '×', latex: '\\times', hint: 'Multiply' },
+      { symbol: '÷', latex: '\\div', hint: 'Divide' },
+      { symbol: '·', latex: '\\cdot', hint: 'Dot product' },
+      { symbol: '≠', latex: '\\neq', hint: 'Not equal' },
+      { symbol: '≤', latex: '\\leq', hint: 'Less than or equal' },
+      { symbol: '≥', latex: '\\geq', hint: 'Greater than or equal' },
+      { symbol: '≈', latex: '\\approx', hint: 'Approximately' },
+      { symbol: '∞', latex: '\\infty', hint: 'Infinity' },
+      { symbol: '∝', latex: '\\propto', hint: 'Proportional' },
+      { symbol: '°', latex: '^\\circ', hint: 'Degree' },
     ]
   },
   {
     label: 'Calculus', buttons: [
-      { symbol: '∫', insert: '∫', hint: 'Integral' },
-      { symbol: '∂', insert: '∂', hint: 'Partial derivative' },
-      { symbol: '∑', insert: '∑', hint: 'Summation' },
-      { symbol: '∏', insert: '∏', hint: 'Product' },
+      { symbol: '∫', latex: '\\int_{a}^{b}', hint: 'Integral', replace: true },
+      { symbol: '∂', latex: '\\partial', hint: 'Partial derivative' },
+      { symbol: 'lim', latex: '\\lim_{x \\to \\infty}', hint: 'Limit', replace: true },
+      { symbol: '∑', latex: '\\sum_{i=1}^{n}', hint: 'Summation', replace: true },
+      { symbol: '∏', latex: '\\prod_{i=1}^{n}', hint: 'Product', replace: true },
+      { symbol: 'log', latex: '\\log', hint: 'Logarithm' },
+      { symbol: 'ln', latex: '\\ln', hint: 'Natural log' },
     ]
   },
   {
-    label: 'Trig & Log', buttons: [
-      { symbol: 'sin', insert: 'sin ', hint: 'Sine' },
-      { symbol: 'cos', insert: 'cos ', hint: 'Cosine' },
-      { symbol: 'tan', insert: 'tan ', hint: 'Tangent' },
-      { symbol: 'log', insert: 'log ', hint: 'Logarithm' },
-      { symbol: 'ln', insert: 'ln ', hint: 'Natural log' },
+    label: 'Trig', buttons: [
+      { symbol: 'sin', latex: '\\sin', hint: 'Sine' },
+      { symbol: 'cos', latex: '\\cos', hint: 'Cosine' },
+      { symbol: 'tan', latex: '\\tan', hint: 'Tangent' },
+    ]
+  },
+  {
+    label: 'Arrows', buttons: [
+      { symbol: '→', latex: '\\rightarrow', hint: 'Right arrow' },
+      { symbol: '←', latex: '\\leftarrow', hint: 'Left arrow' },
+      { symbol: '↔', latex: '\\leftrightarrow', hint: 'Double arrow' },
+    ]
+  },
+  {
+    label: 'Templates', buttons: [
+      { symbol: 'a/b', latex: '\\frac{a}{b}', hint: 'Fraction', replace: true },
+      { symbol: '√x', latex: '\\sqrt{x}', hint: 'Square root', replace: true },
+      { symbol: 'x²+y²', latex: 'x^{2} + y^{2}', hint: 'Sum of squares', replace: true },
+      { symbol: 'Quadratic', latex: 'x = \\frac{-b \\pm \\sqrt{b^{2}-4ac}}{2a}', hint: 'Quadratic formula', replace: true },
+      { symbol: 'E=mc²', latex: 'E = mc^{2}', hint: "Einstein's equation", replace: true },
     ]
   }
 ];

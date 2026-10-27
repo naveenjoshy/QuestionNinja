@@ -1,6 +1,16 @@
 import katex from 'katex';
 import DOMPurify from 'dompurify';
 
+// Helper: Fail-safe HTML entity escaping
+export const escapeHTML = (str) =>
+  String(str).replace(/[&<>'"]/g, (tag) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#39;',
+    '"': '&quot;'
+  }[tag] || tag));
+
 // Helper: render square root with proper radical symbol and top overbar line
 export const renderSquareRootHTML = (inner) => {
   if (!inner) return '<span class="math-sqrt-symbol">√</span>';
@@ -9,6 +19,25 @@ export const renderSquareRootHTML = (inner) => {
     return '<span class="math-sqrt-symbol">√</span>';
   }
   return '<span class="math-sqrt-symbol">√</span>' + trimmed;
+};
+
+// Helper: render LaTeX formula to sanitized HTML string for live preview
+export const renderLatex = (latex) => {
+  if (!latex || !String(latex).trim()) return '';
+  try {
+    const rawHtml = katex.renderToString(String(latex).trim(), {
+      throwOnError: false,
+      displayMode: true,
+      output: 'html'
+    });
+    const sanitizeFn = typeof DOMPurify?.sanitize === 'function' ? DOMPurify.sanitize : null;
+    return sanitizeFn ? sanitizeFn(rawHtml, {
+      ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub'],
+      ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
+    }) : escapeHTML(rawHtml);
+  } catch {
+    return '<span style="color:red;">Invalid formula</span>';
+  }
 };
 
 // High-performance LRU cache for sanitized math HTML
@@ -27,6 +56,7 @@ export const renderTextWithMath = (text) => {
 
   // 1. Process explicit $...$ math blocks FIRST to isolate and protect KaTeX rendered math
   const mathBlocks = [];
+  const mathToken = `___QN_MATH_${Date.now()}_${Math.random().toString(36).slice(2)}___`;
   result = result.replace(/\$([^$\n]+?)\$/g, (match, mathContent) => {
     try {
       const katexHTML = katex.renderToString(mathContent, {
@@ -34,11 +64,11 @@ export const renderTextWithMath = (text) => {
         displayMode: false,
         output: 'html'
       });
-      const placeholder = `___MATH_BLOCK_${mathBlocks.length}___`;
+      const placeholder = `${mathToken}${mathBlocks.length}___`;
       mathBlocks.push(katexHTML);
       return placeholder;
     } catch {
-      return `<span style="color:red;">${match}</span>`;
+      return `<span style="color:red;">${escapeHTML(match)}</span>`;
     }
   });
 
@@ -54,9 +84,9 @@ export const renderTextWithMath = (text) => {
   // 4. Convert Unicode cube root ∛ to styled span
   result = result.replace(/∛/g, '<span class="math-sqrt-symbol">∛</span>');
 
-  // 5. Restore rendered $...$ math blocks
+  // 5. Restore rendered $...$ math blocks safely using functional replacement to prevent $ substitution
   mathBlocks.forEach((html, i) => {
-    result = result.replace(`___MATH_BLOCK_${i}___`, html);
+    result = result.replace(`${mathToken}${i}___`, () => html);
   });
 
   // Convert newlines to block lines for precise page-break slicing in PDF
@@ -67,7 +97,7 @@ export const renderTextWithMath = (text) => {
   const sanitized = sanitizeFn ? sanitizeFn(result, {
     ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub', 'br'],
     ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
-  }) : result;
+  }) : escapeHTML(result);
 
   if (mathRenderCache.size >= MAX_MATH_CACHE_SIZE) {
     const firstKey = mathRenderCache.keys().next().value;
