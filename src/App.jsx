@@ -53,7 +53,11 @@ import {
   getExamTotalQuestionsCount,
   hasBlankQuestions,
   hasZeroMarkQuestions,
-  getOptionText
+  getOptionText,
+  getOptionImage,
+  getOptionImageWidth,
+  getOptionImageHeight,
+  canFitSingleLine
 } from './utils/formatUtils';
 import { exportToCSV, generateExportFilename, importCsvData } from './utils/csvUtils';
 
@@ -854,8 +858,10 @@ export default function App() {
       alert('Please select at least one category to import.');
       return;
     }
-    if (importQuestions && iSections.length > 0) {
+    if (importQuestions && iSections && iSections.length > 0) {
       setSections(iSections);
+      setActiveTab('sections');
+      setCollapsedSections({});
     }
     if (importSchool && iBranding && Object.keys(iBranding).length > 0) {
       setBranding(prev => ({
@@ -2792,9 +2798,11 @@ export default function App() {
                                                   const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
                                                   return r[idx] || (idx + 1).toString();
                                                 };
+                                                const premiseText = typeof pair === 'string' ? pair : ((pair && pair.premise) || '');
+                                                const premiseImg = typeof pair === 'object' && pair !== null ? (pair.premiseImage || '') : '';
                                                 const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
-                                                const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
-                                                const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
+                                                const respText = typeof itemB === 'string' ? itemB : ((itemB && itemB.response) || '');
+                                                const respImg = typeof itemB === 'object' && itemB !== null ? (itemB.responseImage || '') : '';
 
                                                 return (
                                                   <tr key={pIdx}>
@@ -2802,10 +2810,10 @@ export default function App() {
                                                       <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                                                         <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
                                                         <div>
-                                                          {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
-                                                          {pair.premiseImage && (
+                                                          {premiseText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(premiseText) }} />}
+                                                          {premiseImg && (
                                                             <img
-                                                              src={pair.premiseImage}
+                                                              src={premiseImg}
                                                               alt={`Col A ${pIdx + 1}`}
                                                               style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
                                                             />
@@ -3266,9 +3274,11 @@ export default function App() {
                                                   const r = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'];
                                                   return r[idx] || (idx + 1).toString();
                                                 };
+                                                const premiseText = typeof pair === 'string' ? pair : ((pair && pair.premise) || '');
+                                                const premiseImg = typeof pair === 'object' && pair !== null ? (pair.premiseImage || '') : '';
                                                 const itemB = shuffledList[pIdx] || (typeof pair === 'string' ? { response: pair } : pair);
-                                                const respText = typeof itemB === 'string' ? itemB : (itemB.response || '');
-                                                const respImg = typeof itemB === 'object' ? itemB.responseImage : '';
+                                                const respText = typeof itemB === 'string' ? itemB : ((itemB && itemB.response) || '');
+                                                const respImg = typeof itemB === 'object' && itemB !== null ? (itemB.responseImage || '') : '';
 
                                                 return (
                                                   <tr key={pIdx}>
@@ -3276,10 +3286,10 @@ export default function App() {
                                                       <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                                                         <span style={{ fontWeight: '600', flexShrink: 0 }}>{pIdx + 1}.</span>
                                                         <div>
-                                                          {pair.premise && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(pair.premise) }} />}
-                                                          {pair.premiseImage && (
+                                                          {premiseText && <span dangerouslySetInnerHTML={{ __html: renderTextWithMath(premiseText) }} />}
+                                                          {premiseImg && (
                                                             <img
-                                                              src={pair.premiseImage}
+                                                              src={premiseImg}
                                                               alt={`Col A ${pIdx + 1}`}
                                                               style={{ maxHeight: '90px', maxWidth: '140px', objectFit: 'contain', display: 'block', marginTop: '4px', borderRadius: '4px' }}
                                                             />

@@ -17,11 +17,13 @@ const MAX_MATH_CACHE_SIZE = 1000;
 
 // Helper: render text that contains $...$ math blocks or raw math symbols (e.g. √, \sqrt, minus) (sanitized)
 export const renderTextWithMath = (text) => {
-  if (!text) return '';
-  const cached = mathRenderCache.get(text);
+  if (text === null || text === undefined) return '';
+  const str = String(text);
+  if (!str) return '';
+  const cached = mathRenderCache.get(str);
   if (cached !== undefined) return cached;
 
-  let result = text;
+  let result = str;
 
   // 1. Process explicit $...$ math blocks FIRST to isolate and protect KaTeX rendered math
   const mathBlocks = [];
@@ -61,10 +63,11 @@ export const renderTextWithMath = (text) => {
   const lines = result.split('\n');
   result = lines.map(line => `<span class="paper-text-line" style="display: block; min-height: 1.2rem;">${line || '&nbsp;'}</span>`).join('');
 
-  const sanitized = DOMPurify.sanitize(result, {
+  const sanitizeFn = typeof DOMPurify?.sanitize === 'function' ? DOMPurify.sanitize : null;
+  const sanitized = sanitizeFn ? sanitizeFn(result, {
     ADD_TAGS: ['annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'msqrt', 'span', 'sup', 'sub', 'br'],
     ADD_ATTR: ['aria-hidden', 'aria-expanded', 'style', 'class']
-  });
+  }) : result;
 
   if (mathRenderCache.size >= MAX_MATH_CACHE_SIZE) {
     const firstKey = mathRenderCache.keys().next().value;

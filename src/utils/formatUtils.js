@@ -35,34 +35,39 @@ export const getQuestionMarks = (q) => {
 };
 
 export const getSectionTotalMarks = (section) => {
+  if (!section || !Array.isArray(section.questions)) return 0;
   const rawTotal = section.questions.reduce((total, q) => total + getQuestionMarks(q), 0);
   return Math.round(rawTotal * 100) / 100;
 };
 
 export const getExamCurrentTotalMarks = (sections) => {
+  if (!Array.isArray(sections)) return 0;
   const rawTotal = sections.reduce((total, s) => total + getSectionTotalMarks(s), 0);
   return Math.round(rawTotal * 100) / 100;
 };
 
 export const getExamTotalQuestionsCount = (sections) => {
-  return sections.reduce((total, sec) => total + (sec.questions ? sec.questions.length : 0), 0);
+  if (!Array.isArray(sections)) return 0;
+  return sections.reduce((total, sec) => total + (sec && Array.isArray(sec.questions) ? sec.questions.length : 0), 0);
 };
 
 export const hasBlankQuestions = (sections) => {
-  return sections.some(s => s.questions.some(q => {
-    if (q.subQuestions && q.subQuestions.length > 0) {
-      return q.subQuestions.some(sq => !sq.text || !sq.text.trim());
+  if (!Array.isArray(sections)) return false;
+  return sections.some(s => s && Array.isArray(s.questions) && s.questions.some(q => {
+    if (q && q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+      return q.subQuestions.some(sq => !sq || !sq.text || !sq.text.trim());
     }
-    return !q.text || !q.text.trim();
+    return !q || !q.text || !q.text.trim();
   }));
 };
 
 export const hasZeroMarkQuestions = (sections) => {
-  return sections.some(s => s.questions.some(q => {
-    if (q.subQuestions && q.subQuestions.length > 0) {
-      return q.subQuestions.some(sq => Number(sq.marks) === 0);
+  if (!Array.isArray(sections)) return false;
+  return sections.some(s => s && Array.isArray(s.questions) && s.questions.some(q => {
+    if (q && q.subQuestions && Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
+      return q.subQuestions.some(sq => Number(sq?.marks) === 0);
     }
-    return Number(q.marks) === 0;
+    return Number(q?.marks) === 0;
   }));
 };
 
@@ -87,7 +92,7 @@ export const getOptionImageHeight = (opt) => {
 };
 
 export const canFitSingleLine = (options) => {
-  if (!options || options.length === 0) return false;
+  if (!options || !Array.isArray(options) || options.length === 0) return false;
   if (options.some(opt => getOptionImage(opt))) return false;
   if (options.some(opt => getOptionText(opt).includes('\n'))) return false;
   const totalChars = options.reduce((acc, opt) => acc + getOptionText(opt).length, 0);
