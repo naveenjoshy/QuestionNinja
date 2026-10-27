@@ -24,7 +24,7 @@ export const generateExportFilename = (ext, metadata = {}) => {
   return ext ? `${baseName}.${ext.replace(/^\./, '')}` : baseName;
 };
 
-export const exportToCSV = (branding, metadata, sections, getOptionText) => {
+export const exportToCSV = (branding = {}, metadata = {}, sections = [], getOptionText) => {
   const headers = [
     'School Logo',
     'School Logo Width',
@@ -61,94 +61,113 @@ export const exportToCSV = (branding, metadata, sections, getOptionText) => {
     'Page Break Before'
   ];
 
+  const safeBranding = branding || {};
+  const safeMetadata = metadata || {};
+  const safeSections = Array.isArray(sections) ? sections : [];
+
+  const safeGetOptionText = typeof getOptionText === 'function'
+    ? getOptionText
+    : (opt) => (typeof opt === 'object' && opt !== null ? (opt.text ?? '') : String(opt ?? ''));
+
   const getBrandingMetaCols = () => [
-    branding.logo === 'school_logo.png' ? 'school_logo.png' : (branding.logo || ''),
-    branding.logoWidth !== undefined && branding.logoWidth !== null ? branding.logoWidth : '',
-    branding.logoHeight !== undefined && branding.logoHeight !== null ? branding.logoHeight : '',
-    branding.hideSchoolLogo ? 'true' : 'false',
-    branding.headerLogoOnly ? 'true' : 'false',
-    branding.schoolName || '',
-    branding.schoolAddress || '',
-    branding.fontFamily || '',
-    metadata.title || '',
-    metadata.subject || '',
-    metadata.classDiv || '',
-    metadata.maxMarks !== undefined && metadata.maxMarks !== null ? metadata.maxMarks : '',
-    metadata.duration || '',
-    metadata.separateAnswerSheet ? 'true' : 'false',
-    metadata.language || '',
-    metadata.instructions || ''
+    safeBranding.logo === 'school_logo.png' ? 'school_logo.png' : (safeBranding.logo || ''),
+    safeBranding.logoWidth !== undefined && safeBranding.logoWidth !== null ? safeBranding.logoWidth : '',
+    safeBranding.logoHeight !== undefined && safeBranding.logoHeight !== null ? safeBranding.logoHeight : '',
+    safeBranding.hideSchoolLogo ? 'true' : 'false',
+    safeBranding.headerLogoOnly ? 'true' : 'false',
+    safeBranding.schoolName || '',
+    safeBranding.schoolAddress || '',
+    safeBranding.fontFamily || '',
+    safeMetadata.title || '',
+    safeMetadata.subject || '',
+    safeMetadata.classDiv || '',
+    safeMetadata.maxMarks !== undefined && safeMetadata.maxMarks !== null ? safeMetadata.maxMarks : '',
+    safeMetadata.duration || '',
+    safeMetadata.separateAnswerSheet ? 'true' : 'false',
+    safeMetadata.language || '',
+    safeMetadata.instructions || ''
   ];
 
   const rows = [];
-  if (sections.length === 0) {
+  if (safeSections.length === 0) {
     rows.push([
       ...getBrandingMetaCols(),
-      '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
+      ...Array(17).fill('')
     ]);
   } else {
-    sections.forEach((sec) => {
-      if (sec.questions.length === 0) {
+    safeSections.forEach((sec, sIdx) => {
+      if (!sec) return;
+      const secTitle = (sec.title || '').trim() ? (sec.title || '').trim().toUpperCase() : `SECTION ${sIdx + 1}`;
+      const secMarksVal = sec.marks !== undefined && sec.marks !== null ? sec.marks : '';
+      const secInstructions = sec.instructions || '';
+      const secPageBreak = sec.pageBreakBefore ? 'true' : 'false';
+
+      const questions = Array.isArray(sec.questions) ? sec.questions.filter(Boolean) : [];
+
+      if (questions.length === 0) {
         rows.push([
           ...getBrandingMetaCols(),
-          sec.title || '',
-          sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
-          sec.instructions || '',
-          sec.pageBreakBefore ? 'true' : 'false',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          ''
+          secTitle,
+          secMarksVal,
+          secInstructions,
+          secPageBreak,
+          ...Array(13).fill('')
         ]);
       } else {
-        sec.questions.forEach((q) => {
+        questions.forEach((q) => {
+          if (!q) return;
+
           let optionsStr = '';
-          if ((sec.type === 'mcq' || q.type === 'mcq' || (Array.isArray(q.options) && q.options.length > 0)) && q.options) {
-            const hasImagesOrObjects = q.options.some(opt => typeof opt === 'object' && opt !== null);
+          const isMcq = sec.type === 'mcq' || q.type === 'mcq' || (Array.isArray(q.options) && q.options.length > 0);
+          if (isMcq && Array.isArray(q.options) && q.options.length > 0) {
+            const hasImagesOrObjects = q.options.some(opt => typeof opt === 'object' && opt !== null && (opt.image || opt.imageWidth || opt.imageHeight));
             if (hasImagesOrObjects) {
               optionsStr = JSON.stringify(q.options);
             } else {
-              optionsStr = q.options.map(opt => getOptionText(opt)).join(';');
+              optionsStr = q.options.map(opt => safeGetOptionText(opt)).join(';');
             }
           }
 
           let matchPairsStr = '';
-          if (sec.type === 'match_following' && q.matchPairs) {
-            const hasImagesOrObjects = q.matchPairs.some(p => typeof p === 'object' && p !== null);
-            if (hasImagesOrObjects) {
+          const isMatch = sec.type === 'match_following' || q.type === 'match_following' || (Array.isArray(q.matchPairs) && q.matchPairs.length > 0);
+          if (isMatch && Array.isArray(q.matchPairs) && q.matchPairs.length > 0) {
+            const hasImages = q.matchPairs.some(p => typeof p === 'object' && p !== null && (p.premiseImage || p.responseImage || p.leftImage || p.rightImage));
+            if (hasImages) {
               matchPairsStr = JSON.stringify(q.matchPairs);
             } else {
-              matchPairsStr = q.matchPairs.map(p => `${typeof p === 'string' ? p : (p.premise || '')}=${typeof p === 'string' ? p : (p.response || '')}`).join(';');
+              matchPairsStr = q.matchPairs.map(p => {
+                if (typeof p === 'string') return p;
+                const left = p?.premise !== undefined ? p.premise : (p?.premiseText !== undefined ? p.premiseText : (p?.left || ''));
+                const right = p?.response !== undefined ? p.response : (p?.responseText !== undefined ? p.responseText : (p?.right || ''));
+                return `${left}=${right}`;
+              }).join(';');
             }
           }
 
           let subQsStr = '';
-          if (q.subQuestions && q.subQuestions.length > 0) {
+          if (Array.isArray(q.subQuestions) && q.subQuestions.length > 0) {
             subQsStr = JSON.stringify(q.subQuestions);
           }
 
           let tableDataStr = '';
-          if (sec.type === 'table' && q.tableData) {
-            tableDataStr = JSON.stringify(q.tableData);
+          const isTable = sec.type === 'table' || q.type === 'table';
+          if (isTable && q.tableData) {
+            tableDataStr = typeof q.tableData === 'object' ? JSON.stringify(q.tableData) : String(q.tableData);
           }
+
+          const qEffectiveMarks = (Array.isArray(q.subQuestions) && q.subQuestions.length > 0)
+            ? q.subQuestions.reduce((sum, sq) => sum + (Number(sq?.marks) || 0), 0)
+            : (q.marks !== undefined && q.marks !== null && !isNaN(q.marks) ? Number(q.marks) : 0);
 
           rows.push([
             ...getBrandingMetaCols(),
-            (sec.title || '').toUpperCase(),
-            sec.marks !== undefined && sec.marks !== null ? sec.marks : '',
-            sec.instructions || '',
-            sec.pageBreakBefore ? 'true' : 'false',
+            secTitle,
+            secMarksVal,
+            secInstructions,
+            secPageBreak,
             q.type || sec.type || 'essay',
             q.text || '',
-            q.marks || 0,
+            qEffectiveMarks,
             optionsStr,
             q.blankLines !== undefined && q.blankLines !== null ? q.blankLines : '',
             matchPairsStr,
@@ -166,9 +185,9 @@ export const exportToCSV = (branding, metadata, sections, getOptionText) => {
   }
 
   const sanitizeCSVCell = (val) => {
-    if (val === undefined || val === null) return '""';
+    if (val === undefined || val === null || val === '') return '""';
     let str = String(val);
-    if (/^[=+\-@\t\r]/.test(str)) {
+    if (/^[=+\-@\t\r]/.test(str) && isNaN(Number(str))) {
       str = "'" + str;
     }
     return `"${str.replace(/"/g, '""')}"`;
@@ -177,14 +196,14 @@ export const exportToCSV = (branding, metadata, sections, getOptionText) => {
   const csvContent = [
     headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','),
     ...rows.map(row => row.map(sanitizeCSVCell).join(','))
-  ].join('\n');
+  ].join('\r\n');
 
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', generateExportFilename('csv', metadata));
+    link.setAttribute('download', generateExportFilename('csv', safeMetadata));
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -196,34 +215,101 @@ export const exportToCSV = (branding, metadata, sections, getOptionText) => {
 };
 
 export const parseCSV = (text) => {
+  if (!text) return [];
+  const clean = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
   const lines = [];
-  let row = [""];
-  let insideQuote = false;
+  let row = [''];
+  let inQuotes = false;
+  let fieldStarted = false;
+  let isQuotedField = false;
+  let leadingWs = '';
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean[i];
+    const nextChar = clean[i + 1];
 
-    if (char === '"') {
-      if (insideQuote && nextChar === '"') {
-        row[row.length - 1] += '"';
-        i++;
+    if (!fieldStarted) {
+      if (char === ' ' || char === '\t') {
+        leadingWs += char;
+        continue;
+      }
+      fieldStarted = true;
+      if (char === '"') {
+        isQuotedField = true;
+        inQuotes = true;
+        leadingWs = '';
+        continue;
       } else {
-        insideQuote = !insideQuote;
+        isQuotedField = false;
+        inQuotes = false;
+        if (leadingWs) {
+          row[row.length - 1] += leadingWs;
+          leadingWs = '';
+        }
       }
-    } else if (char === ',' && !insideQuote) {
-      row.push("");
-    } else if ((char === '\r' || char === '\n') && !insideQuote) {
-      if (char === '\r' && nextChar === '\n') {
-        i++;
+    }
+
+    if (isQuotedField) {
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          row[row.length - 1] += '"';
+          i++;
+        } else if (inQuotes) {
+          inQuotes = false;
+        } else {
+          row[row.length - 1] += '"';
+        }
+      } else if (!inQuotes && (char === ' ' || char === '\t')) {
+        // Discard trailing whitespace outside quotes before delimiter
+        continue;
+      } else if ((char === '\r' || char === '\n') && inQuotes) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        row[row.length - 1] += '\n';
+      } else if (char === ',' && !inQuotes) {
+        row.push('');
+        fieldStarted = false;
+        isQuotedField = false;
+        inQuotes = false;
+        leadingWs = '';
+      } else if ((char === '\r' || char === '\n') && !inQuotes) {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        lines.push(row);
+        row = [''];
+        fieldStarted = false;
+        isQuotedField = false;
+        inQuotes = false;
+        leadingWs = '';
+      } else {
+        row[row.length - 1] += char;
       }
-      lines.push(row);
-      row = [""];
     } else {
-      row[row.length - 1] += char;
+      if (char === ',') {
+        row.push('');
+        fieldStarted = false;
+        isQuotedField = false;
+        inQuotes = false;
+        leadingWs = '';
+      } else if (char === '\r' || char === '\n') {
+        if (char === '\r' && nextChar === '\n') {
+          i++;
+        }
+        lines.push(row);
+        row = [''];
+        fieldStarted = false;
+        isQuotedField = false;
+        inQuotes = false;
+        leadingWs = '';
+      } else {
+        row[row.length - 1] += char;
+      }
     }
   }
-  if (row.length > 1 || row[0] !== "") {
+
+  if (row.length > 1 || row[0] !== '') {
     lines.push(row);
   }
   return lines;
@@ -349,20 +435,90 @@ export const importCsvData = (text) => {
     ['title', 'subject', 'section', 'question', 'marks', 'type', 'options', 'logo', 'blank', 'pairs'].some(keyword => h.includes(keyword))
   );
 
-  const getColIdx = (...names) => {
-    // 1. Try exact matches first
-    for (const name of names) {
+  const findCol = (exactList, includesList = [], excludesList = []) => {
+    // 1. Exact match first
+    for (const name of exactList) {
       const target = name.toLowerCase();
       const idx = headerRow.findIndex(h => h === target);
       if (idx !== -1) return idx;
     }
-    // 2. Try contains matches
-    for (const name of names) {
-      const target = name.toLowerCase();
-      const idx = headerRow.findIndex(h => h.includes(target));
+    // 2. Includes match with exclusions
+    for (const prefix of includesList) {
+      const target = prefix.toLowerCase();
+      const idx = headerRow.findIndex(h => {
+        if (!h.includes(target)) return false;
+        return !excludesList.some(ex => h.includes(ex.toLowerCase()));
+      });
       if (idx !== -1) return idx;
     }
     return -1;
+  };
+
+  const schoolLogoIdx = findCol(['school logo', 'logo'], ['logo'], ['width', 'height', 'hide']);
+  const schoolLogoWidthIdx = findCol(['school logo width', 'logo width'], ['logo width']);
+  const schoolLogoHeightIdx = findCol(['school logo height', 'logo height'], ['logo height']);
+  const hideSchoolLogoIdx = findCol(['hide school logo', 'hide logo'], ['hide logo']);
+  const headerLogoOnlyIdx = findCol(['header logo only', 'logo only'], ['logo only']);
+  const schoolNameIdx = findCol(['school name', 'school'], ['school'], ['logo', 'address']);
+  const schoolAddressIdx = findCol(['school address', 'address'], ['address']);
+  const fontFamilyIdx = findCol(['font family', 'font'], ['font']);
+
+  const examTitleIdx = findCol(['exam title', 'paper title', 'exam name'], ['exam title'], ['section']);
+  const subjectIdx = findCol(['subject', 'course'], ['subject']);
+  const classDivIdx = findCol(['class div', 'grade', 'class', 'division', 'standard'], ['class']);
+  const maxMarksIdx = findCol(['max marks', 'maximum marks', 'total marks', 'exam marks'], ['max mark', 'maximum mark', 'total mark'], ['question', 'section']);
+  const durationIdx = findCol(['duration', 'time', 'exam duration'], ['duration']);
+  const separateAnswerSheetIdx = findCol(['separate answer sheet', 'answer sheet'], ['answer sheet']);
+  const languageIdx = findCol(['language', 'lang'], ['language', 'lang']);
+  const generalInstructionsIdx = findCol(['general instructions', 'general instruction', 'exam instructions'], ['general instruction']);
+
+  const secTitleIdx = findCol(
+    ['section title', 'section name', 'section', 'sec title', 'sec name', 'sec'],
+    ['section title', 'sec title'],
+    ['mark', 'instruction', 'break', 'page', 'logo', 'exam']
+  ) !== -1 ? findCol(
+    ['section title', 'section name', 'section', 'sec title', 'sec name', 'sec'],
+    ['section title', 'sec title'],
+    ['mark', 'instruction', 'break', 'page', 'logo', 'exam']
+  ) : (hasRecognizedHeaders ? -1 : 0);
+
+  const secMarksIdx = findCol(['section marks', 'sec marks', 'sec mark', 'section mark'], ['section mark', 'sec mark'], ['question']) !== -1
+    ? findCol(['section marks', 'sec marks', 'sec mark', 'section mark'], ['section mark', 'sec mark'], ['question'])
+    : (hasRecognizedHeaders ? -1 : 1);
+
+  const secInstructionsIdx = findCol(['section instructions', 'section instruction', 'sec instructions'], ['section instruction', 'sec instruction']) !== -1
+    ? findCol(['section instructions', 'section instruction', 'sec instructions'], ['section instruction', 'sec instruction'])
+    : (hasRecognizedHeaders ? -1 : 2);
+
+  const secPageBreakBeforeIdx = findCol(['section page break before', 'section page break', 'sec page break before', 'sec page break'], ['section page break', 'sec page break']);
+
+  const qTypeIdx = findCol(['question type', 'q type', 'qtype', 'type'], ['question type', 'q type'], ['section']) !== -1
+    ? findCol(['question type', 'q type', 'qtype', 'type'], ['question type', 'q type'], ['section'])
+    : (hasRecognizedHeaders ? -1 : 3);
+
+  const qTextIdx = findCol(
+    ['question text', 'question', 'text', 'prompt', 'problem', 'question details', 'question description', 'q text', 'qtext', 'question body', 'body'],
+    ['question text', 'q text'],
+    ['type', 'mark', 'score', 'option', 'choice', 'sub', 'pair', 'image', 'table', 'break']
+  ) !== -1 ? findCol(
+    ['question text', 'question', 'text', 'prompt', 'problem', 'question details', 'question description', 'q text', 'qtext', 'question body', 'body'],
+    ['question text', 'q text'],
+    ['type', 'mark', 'score', 'option', 'choice', 'sub', 'pair', 'image', 'table', 'break']
+  ) : (hasRecognizedHeaders ? -1 : 4);
+
+  const qMarksIdx = findCol(
+    ['question marks', 'q marks', 'q mark', 'question mark', 'marks', 'mark', 'points', 'point', 'score'],
+    ['question mark', 'q mark'],
+    ['section', 'total', 'max']
+  ) !== -1 ? findCol(
+    ['question marks', 'q marks', 'q mark', 'question mark', 'marks', 'mark', 'points', 'point', 'score'],
+    ['question mark', 'q mark'],
+    ['section', 'total', 'max']
+  ) : (hasRecognizedHeaders ? -1 : 5);
+
+  const isMultiOptionHeader = (h) => {
+    const trimmed = (h || '').trim().toLowerCase();
+    return /^(?:option|opt|choice)\s*[a-e1-5]$/i.test(trimmed) || /^[a-e]$/i.test(trimmed);
   };
 
   const getSpecificColIdx = (exactNames, prefixNames = []) => {
@@ -379,36 +535,6 @@ export const importCsvData = (text) => {
     return -1;
   };
 
-  const schoolLogoIdx = getColIdx('School Logo', 'logo');
-  const schoolLogoWidthIdx = getColIdx('School Logo Width', 'logo width');
-  const schoolLogoHeightIdx = getColIdx('School Logo Height', 'logo height');
-  const hideSchoolLogoIdx = getColIdx('Hide School Logo', 'hide logo');
-  const headerLogoOnlyIdx = getColIdx('Header Logo Only');
-  const schoolNameIdx = getColIdx('School Name', 'school');
-  const schoolAddressIdx = getColIdx('School Address', 'address');
-  const fontFamilyIdx = getColIdx('Font Family', 'font');
-
-  const examTitleIdx = getColIdx('Exam Title', 'title');
-  const subjectIdx = getColIdx('Subject');
-  const classDivIdx = getColIdx('Class Div', 'grade', 'class');
-  const maxMarksIdx = getColIdx('Max Marks', 'total marks');
-  const durationIdx = getColIdx('Duration', 'time');
-  const separateAnswerSheetIdx = getColIdx('Separate Answer Sheet', 'answer sheet');
-  const languageIdx = getColIdx('Language', 'lang');
-  const generalInstructionsIdx = getColIdx('General Instructions');
-
-  const secTitleIdx = getColIdx('Section Title', 'section') !== -1 ? getColIdx('Section Title', 'section') : (hasRecognizedHeaders ? -1 : 0);
-  const secMarksIdx = getColIdx('Section Marks') !== -1 ? getColIdx('Section Marks') : (hasRecognizedHeaders ? -1 : 1);
-  const secInstructionsIdx = getColIdx('Section Instructions', 'instructions') !== -1 ? getColIdx('Section Instructions', 'instructions') : (hasRecognizedHeaders ? -1 : 2);
-  const secPageBreakBeforeIdx = getColIdx('Section Page Break Before');
-  const qTypeIdx = getColIdx('Question Type', 'type') !== -1 ? getColIdx('Question Type', 'type') : (hasRecognizedHeaders ? -1 : 3);
-  const qTextIdx = getColIdx('Question Text', 'text', 'question') !== -1 ? getColIdx('Question Text', 'text', 'question') : (hasRecognizedHeaders ? -1 : 4);
-  const qMarksIdx = getColIdx('Question Marks', 'marks') !== -1 ? getColIdx('Question Marks', 'marks') : (hasRecognizedHeaders ? -1 : 5);
-  const isMultiOptionHeader = (h) => {
-    const trimmed = (h || '').trim().toLowerCase();
-    return /^(?:option|opt|choice)\s*[a-e1-5]$/i.test(trimmed) || /^[a-e]$/i.test(trimmed);
-  };
-
   const optAIdx = getSpecificColIdx(['option a', 'option 1', 'opt a', 'choice a', 'optiona', 'opt1', 'choice 1', 'a'], ['option a', 'opt a', 'choice a']);
   const optBIdx = getSpecificColIdx(['option b', 'option 2', 'opt b', 'choice b', 'optionb', 'opt2', 'choice 2', 'b'], ['option b', 'opt b', 'choice b']);
   const optCIdx = getSpecificColIdx(['option c', 'option 3', 'opt c', 'choice c', 'optionc', 'opt3', 'choice 3', 'c'], ['option c', 'opt c', 'choice c']);
@@ -423,7 +549,6 @@ export const importCsvData = (text) => {
     if (optEIdx !== -1 && !multiOptionCols.includes(optEIdx)) multiOptionCols.push(optEIdx);
   }
 
-  // Look for combined options column (Options, Choices)
   let rawOptionsIdx = -1;
   const exactOptIdx = headerRow.findIndex(h => h === 'options' || h === 'choices' || h === 'question options');
   if (exactOptIdx !== -1) {
@@ -433,15 +558,42 @@ export const importCsvData = (text) => {
   }
   const optionsIdx = rawOptionsIdx !== -1 ? rawOptionsIdx : (hasRecognizedHeaders ? -1 : 6);
 
-  const blankLinesIdx = getColIdx('Blank Lines') !== -1 ? getColIdx('Blank Lines') : (hasRecognizedHeaders ? -1 : 7);
-  const matchPairsIdx = getColIdx('Match Pairs', 'match', 'matching', 'pairs') !== -1 ? getColIdx('Match Pairs', 'match', 'matching', 'pairs') : (hasRecognizedHeaders ? -1 : 8);
-  const imageDataIdx = getColIdx('Image Data', 'image') !== -1 ? getColIdx('Image Data', 'image') : (hasRecognizedHeaders ? -1 : 9);
-  const imageWidthIdx = getColIdx('Image Width') !== -1 ? getColIdx('Image Width') : (hasRecognizedHeaders ? -1 : 10);
-  const imageHeightIdx = getColIdx('Image Height') !== -1 ? getColIdx('Image Height') : (hasRecognizedHeaders ? -1 : 11);
-  const subQsIdx = getColIdx('Sub Questions', 'subquestions') !== -1 ? getColIdx('Sub Questions', 'subquestions') : (hasRecognizedHeaders ? -1 : 12);
-  const shuffleColBIdx = getColIdx('Shuffle Column B', 'shuffle');
-  const tableDataIdx = getColIdx('Table Data', 'table');
-  const pageBreakBeforeIdx = getColIdx('Page Break Before');
+  const blankLinesIdx = findCol(['blank lines', 'blank line', 'blanks', 'lines'], ['blank line']) !== -1
+    ? findCol(['blank lines', 'blank line', 'blanks', 'lines'], ['blank line'])
+    : (hasRecognizedHeaders ? -1 : 7);
+
+  const matchPairsIdx = findCol(['match pairs', 'matching pairs', 'match column', 'match items', 'pairs'], ['match pair', 'matching', 'pairs']) !== -1
+    ? findCol(['match pairs', 'matching pairs', 'match column', 'match items', 'pairs'], ['match pair', 'matching', 'pairs'])
+    : (hasRecognizedHeaders ? -1 : 8);
+
+  const imageDataIdx = findCol(['image data', 'image url', 'image src', 'image', 'diagram'], ['image data', 'image url', 'diagram'], ['width', 'height', 'logo']) !== -1
+    ? findCol(['image data', 'image url', 'image src', 'image', 'diagram'], ['image data', 'image url', 'diagram'], ['width', 'height', 'logo'])
+    : (hasRecognizedHeaders ? -1 : 9);
+
+  const imageWidthIdx = findCol(['image width', 'q image width'], ['image width'], ['logo']) !== -1
+    ? findCol(['image width', 'q image width'], ['image width'], ['logo'])
+    : (hasRecognizedHeaders ? -1 : 10);
+
+  const imageHeightIdx = findCol(['image height', 'q image height'], ['image height'], ['logo']) !== -1
+    ? findCol(['image height', 'q image height'], ['image height'], ['logo'])
+    : (hasRecognizedHeaders ? -1 : 11);
+
+  const subQsIdx = findCol(['sub questions', 'subquestions', 'sub-questions', 'sub questions data', 'sub questions json'], ['sub question', 'subquestion']) !== -1
+    ? findCol(['sub questions', 'subquestions', 'sub-questions', 'sub questions data', 'sub questions json'], ['sub question', 'subquestion'])
+    : (hasRecognizedHeaders ? -1 : 12);
+
+  const shuffleColBIdx = findCol(['shuffle column b', 'shuffle b', 'shuffle'], ['shuffle']);
+  const tableDataIdx = findCol(['table data', 'table'], ['table data']);
+  const pageBreakBeforeIdx = findCol(['page break before', 'page break', 'question page break'], ['page break'], ['section']);
+
+  const cleanCell = (val) => {
+    if (val === undefined || val === null) return '';
+    const str = String(val).trim();
+    if (/^'([=+\-@\t\r])/.test(str)) {
+      return str.slice(1);
+    }
+    return str;
+  };
 
   const importedSections = [];
   let importedBranding = null;
@@ -453,18 +605,21 @@ export const importCsvData = (text) => {
     if (!row || row.length === 0) continue;
 
     if (!importedBranding && (schoolNameIdx !== -1 || schoolAddressIdx !== -1 || schoolLogoIdx !== -1)) {
-      const logoVal = schoolLogoIdx !== -1 ? row[schoolLogoIdx] : undefined;
-      const logoWidthVal = schoolLogoWidthIdx !== -1 ? row[schoolLogoWidthIdx] : undefined;
-      const logoHeightVal = schoolLogoHeightIdx !== -1 ? row[schoolLogoHeightIdx] : undefined;
-      const hideLogoVal = hideSchoolLogoIdx !== -1 ? row[hideSchoolLogoIdx] : undefined;
-      const headerLogoOnlyVal = headerLogoOnlyIdx !== -1 ? row[headerLogoOnlyIdx] : undefined;
-      const schoolNameVal = schoolNameIdx !== -1 ? row[schoolNameIdx] : undefined;
-      const schoolAddressVal = schoolAddressIdx !== -1 ? row[schoolAddressIdx] : undefined;
-      const fontFamilyVal = fontFamilyIdx !== -1 ? row[fontFamilyIdx] : undefined;
+      const logoVal = schoolLogoIdx !== -1 ? cleanCell(row[schoolLogoIdx]) : undefined;
+      const logoWidthVal = schoolLogoWidthIdx !== -1 ? cleanCell(row[schoolLogoWidthIdx]) : undefined;
+      const logoHeightVal = schoolLogoHeightIdx !== -1 ? cleanCell(row[schoolLogoHeightIdx]) : undefined;
+      const hideLogoVal = hideSchoolLogoIdx !== -1 ? cleanCell(row[hideSchoolLogoIdx]) : undefined;
+      const headerLogoOnlyVal = headerLogoOnlyIdx !== -1 ? cleanCell(row[headerLogoOnlyIdx]) : undefined;
+      const schoolNameVal = schoolNameIdx !== -1 ? cleanCell(row[schoolNameIdx]) : undefined;
+      const schoolAddressVal = schoolAddressIdx !== -1 ? cleanCell(row[schoolAddressIdx]) : undefined;
+      const fontFamilyVal = fontFamilyIdx !== -1 ? cleanCell(row[fontFamilyIdx]) : undefined;
 
       if (
-        logoVal !== undefined || schoolNameVal !== undefined || schoolAddressVal !== undefined ||
-        logoWidthVal !== undefined || fontFamilyVal !== undefined
+        (logoVal !== undefined && logoVal !== '') ||
+        (schoolNameVal !== undefined && schoolNameVal !== '') ||
+        (schoolAddressVal !== undefined && schoolAddressVal !== '') ||
+        (logoWidthVal !== undefined && logoWidthVal !== '') ||
+        (fontFamilyVal !== undefined && fontFamilyVal !== '')
       ) {
         importedBranding = {};
         if (logoVal !== undefined && logoVal !== '') importedBranding.logo = normalizeLogo(logoVal);
@@ -479,18 +634,21 @@ export const importCsvData = (text) => {
     }
 
     if (!importedMetadata && (examTitleIdx !== -1 || subjectIdx !== -1 || classDivIdx !== -1 || maxMarksIdx !== -1)) {
-      const titleVal = examTitleIdx !== -1 ? row[examTitleIdx] : undefined;
-      const subjectVal = subjectIdx !== -1 ? row[subjectIdx] : undefined;
-      const classDivVal = classDivIdx !== -1 ? row[classDivIdx] : undefined;
-      const maxMarksVal = maxMarksIdx !== -1 ? row[maxMarksIdx] : undefined;
-      const durationVal = durationIdx !== -1 ? row[durationIdx] : undefined;
-      const sepAnsVal = separateAnswerSheetIdx !== -1 ? row[separateAnswerSheetIdx] : undefined;
-      const langVal = languageIdx !== -1 ? row[languageIdx] : undefined;
-      const generalInstrVal = generalInstructionsIdx !== -1 ? row[generalInstructionsIdx] : undefined;
+      const titleVal = examTitleIdx !== -1 ? cleanCell(row[examTitleIdx]) : undefined;
+      const subjectVal = subjectIdx !== -1 ? cleanCell(row[subjectIdx]) : undefined;
+      const classDivVal = classDivIdx !== -1 ? cleanCell(row[classDivIdx]) : undefined;
+      const maxMarksVal = maxMarksIdx !== -1 ? cleanCell(row[maxMarksIdx]) : undefined;
+      const durationVal = durationIdx !== -1 ? cleanCell(row[durationIdx]) : undefined;
+      const sepAnsVal = separateAnswerSheetIdx !== -1 ? cleanCell(row[separateAnswerSheetIdx]) : undefined;
+      const langVal = languageIdx !== -1 ? cleanCell(row[languageIdx]) : undefined;
+      const generalInstrVal = generalInstructionsIdx !== -1 ? cleanCell(row[generalInstructionsIdx]) : undefined;
 
       if (
-        titleVal !== undefined || subjectVal !== undefined || classDivVal !== undefined ||
-        maxMarksVal !== undefined || durationVal !== undefined
+        (titleVal !== undefined && titleVal !== '') ||
+        (subjectVal !== undefined && subjectVal !== '') ||
+        (classDivVal !== undefined && classDivVal !== '') ||
+        (maxMarksVal !== undefined && maxMarksVal !== '') ||
+        (durationVal !== undefined && durationVal !== '')
       ) {
         importedMetadata = {};
         if (titleVal !== undefined && titleVal !== '') importedMetadata.title = titleVal;
@@ -504,57 +662,72 @@ export const importCsvData = (text) => {
       }
     }
 
-    const secTitle = secTitleIdx !== -1 ? (row[secTitleIdx] || '') : '';
-    const secMarks = secMarksIdx !== -1 ? Math.max(0, Math.round((Number(row[secMarksIdx]) || 0) * 100) / 100) : 0;
-    const secInstructions = secInstructionsIdx !== -1 ? (row[secInstructionsIdx] || '') : '';
-    const secPageBreakVal = secPageBreakBeforeIdx !== -1 ? (row[secPageBreakBeforeIdx] || '') : '';
-    const rawQType = qTypeIdx !== -1 ? (row[qTypeIdx] || '') : '';
-    const qText = qTextIdx !== -1 ? (row[qTextIdx] || '') : '';
-    const qMarks = qMarksIdx !== -1 ? Math.max(0, Math.round((Number(row[qMarksIdx]) || 0) * 100) / 100) : 1;
+    const secTitle = secTitleIdx !== -1 ? cleanCell(row[secTitleIdx]) : '';
+    const rawSecMarks = secMarksIdx !== -1 ? cleanCell(row[secMarksIdx]) : '';
+    const secMarks = rawSecMarks !== '' && !isNaN(rawSecMarks) ? Math.max(0, Math.round(Number(rawSecMarks) * 100) / 100) : 0;
+    const secInstructions = secInstructionsIdx !== -1 ? cleanCell(row[secInstructionsIdx]) : '';
+    const secPageBreakVal = secPageBreakBeforeIdx !== -1 ? cleanCell(row[secPageBreakBeforeIdx]) : '';
+
+    const rawQType = qTypeIdx !== -1 ? cleanCell(row[qTypeIdx]) : '';
+    const qText = qTextIdx !== -1 ? cleanCell(row[qTextIdx]) : '';
+    const rawQMarks = qMarksIdx !== -1 ? cleanCell(row[qMarksIdx]) : '';
+    const qMarks = (rawQMarks !== '' && !isNaN(rawQMarks)) ? Math.max(0, Math.round(Number(rawQMarks) * 100) / 100) : 1;
+
     let extractedOptions = [];
     if (multiOptionCols.length >= 2) {
       const fromCols = multiOptionCols
-        .map(cIdx => row[cIdx])
-        .filter(val => val !== undefined && val !== null && String(val).trim() !== '')
+        .map(cIdx => cleanCell(row[cIdx]))
+        .filter(val => val !== '')
         .map(val => cleanOptionText(val));
       if (fromCols.length >= 2) {
         extractedOptions = fromCols;
       }
     }
 
-    const optionsStr = (optionsIdx !== -1 && !multiOptionCols.includes(optionsIdx)) ? (row[optionsIdx] || '') : '';
+    const optionsStr = (optionsIdx !== -1 && !multiOptionCols.includes(optionsIdx)) ? cleanCell(row[optionsIdx]) : '';
     if (extractedOptions.length === 0 && optionsIdx === headerRow.length - 1 && row.length > headerRow.length) {
-      const tailCells = row.slice(optionsIdx).map(c => cleanOptionText(c)).filter(Boolean);
+      const tailCells = row.slice(optionsIdx).map(c => cleanOptionText(cleanCell(c))).filter(Boolean);
       if (tailCells.length >= 2) {
         extractedOptions = tailCells;
       }
     }
-    if (extractedOptions.length === 0 && optionsStr && optionsStr.trim() !== '') {
+    if (extractedOptions.length === 0 && optionsStr) {
       extractedOptions = parseOptionsString(optionsStr);
     }
 
-    const blankLinesVal = blankLinesIdx !== -1 ? (row[blankLinesIdx] || '') : '';
-    const matchPairsStr = matchPairsIdx !== -1 ? (row[matchPairsIdx] || '') : '';
-    const imageData = imageDataIdx !== -1 ? (row[imageDataIdx] || '') : '';
-    const imageWidthVal = imageWidthIdx !== -1 ? (row[imageWidthIdx] || '') : '';
-    const imageHeightVal = imageHeightIdx !== -1 ? (row[imageHeightIdx] || '') : '';
-    const subQsStr = subQsIdx !== -1 ? (row[subQsIdx] || '') : '';
-    const shuffleColBVal = shuffleColBIdx !== -1 ? row[shuffleColBIdx] : '';
-    const tableDataStr = tableDataIdx !== -1 ? row[tableDataIdx] : '';
-    const pageBreakBeforeVal = pageBreakBeforeIdx !== -1 ? row[pageBreakBeforeIdx] : '';
+    const blankLinesVal = blankLinesIdx !== -1 ? cleanCell(row[blankLinesIdx]) : '';
+    const matchPairsStr = matchPairsIdx !== -1 ? cleanCell(row[matchPairsIdx]) : '';
+    const imageData = imageDataIdx !== -1 ? cleanCell(row[imageDataIdx]) : '';
+    const imageWidthVal = imageWidthIdx !== -1 ? cleanCell(row[imageWidthIdx]) : '';
+    const imageHeightVal = imageHeightIdx !== -1 ? cleanCell(row[imageHeightIdx]) : '';
+    const subQsStr = subQsIdx !== -1 ? cleanCell(row[subQsIdx]) : '';
+    const shuffleColBVal = shuffleColBIdx !== -1 ? cleanCell(row[shuffleColBIdx]) : '';
+    const tableDataStr = tableDataIdx !== -1 ? cleanCell(row[tableDataIdx]) : '';
+    const pageBreakBeforeVal = pageBreakBeforeIdx !== -1 ? cleanCell(row[pageBreakBeforeIdx]) : '';
 
     const hasOptions = extractedOptions.length > 0;
-    const hasQuestionData = !!(qText || matchPairsStr || optionsStr || hasOptions || tableDataStr || subQsStr);
+    const hasQuestionData = Boolean(
+      (qText && qText.trim() !== '') ||
+      (rawQType && rawQType.trim() !== '') ||
+      (rawQMarks !== '') ||
+      (imageData && imageData.trim() !== '') ||
+      (blankLinesVal !== '') ||
+      (matchPairsStr && matchPairsStr.trim() !== '') ||
+      (optionsStr && optionsStr.trim() !== '') ||
+      hasOptions ||
+      (tableDataStr && tableDataStr.trim() !== '') ||
+      (subQsStr && subQsStr.trim() !== '')
+    );
 
     if (!secTitle && !hasQuestionData) continue;
 
     const inferredSecType = inferTypeFromText(secTitle) || inferTypeFromText(secInstructions);
     const initialSecType = normalizeQType(rawQType, '') || (hasOptions ? 'mcq' : (inferredSecType || 'essay'));
 
-    if (secTitle && (!currentSection || currentSection.title !== secTitle)) {
+    if (secTitle && (!currentSection || currentSection.title.toUpperCase() !== secTitle.toUpperCase())) {
       currentSection = {
         id: `sec-${Date.now()}-${i}`,
-        title: secTitle,
+        title: secTitle.toUpperCase(),
         marks: secMarks,
         instructions: secInstructions,
         type: initialSecType,
@@ -567,9 +740,9 @@ export const importCsvData = (text) => {
     if (!currentSection) {
       currentSection = {
         id: `sec-${Date.now()}-${i}`,
-        title: 'Imported Section',
-        marks: 0,
-        instructions: '',
+        title: 'SECTION 1',
+        marks: secMarks,
+        instructions: secInstructions,
         type: initialSecType,
         questions: []
       };
@@ -593,11 +766,11 @@ export const importCsvData = (text) => {
       effectiveQType = 'mcq';
     }
 
-    if (effectiveQType === 'mcq' && currentSection.type === 'essay') {
-      currentSection.type = 'mcq';
+    if (currentSection.questions.length === 0 && currentSection.type === 'essay' && effectiveQType !== 'essay') {
+      currentSection.type = effectiveQType;
     }
 
-    if (hasQuestionData || effectiveQType === 'match_following') {
+    if (hasQuestionData) {
       const q = {
         id: `q-${Date.now()}-${i}`,
         type: effectiveQType,
@@ -606,6 +779,7 @@ export const importCsvData = (text) => {
       };
 
       if (subQsStr) {
+        let parsedSuccessfully = false;
         try {
           const parsedSub = typeof subQsStr === 'string' ? JSON.parse(subQsStr) : subQsStr;
           if (Array.isArray(parsedSub)) {
@@ -620,9 +794,63 @@ export const importCsvData = (text) => {
               imageHeight: Number(sq?.imageHeight) || 200
             }));
             q.marks = q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+            parsedSuccessfully = true;
           }
-        } catch (e) {
-          console.warn('Failed to parse subQuestions from CSV', e);
+        } catch {
+          parsedSuccessfully = false;
+        }
+
+        if (!parsedSuccessfully) {
+          const trimmedSub = subQsStr.trim();
+          let parts = [];
+          if (trimmedSub.includes(';') || trimmedSub.includes('\n') || trimmedSub.includes('|')) {
+            parts = trimmedSub.split(/[;\n|]+/).map(p => p.trim()).filter(Boolean);
+          } else {
+            const labelRegex = /(?:^|\s+)(?:\([a-z0-9]\)|[a-z0-9][.):])\s+/gi;
+            const matches = [...trimmedSub.matchAll(labelRegex)];
+            if (matches.length >= 2) {
+              for (let mIdx = 0; mIdx < matches.length; mIdx++) {
+                const start = matches[mIdx].index;
+                const end = mIdx + 1 < matches.length ? matches[mIdx + 1].index : trimmedSub.length;
+                parts.push(trimmedSub.slice(start, end).trim());
+              }
+            } else if (trimmedSub) {
+              parts = [trimmedSub];
+            }
+          }
+
+          if (parts.length > 0) {
+            q.subQuestions = parts.map((part, sqIdx) => {
+              let label = `(${String.fromCharCode(97 + (sqIdx % 26))})`;
+              let subText = part;
+              let subMarks = 1;
+
+              const labelMatch = subText.match(/^(\([a-z0-9]+\)|[a-z0-9]+[.):])\s*/i);
+              if (labelMatch) {
+                const innerLetter = labelMatch[1].replace(/[():. ]/g, '').toLowerCase();
+                label = `(${innerLetter})`;
+                subText = subText.slice(labelMatch[0].length).trim();
+              }
+
+              const marksMatch = subText.match(/(?:\[|\()(\d+(?:\.\d+)?)\s*(?:marks?|m)?(?:\]|\))$/i);
+              if (marksMatch) {
+                subMarks = Number(marksMatch[1]) || 1;
+                subText = subText.slice(0, marksMatch.index).trim();
+              }
+
+              return {
+                id: `sq-${Date.now()}-${sqIdx}`,
+                label,
+                text: subText,
+                marks: subMarks,
+                blankLines: 2,
+                image: '',
+                imageWidth: 300,
+                imageHeight: 200
+              };
+            });
+            q.marks = q.subQuestions.reduce((sum, sq) => sum + (Number(sq.marks) || 0), 0);
+          }
         }
       }
 
@@ -644,7 +872,7 @@ export const importCsvData = (text) => {
 
       if (tableDataStr) {
         try {
-          const parsedTbl = JSON.parse(tableDataStr);
+          const parsedTbl = typeof tableDataStr === 'string' ? JSON.parse(tableDataStr) : tableDataStr;
           if (parsedTbl) {
             q.tableData = parsedTbl;
             if (parsedTbl.rows) {
@@ -652,8 +880,8 @@ export const importCsvData = (text) => {
               q.tableCols = parsedTbl.headers ? parsedTbl.headers.length : 3;
             }
           }
-        } catch (e) {
-          console.warn('Failed to parse tableData from CSV', e);
+        } catch {
+          // Table data parsing fallback
         }
       }
       if (effectiveQType === 'table' && !q.tableData) {
@@ -679,28 +907,30 @@ export const importCsvData = (text) => {
       } else if (effectiveQType === 'match_following') {
         if (matchPairsStr) {
           const trimmed = matchPairsStr.trim();
+          let matchParsed = false;
           if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
             try {
               const parsed = JSON.parse(trimmed);
-              q.matchPairs = Array.isArray(parsed) ? parsed.map(p => {
-                if (typeof p === 'string') {
-                  const parts = p.split('=');
-                  return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
-                }
-                return {
-                  premise: p.premise !== undefined ? p.premise : (p.premiseText !== undefined ? p.premiseText : (p.left || '')),
-                  premiseImage: p.premiseImage || p.leftImage || '',
-                  response: p.response !== undefined ? p.response : (p.responseText !== undefined ? p.responseText : (p.right || '')),
-                  responseImage: p.responseImage || p.rightImage || ''
-                };
-              }) : [];
+              if (Array.isArray(parsed)) {
+                q.matchPairs = parsed.map(p => {
+                  if (typeof p === 'string') {
+                    const parts = p.split('=');
+                    return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
+                  }
+                  return {
+                    premise: p.premise !== undefined ? p.premise : (p.premiseText !== undefined ? p.premiseText : (p.left || '')),
+                    premiseImage: p.premiseImage || p.leftImage || '',
+                    response: p.response !== undefined ? p.response : (p.responseText !== undefined ? p.responseText : (p.right || '')),
+                    responseImage: p.responseImage || p.rightImage || ''
+                  };
+                });
+                matchParsed = true;
+              }
             } catch {
-              q.matchPairs = matchPairsStr.split(';').map(pair => {
-                const parts = pair.split('=');
-                return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
-              });
+              matchParsed = false;
             }
-          } else {
+          }
+          if (!matchParsed) {
             q.matchPairs = matchPairsStr.split(';').map(pair => {
               const parts = pair.split('=');
               return { premise: parts[0] || '', premiseImage: '', response: parts[1] || '', responseImage: '' };
@@ -720,6 +950,9 @@ export const importCsvData = (text) => {
       }
 
       currentSection.questions.push(q);
+      if (currentSection.marks === 0) {
+        currentSection.marks = currentSection.questions.reduce((sum, item) => sum + (Number(item.marks) || 0), 0);
+      }
     }
   }
 
